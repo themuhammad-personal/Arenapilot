@@ -158,7 +158,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     return { tag: b.tagName.toLowerCase(), aria: b.getAttribute('aria-label'), title: b.getAttribute('title'), type: b.getAttribute('type'), cls: String(b.getAttribute('class') || '').slice(0, 70), rect: rect(b), svg: p ? String(p.getAttribute('d') || '').slice(0, 24) : null, hidden: !vis(b), engine: !!(b.closest && b.closest('#bds-root, .bds-attach-wrapper, .bds-composer-controls')) };
   }) : [];
   /* did the engine's "+" take arena's slot? one "+", in the left group, before the hidden "Add files" */
-  var add = q('button[aria-label="Add files"]');
+  var add = q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn)');
   var grp = add ? add.parentElement : null;
   /* the SITE's own file input (the engine's is inside its own mounts): the
      attach path's real contract — does it carry [multiple]? what accept? */
@@ -184,7 +184,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     api: window.__sdApi || null,
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
-    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('button[aria-label="Add files"]')), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
+    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn'))), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
@@ -448,15 +448,19 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
 
   // The original Arena button remains visible and routes to the existing attachment sheet.
   await step('arena-original-plus-trigger', async () => {
-    const t = await evalJson(cdp, rectExpr('button[aria-label="Add files"]'));
+    /* Measure the native Arena button itself. Its transparent engine hit target
+       is layered over the same coordinates, so this physical tap must open
+       the current sheet while the original Arena SVG remains what is seen. */
+    const t = await evalJson(cdp, rectExpr('form button[aria-label="Add files"]:not(.bds-plus-btn)'));
     result.siteToggle = t;
-    if (!t.found || !(t.w > 0 && t.h > 0)) return 'site attach button absent or hidden';
+    if (!t.found || !(t.w >= 24 && t.h >= 24)) return 'site attach button absent or too small';
     await realClick(cdp, t.x, t.y);
     await pause(1200);
+    result.originalPlusSheet = await evalJson(cdp, SHEET_OPEN);
     if (kitOk) await evalJson(cdp, snapExpr('arena-original-plus-trigger'));
     await pressEscape(cdp);
     await pause(500);
-    return 'clicked';
+    return sheetIsOpen(result.originalPlusSheet) ? 'original visual Plus opens the engine sheet' : 'original Plus did not open the sheet';
   });
 
   // On the real page this combobox is the Direct / Battle / Side-by-side / Agent switch (a native
