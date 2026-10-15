@@ -358,9 +358,6 @@ html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   overflow-y: auto;
 }
 
-html.sd-arena-native .sd-arena-composer :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker, button.whitespace-nowrap:not([aria-label])) {
-}
-
 html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
   flex-shrink: 0;
   min-width: 44px;
