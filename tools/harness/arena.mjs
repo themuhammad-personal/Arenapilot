@@ -86,7 +86,29 @@ try {
   assert.equal(skinLayout.settingsLabelDisplay, 'none', 'narrow composer fallback is icon-only');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
-  console.log('PASS N0 responsive skin at 320px: original page/composer, reachable Send, no duplicate chat');
+
+  /* The minimum-width case is the hardest, but the same original composer
+     should stay contained at common 360px and 390px phone widths too. */
+  for (const width of [360, 390]) {
+    await page.setViewport({ width, height: 740, isMobile: true, hasTouch: true });
+    const layout = await page.evaluate(() => {
+      const form = document.querySelector('form');
+      const send = document.querySelector('button[aria-label="Send message"]');
+      return {
+        width: innerWidth,
+        formRight: form.getBoundingClientRect().right,
+        sendRight: send.getBoundingClientRect().right,
+        sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
+        chatForms: document.querySelectorAll('textarea[name="message"]').length,
+      };
+    });
+    assert.ok(layout.sendRight <= layout.formRight && layout.formRight <= layout.width,
+      'Send/composer overflow at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.ok(layout.sendMinWidth >= 44, 'Send target shrank below 44px at ' + width + 'px');
+    assert.equal(layout.chatForms, 1, 'responsive width created a second chat composer');
+  }
+  await page.setViewport({ width: 320, height: 740, isMobile: true, hasTouch: true });
+  console.log('PASS N0 responsive skin at 320/360/390px: original page/composer, reachable Send, no duplicate chat');
   stage = 'privacy';
   await send('Plain chat, no private context');
   await wait(() => window.__arena.replies.length === 1);
