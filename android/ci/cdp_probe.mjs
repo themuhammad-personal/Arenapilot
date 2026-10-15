@@ -160,7 +160,9 @@ export const FACTS = `/*sdp:facts*/(function () {
   /* did the engine's "+" take arena's slot? one "+", in the left group, before the hidden "Add files" */
   var add = (function () {
     try {
-      var form = q('form');
+      var messageBox = q('textarea[name="message"]') || q('textarea');
+      var form = messageBox && messageBox.closest ? messageBox.closest('form') : null;
+      if (!form) form = q('form');
       var buttons = form ? form.querySelectorAll('button') : [];
       for (var i = 0; i < buttons.length; i++) {
         var candidate = buttons[i];
