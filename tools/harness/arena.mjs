@@ -220,7 +220,8 @@ try {
   assert.equal(sidebarSettingsLayout.dock, 'sidebar', 'settings fallback moves into the existing sidebar');
   assert.equal(sidebarSettingsLayout.position, 'fixed', 'settings row anchors to the visible drawer rather than composer');
   assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
-    sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight, 'settings row stays inside sidebar bounds');
+    sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
+    'settings row stays inside sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
   assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
   assert.ok(panelHeight >= 736, 'sidebar height is extended to the full 740px phone viewport'); 
   assert.equal(sidebarSettingsLayout.labelVisible, true, 'sidebar entry keeps its label');
