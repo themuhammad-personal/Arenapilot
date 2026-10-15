@@ -599,7 +599,12 @@ export function acceptanceFailures(result) {
   const errors = [];
   if (!['arena.ai', 'www.arena.ai'].includes(e.host) || e.site?.id !== 'arena') errors.push('arena-profile-missing');
   if (!e.engine?.css || !e.engine?.root || e.engine?.engineApi !== 'object' || e.engine?.handleBack !== 'function') errors.push('engine-not-ready');
+  if (['arena.ai', 'www.arena.ai'].includes(e.host) && (!e.skin || e.skin.active !== true)) errors.push('arena-skin-inactive');
   if (e.composer?.named !== 1 || !(e.composer?.rect?.[2] > 0 && e.composer?.rect?.[3] > 0)) errors.push('composer-not-visible');
+  if (e.composer?.named === 1) {
+    if (!e.skin || !['has', 'class'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
+    if (!e.skin || e.skin.sendInsideComposer !== true) errors.push('send-outside-composer');
+  }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
   const fill = result.composerFill;
