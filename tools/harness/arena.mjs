@@ -87,12 +87,12 @@ try {
       formRight: form.getBoundingClientRect().right,
       settingsDock: document.querySelector('#bds-settings-rail')?.dataset.dock || null,
       originalPlusVisible: (() => {
-        const b = document.querySelector(nativePlusSelector);
+        const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
         return !!b && getComputedStyle(b).display !== 'none' &&
           b.getBoundingClientRect().width >= 24 && b.getBoundingClientRect().height >= 24;
       })(),
       enginePlusOverlay: (() => {
-        const native = document.querySelector(nativePlusSelector);
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
         const b = document.querySelector('.bds-plus-btn');
         if (!native || !b) return false;
         const nr = native.getBoundingClientRect(); const r = b.getBoundingClientRect();
