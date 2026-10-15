@@ -110,6 +110,8 @@ test('mobile skin preserves arena colours and protects the send/model controls',
     'the existing Settings control has a dedicated sidebar presentation');
   assert.match(SKIN, /#bds-settings-rail\[data-dock="pending"\]/,
     'the Settings fallback is hidden outside the sidebar rather than floating by the composer');
+  assert.match(SKIN, /#bds-settings-rail\[data-dock="composer"\]/,
+    'the fallback remains hidden if an engine rescan briefly restores the old composer dock');
   assert.match(SKIN, /\.bds-arena-rail-label/);
   const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
