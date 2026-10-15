@@ -72,7 +72,7 @@ function pageContext() {
     el('button', { 'aria-label': 'Add files' }), el('textarea', { name: 'message', placeholder: 'Ask anything' }), el('button', { 'aria-label': 'Send message' }),
   ]);
   const side = el('nav', {}, [el('button', { 'aria-label': 'New chat' }, [], 'New chat'), el('a', { href: `/c/${PRIVATE.uuid}` }, [], PRIVATE.title)]);
-  const body = el('body', {}, [el('header', {}), side, el('main', {}, [composer])]);
+  const body = el('body', {}, [el('header', {}, [el('button', { 'aria-label': 'Open sidebar' })]), side, el('main', {}, [composer])]);
   const html = el('html', { class: 'dark', lang: 'en' }, [body]);
   body.appendChild = (k) => { k.parentElement = body; body.children.push(k); body.childNodes.push(k); };
   const ctx = {
@@ -190,8 +190,11 @@ async function startFakeCdp(opts = {}) {
           state.clickedToggle = true;
           if (!opts.realClickIgnored && !opts.neverOpens) state.sheetOpen = true; // a real pointer click opens the sheet
         }
+        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
+          state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
+        }
         if (msg.params.type === 'mousePressed' && msg.params.x === 140 && msg.params.y === 550) {
-          state.drawerOpen = true; // the rail really opens the drawer
+          state.drawerOpen = true; // the rail in the sidebar really opens settings
         }
         return ok();
       case 'Runtime.evaluate': {
@@ -237,7 +240,10 @@ async function startFakeCdp(opts = {}) {
           const found = (x, y, w, h) => value(JSON.stringify({ found: true, x, y, w, h }));
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(100, 200, 40, 40);
           if (expr.includes('Add files')) return opts.siteButton ? found(60, 700, 30, 30) : value(JSON.stringify({ found: false }));
-          if (expr.includes('bds-settings-rail')) return opts.noRail ? value(JSON.stringify({ found: false })) : found(140, 550, 138, 36);
+          if (expr.includes('bds-settings-rail')) {
+            if (opts.noRail) return value(JSON.stringify({ found: false }));
+            return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
+          }
           return value(JSON.stringify({ found: false }));
         }
         try {
@@ -292,7 +298,11 @@ test('the probe runs every step against a DevTools page and returns the engine�
 test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle, and closed with Escape', async () => {
   const { fake, result } = await runProbe();
   const mouse = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent').map((c) => `${c.params.type}@${c.params.x},${c.params.y}`);
-  assert.deepEqual(mouse, ['mouseMoved@100,200', 'mousePressed@100,200', 'mouseReleased@100,200', 'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550'], 'move, press, release at the toggle’s and the rail’s centre — what a finger does');
+  assert.deepEqual(mouse, [
+    'mouseMoved@100,200', 'mousePressed@100,200', 'mouseReleased@100,200',
+    'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
+    'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550',
+  ], 'open the official sidebar first, then tap the visible Settings row; both are real pointer clicks');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
@@ -444,7 +454,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the plus toggle and the settings rail — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['100,200', '140,550'], 'only the plus toggle and the settings rail are ever clicked');
+  assert.deepEqual(clicks, ['100,200', '60,35', '140,550'],
+    'only the plus toggle, original sidebar button and visible Settings rail are ever clicked');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
