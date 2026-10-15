@@ -132,6 +132,15 @@ html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"]
   padding-top: 11px;
   padding-bottom: 11px;
   -webkit-appearance: none;
+  border: 0 !important;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+html.sd-arena-native form:has(textarea[name="message"]) :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker) {
+  border-radius: 12px;
 }
 
 html.sd-arena-native form:has(textarea[name="message"]) button[aria-label="Send message"] {
@@ -365,6 +374,15 @@ html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   padding-top: 11px;
   padding-bottom: 11px;
   -webkit-appearance: none;
+  border: 0 !important;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+html.sd-arena-native .sd-arena-composer :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker) {
+  border-radius: 12px;
 }
 
 html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
