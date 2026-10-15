@@ -85,6 +85,10 @@ try {
       viewportWidth: innerWidth,
       formRight: form.getBoundingClientRect().right,
       settingsDock: document.querySelector('#bds-settings-rail')?.dataset.dock || null,
+      settingsRailDisplay: (() => {
+        const rail = document.querySelector('#bds-settings-rail');
+        return rail ? getComputedStyle(rail).display : 'missing';
+      })(),
       originalPlusVisible: (() => {
         const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
         return !!b && getComputedStyle(b).display !== 'none' &&
@@ -106,7 +110,10 @@ try {
   assert.equal(skinLayout.originalFormMarked, true, 'skin attaches to the official composer');
   assert.ok(skinLayout.sendMinWidth >= 44, 'send target remains at least 44 CSS pixels');
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
-  assert.equal(skinLayout.settingsDock, 'pending', 'Settings does not float beside the composer');
+  assert.ok(['pending', 'composer'].includes(skinLayout.settingsDock),
+    'with no original navigation sidebar, the settings fallback is not docked elsewhere');
+  assert.equal(skinLayout.settingsRailDisplay, 'none',
+    'the settings fallback is visually hidden until the original Arena sidebar is available');
   assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control');
   assert.equal(skinLayout.enginePlusOverlay, true, 'a transparent working target exactly overlays the original Arena icon');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
