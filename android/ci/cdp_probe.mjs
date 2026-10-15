@@ -163,9 +163,29 @@ export const FACTS = `/*sdp:facts*/(function () {
   /* the SITE's own file input (the engine's is inside its own mounts): the
      attach path's real contract — does it carry [multiple]? what accept? */
   var fi = (function () { try { return Array.prototype.slice.call(document.querySelectorAll('input[type="file"]')).filter(function (e) { return !(e.closest && e.closest('#bds-root, .bds-attach-wrapper, .bds-question-panel, .bds-rag-preview, .bds-preview-panel')); })[0] || null; } catch (e) { return null; } })();
+  var nativeAddRect = rect(add);
+  var enginePlus = q('.bds-plus-btn');
+  var enginePlusRect = rect(enginePlus);
+  function nearRects(a, b) {
+    if (!a || !b || a.length < 4 || b.length < 4) return false;
+    return Math.abs(a[0] - b[0]) <= 1 && Math.abs(a[1] - b[1]) <= 1 &&
+      Math.abs(a[2] - b[2]) <= 1 && Math.abs(a[3] - b[3]) <= 1;
+  }
+  var nativeAddStyle = null;
+  var enginePlusStyle = null;
+  try { nativeAddStyle = add ? getComputedStyle(add) : null; } catch (e) {}
+  try { enginePlusStyle = enginePlus ? getComputedStyle(enginePlus) : null; } catch (e) {}
+  var plusOverlay = {
+    aligned: nearRects(nativeAddRect, enginePlusRect),
+    nativeVisible: !!(nativeAddRect && nativeAddStyle && nativeAddStyle.display !== 'none' && nativeAddStyle.visibility !== 'hidden'),
+    nativePassThrough: !!(nativeAddStyle && nativeAddStyle.pointerEvents === 'none'),
+    engineTargetReady: !!(enginePlusRect && enginePlusStyle && enginePlusStyle.display !== 'none' &&
+      enginePlusStyle.visibility !== 'hidden' && enginePlusStyle.opacity === '0' && enginePlusStyle.pointerEvents !== 'none')
+  };
   var slot = {
-    plus: rect(q('.bds-plus-btn')),
-    addFilesDisplay: add ? (function () { try { return getComputedStyle(add).display; } catch (e) { return null; } })() : null,
+    plus: enginePlusRect,
+    addFilesDisplay: nativeAddStyle ? nativeAddStyle.display : null,
+    plusOverlay: plusOverlay,
     group: grp ? Array.prototype.map.call(grp.children, function (c) {
       return c.tagName.toLowerCase() + (typeof c.className === 'string' && c.className ? '.' + c.className.split(' ')[0] : '') + (c.getAttribute('aria-label') ? '[' + c.getAttribute('aria-label') + ']' : '') + (c.getAttribute('role') ? '{' + c.getAttribute('role') + '}' : '');
     }) : null,
@@ -184,7 +204,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     api: window.__sdApi || null,
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
-    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn)')), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
+    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: nativeAddRect, overlayAligned: plusOverlay.aligned, nativePlusVisible: plusOverlay.nativeVisible, nativePlusPassThrough: plusOverlay.nativePassThrough, enginePlusOverlayReady: plusOverlay.engineTargetReady, fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
@@ -654,10 +674,13 @@ export function acceptanceFailures(result) {
     if (!e.skin || !(Number(e.skin.sendMinWidth) >= 44)) errors.push('send-target-too-small');
   }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
-  if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24)) {
-    errors.push('arena-original-plus-not-visible');
+  if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24) ||
+      e.attach.nativePlusVisible !== true || e.attach.nativePlusPassThrough !== true ||
+      e.attach.overlayAligned !== true || e.attach.enginePlusOverlayReady !== true) {
+    errors.push('arena-original-plus-overlay-not-ready');
   }
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
+  if (result.originalPlusSheet && !sheetIsOpen(result.originalPlusSheet)) errors.push('arena-original-plus-does-not-open-sheet');
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
