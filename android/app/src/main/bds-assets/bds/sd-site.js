@@ -582,6 +582,12 @@
       for (var n = 0; n < roots.length; n++) {
         var node = roots[n];
         if (!node || node === document.documentElement || node === document.body || !isVisible(node)) continue;
+        /* Never mistake ArenaPilot's injected drawer for Arena's navigation.
+         * Settings must dock only to the original site-owned sidebar. */
+        try {
+          if (node.id === 'bds-root' || node.id === 'bds-drawer' ||
+              (node.closest && node.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop'))) continue;
+        } catch (_) {}
         var r = rectOf(node);
         if (!r || r.left > vw * 0.12 || r.width < vw * 0.42 ||
             r.width > vw * 0.96 || r.height < vh * 0.72 || r.right > vw * 0.97) continue;
