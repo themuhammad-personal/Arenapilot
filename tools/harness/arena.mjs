@@ -89,6 +89,14 @@ try {
         const rail = document.querySelector('#bds-settings-rail');
         return rail ? getComputedStyle(rail).display : 'missing';
       })(),
+      originalPlus: (() => {
+        const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const r = b ? b.getBoundingClientRect() : null;
+        const cs = b ? getComputedStyle(b) : null;
+        return { found: !!b, display: cs && cs.display, visibility: cs && cs.visibility,
+          pointerEvents: cs && cs.pointerEvents, width: r && r.width, height: r && r.height,
+          left: r && r.left, top: r && r.top, parentClass: b && b.parentElement ? String(b.parentElement.className || '') : null };
+      })(),
       originalPlusVisible: (() => {
         const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
         return !!b && getComputedStyle(b).display !== 'none' &&
@@ -114,7 +122,7 @@ try {
     'with no original navigation sidebar, the settings fallback is not docked elsewhere');
   assert.equal(skinLayout.settingsRailDisplay, 'none',
     'the settings fallback is visually hidden until the original Arena sidebar is available');
-  assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control');
+  assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control: ' + JSON.stringify(skinLayout.originalPlus));
   assert.equal(skinLayout.enginePlusOverlay, true, 'a transparent working target exactly overlays the original Arena icon');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
