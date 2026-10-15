@@ -147,7 +147,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPassThrough: true, enginePlusOverlayReady: true },
     skin: { active: true, composerTarget: 'has', sendInsideComposer: true, sendMinWidth: 44 },
   },
-    sheetOpenedBy: 'real-click', steps: [],
+    sheetOpenedBy: 'real-click', originalPlusSheet: { dropdown: 1 }, steps: [],
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sidebar' } };
   assert.deepEqual(acceptanceFailures(good), []);
