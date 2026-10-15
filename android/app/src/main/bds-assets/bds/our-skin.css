@@ -104,14 +104,51 @@ html.sd-arena-native [role="listbox"] {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Comfortable touch targets without recolouring arena's original controls. */
+/* Keep popovers aligned to the viewport without changing their content. */
+html.sd-arena-native [data-radix-popper-content-wrapper] {
+  box-sizing: border-box;
+  max-width: calc(100vw - 12px);
+}
+
+/* The settings fallback is an engine control, not a replacement chat surface. */
+html.sd-arena-native #bds-settings-rail {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+html.sd-arena-native .bds-arena-menu-option {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+html.sd-arena-native .bds-plus-btn {
+  box-sizing: border-box;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+html.sd-arena-native .bds-attach-menu-mount {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Touch targets only for chat actions and the known settings entry.
+   Avoid enlarging every button across login and other official site pages. */
 @media (pointer: coarse) {
-  html.sd-arena-native button[aria-label],
-  html.sd-arena-native button[title],
-  html.sd-arena-native a[aria-label] {
-    min-width: 40px;
-    min-height: 40px;
+  html.sd-arena-native .sd-arena-composer button[aria-label="Send message"],
+  html.sd-arena-native .sd-arena-composer button[aria-label*=", model "],
+  html.sd-arena-native .sd-arena-composer button[role="combobox"],
+  html.sd-arena-native button[aria-label="Add files"],
+  html.sd-arena-native [role="menuitem"],
+  html.sd-arena-native #bds-settings-rail {
+    min-height: 44px;
     touch-action: manipulation;
+  }
+
+  html.sd-arena-native .bds-arena-menu-option {
+    padding-block: 12px;
   }
 }
 
