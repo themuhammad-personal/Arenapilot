@@ -46,6 +46,27 @@ html.sd-arena-native main .prose :is(h1, h2, h3, h4, h5, h6) {
   overflow-wrap: anywhere;
 }
 
+html.sd-arena-native main .prose :is(ul, ol) {
+  padding-inline-start: 1.35em;
+}
+
+html.sd-arena-native main .prose li + li {
+  margin-block-start: 0.25em;
+}
+
+html.sd-arena-native main .prose a {
+  text-underline-offset: 0.16em;
+  text-decoration-thickness: 0.08em;
+  overflow-wrap: anywhere;
+}
+
+html.sd-arena-native main .prose blockquote {
+  box-sizing: border-box;
+  margin-inline: 0;
+  padding-inline-start: 0.9em;
+  border-inline-start: 3px solid currentColor;
+}
+
 html.sd-arena-native main .prose :not(pre) > code {
   overflow-wrap: anywhere;
   word-break: break-word;
