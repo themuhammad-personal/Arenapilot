@@ -447,5 +447,39 @@
     OFF: OFF,
     OFF_TEXT: OFF_TEXT,
   };
+  /*
+   * N0 Arena skin hooks.
+   *
+   * Styling is attached to the real arena.ai document; this intentionally
+   * does not create a Compose/web chat overlay or any replacement chat nodes.
+   * The CSS hook is added only for the recognised Arena profile.
+   */
+  function installArenaNativeSkin() {
+    if (site.id !== 'arena' || typeof document === 'undefined') return;
+    var html = document.documentElement;
+    if (!html || !html.classList || typeof html.classList.add !== 'function') return;
+    html.classList.add('sd-arena-native');
+
+    function markComposer() {
+      try {
+        var input = document.querySelector('textarea[name="message"]');
+        var form = input && typeof input.closest === 'function' ? input.closest('form') : null;
+        if (!form || !form.classList || typeof form.classList.add !== 'function') return false;
+        form.classList.add('sd-arena-composer');
+        return true;
+      } catch (_) { return false; }
+    }
+
+    if (markComposer() || typeof MutationObserver !== 'function') return;
+    var observer = new MutationObserver(function () {
+      if (markComposer()) observer.disconnect();
+    });
+    observer.observe(html, { childList: true, subtree: true });
+    if (typeof setTimeout === 'function') {
+      setTimeout(function () { observer.disconnect(); }, 12000);
+    }
+  }
+  installArenaNativeSkin();
+
   window.__sdProfile = applyProfile;
 })();
