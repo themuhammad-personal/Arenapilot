@@ -142,6 +142,28 @@ html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", mo
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* Let every layer of the original flex composer shrink instead of pushing
+     the submit button beyond the right edge on very narrow devices. */
+  html.sd-arena-native form:has(textarea[name="message"]) > *,
+  html.sd-arena-native form:has(textarea[name="message"]) > * > *,
+  html.sd-arena-native form:has(textarea[name="message"]) > * > * > * {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  html.sd-arena-native form:has(textarea[name="message"]) .model-picker,
+  html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", model "] {
+    box-sizing: border-box;
+    width: auto !important;
+    min-width: 0;
+    max-width: 20vw;
+    flex: 0 1 20vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 /* Keep official popovers inside the phone viewport and their scroll contained. */
@@ -228,10 +250,10 @@ html.sd-arena-native [role="combobox"]:focus-visible {
    */
   html.sd-arena-native #bds-settings-rail[data-dock="composer"] {
     box-sizing: border-box;
-    flex: 0 0 40px;
-    width: 40px;
-    min-width: 40px;
-    max-width: 40px;
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
     height: 40px;
     padding: 0;
     margin-top: 4px;
