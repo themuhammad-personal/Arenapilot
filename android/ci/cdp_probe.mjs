@@ -415,9 +415,16 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   // The engine's "+" sheet, opened the way a finger would: a real pointer click. If that does not open
   // it, a script click is tried and which of the two worked is recorded — and what was under the pointer.
   await step('engine-plus-sheet', async () => {
-    const t = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+    /* Prefer the official, visible Arena button; the engine button is only
+       an internal event target. The internal trigger is a fallback for hosts
+       without the original control. */
+    let t = await evalJson(cdp, rectExpr('button[aria-label="Add files"]'));
     result.engineToggle = t;
-    if (!t.found) return 'no engine toggle on the page';
+    if (!t.found || !(t.w > 0 && t.h > 0)) {
+      t = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+      result.engineToggle = t;
+    }
+    if (!t.found || !(t.w > 0 && t.h > 0)) return 'no visible attach control on the page';
     result.engineHit = await step('plus-hit-test', () => evalJson(cdp, hitExpr(t.x, t.y)));
     await realClick(cdp, t.x, t.y);
     await pause(1200);
@@ -439,14 +446,14 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     return 'clicked';
   });
 
-  // arena's own attach popup, for the "+" sheet's reference (hidden by the engine when it mounts)
-  await step('site-attach-popup', async () => {
+  // The original Arena button remains visible and routes to the existing attachment sheet.
+  await step('arena-original-plus-trigger', async () => {
     const t = await evalJson(cdp, rectExpr('button[aria-label="Add files"]'));
     result.siteToggle = t;
     if (!t.found || !(t.w > 0 && t.h > 0)) return 'site attach button absent or hidden';
     await realClick(cdp, t.x, t.y);
     await pause(1200);
-    if (kitOk) await evalJson(cdp, snapExpr('site-attach-popup'));
+    if (kitOk) await evalJson(cdp, snapExpr('arena-original-plus-trigger'));
     await pressEscape(cdp);
     await pause(500);
     return 'clicked';
@@ -643,6 +650,9 @@ export function acceptanceFailures(result) {
     if (!e.skin || !(Number(e.skin.sendMinWidth) >= 44)) errors.push('send-target-too-small');
   }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
+  if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24)) {
+    errors.push('arena-original-plus-not-visible');
+  }
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
