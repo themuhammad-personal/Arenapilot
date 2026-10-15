@@ -118,11 +118,17 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
   assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
   assert.match(SITE, /form button\[aria-label="Add files"\]/);
-  assert.match(SITE, /trigger\.click\(\)/,
-    'Arena’s original visible Plus forwards into the existing attachment sheet');
+  assert.match(SITE, /enginePlus\.setAttribute\('aria-label', original\.getAttribute\('aria-label'\) \|\| 'Add files'\)/,
+    'the working engine target inherits the native Arena control’s accessible label');
+  assert.match(SITE, /setImportantStyle\(enginePlus\.style, 'opacity', '0'\)/,
+    'the engine target is transparent over the untouched native icon');
+  assert.match(SITE, /setImportantStyle\(original\.style, 'pointer-events', 'none'\)/,
+    'the native icon remains visible while taps hit the working engine button');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
   assert.doesNotMatch(attachSync, /createElement\(/,
-    'the original Plus is reused, not replaced by another visible control');
+    'the original icon is neither cloned nor replaced');
+  assert.doesNotMatch(attachSync, /trigger\.click\(\)/,
+    'the original button no longer relies on scripted click forwarding');
   assert.match(SKIN, /display: none !important/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
