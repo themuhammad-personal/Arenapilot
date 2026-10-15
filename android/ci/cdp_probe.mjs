@@ -134,6 +134,13 @@ export const FACTS = `/*sdp:facts*/(function () {
   var ta = q('textarea[name="message"]');
   var box = ta ? (ta.closest('form') || ta.parentElement) : null;
   var sendButton = q('button[aria-label="Send message"]');
+  var composerTarget = 'none';
+  try {
+    if (box && box.matches && box.matches('form:has(textarea[name="message"])')) composerTarget = 'has';
+  } catch (e) { /* :has() is not available in older Android WebViews */ }
+  if (composerTarget === 'none' && box && box.classList && box.classList.contains('sd-arena-composer')) {
+    composerTarget = 'class';
+  }
   var composerRect = rect(box);
   var sendRect = rect(sendButton);
   var sendInsideComposer = !!(composerRect && sendRect &&
@@ -183,7 +190,7 @@ export const FACTS = `/*sdp:facts*/(function () {
        and we measure the existing Send control rather than trusting CSS source. */
     skin: {
       active: !!(document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('sd-arena-native')),
-      composerSelectorMatches: !!(box && box.matches && box.matches('form:has(textarea[name="message"])')),
+      composerTarget: composerTarget,
       sendInsideComposer: sendButton && composerRect && sendRect ? sendInsideComposer : null,
       sendMinWidth: sendMinWidth,
       viewportWidth: window.innerWidth,
@@ -517,7 +524,7 @@ export function summarize(result) {
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
     `composer(named=${(e.composer || {}).named ?? '?'} textareas=${(e.composer || {}).textareas ?? '?'})`,
-    `skin(active=${yn((e.skin || {}).active)} composer=${yn((e.skin || {}).composerSelectorMatches)} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendMin=${(e.skin || {}).sendMinWidth ?? '?'} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
+    `skin(active=${yn((e.skin || {}).active)} composer=${(e.skin || {}).composerTarget || '?'} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendMin=${(e.skin || {}).sendMinWidth ?? '?'} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
     `health(site=${h.site || '?'} ok=${h.ok} visible=${h.visible} notice=${yn(h.notice)} ${(h.states || []).join(',')})`,
     `loginWall=${yn(e.login)}`,
     `fill(set=${result.composerFill ? yn(result.composerFill.set) : '?'} value=${result.composerFill ? yn(result.composerFill.valueMatches) : '?'} sendBtn=${result.composerFill ? yn(result.composerFill.sendButton) : '?'} sendEnabled=${result.composerFill && result.composerFill.sendButton ? yn(!result.composerFill.sendDisabledWhileFilled) : '?'} cleared=${result.composerFill ? yn(result.composerFill.cleared) : '?'})`,
