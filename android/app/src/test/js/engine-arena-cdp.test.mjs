@@ -345,17 +345,17 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
 });
 
-test('arena’s own attach popup is only clicked when the button is really there', async () => {
-  const absent = await runProbe({});
+test('Arena’s original Plus is exercised only when the real button is present', async () => {
+  const absent = await runProbe({ siteButton: false });
   assert.equal(absent.result.siteToggle.found, false);
-  const present = await runProbe({ siteButton: true });
+  const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'site-attach-popup', 'settings-drawer']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
-  const { fake, result } = await runProbe({ noToggle: true });
+  const { fake, result } = await runProbe({ noToggle: true, siteButton: false });
   assert.equal(result.engineToggle.found, false);
   // nothing may be clicked at the missing toggle's coordinates — the drawer's
   // rail is a different element and may still get its real click
