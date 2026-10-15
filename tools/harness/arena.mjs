@@ -38,6 +38,31 @@ try {
     const form = document.querySelector('form').getBoundingClientRect();
     return send.right <= form.right && form.right <= innerWidth;
   }), true, 'the Settings fallback must not push Send outside a narrow composer');
+
+  // N0 responsive skin is exercised in the real Chromium fixture at 320px,
+  // not merely searched for in source. It must mark the original form and keep
+  // the send target tappable without creating a second chat surface.
+  stage = 'n0-responsive-skin';
+  const skinLayout = await page.evaluate(() => {
+    const form = document.querySelector('form');
+    const input = document.querySelector('textarea[name="message"]');
+    const send = document.querySelector('button[aria-label="Send message"]');
+    return {
+      pageMarked: document.documentElement.classList.contains('sd-arena-native'),
+      originalFormMarked: form.classList.contains('sd-arena-composer'),
+      sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
+      inputMaxWidth: getComputedStyle(input).maxWidth,
+      chatForms: document.querySelectorAll('textarea[name="message"]').length,
+      viewportWidth: innerWidth,
+      formRight: form.getBoundingClientRect().right,
+    };
+  });
+  assert.equal(skinLayout.pageMarked, true, 'Arena profile opts into the skin');
+  assert.equal(skinLayout.originalFormMarked, true, 'skin attaches to the official composer');
+  assert.ok(skinLayout.sendMinWidth >= 44, 'send target remains at least 44 CSS pixels');
+  assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
+  assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
+  console.log('PASS N0 responsive skin at 320px: original page/composer, reachable Send, no duplicate chat');
   stage = 'privacy';
   await send('Plain chat, no private context');
   await wait(() => window.__arena.replies.length === 1);
