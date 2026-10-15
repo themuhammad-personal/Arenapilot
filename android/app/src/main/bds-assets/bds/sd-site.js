@@ -700,12 +700,11 @@
       if (!rail || !rail.style) return;
       var panel = sidebar();
       if (!panel) {
-        var signature = 'pending';
-        if (lastSignature !== signature) {
-          rail.dataset.dock = 'pending';
-          clearInlineDock(rail);
-          lastSignature = signature;
-        }
+        /* The engine's own SPA scan may try to dock this rail beside the
+         * composer again. Reassert the sidebar-only policy every time. */
+        if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
+        clearInlineDock(rail);
+        lastSignature = 'pending';
         return;
       }
       var pr = rectOf(panel);
@@ -745,7 +744,8 @@
       var width = Math.max(44, Math.min(pr.width - 16, vw - left - 4));
       top = Math.max(4, Math.min(top, vh - 48));
       var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width)].join(':');
-      if (lastSignature === signature2) return;
+      if (lastSignature === signature2 && rail.dataset.dock === 'sidebar' &&
+          rail.style.position === 'fixed' && rail.style.left === left + 'px' && rail.style.top === top + 'px') return;
       rail.dataset.dock = 'sidebar';
       rail.style.setProperty('position', 'fixed', 'important');
       rail.style.setProperty('left', left + 'px', 'important');
