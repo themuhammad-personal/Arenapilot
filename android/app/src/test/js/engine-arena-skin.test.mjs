@@ -116,6 +116,13 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SITE, /leaderboard/i);
   assert.match(SITE, /search/i);
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
+  assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
+  assert.match(SITE, /form button\[aria-label="Add files"\]/);
+  assert.match(SITE, /trigger\.click\(\)/,
+    'Arena’s original visible Plus forwards into the existing attachment sheet');
+  const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
+  assert.doesNotMatch(attachSync, /createElement\(/,
+    'the original Plus is reused, not replaced by another visible control');
   assert.match(SKIN, /display: none !important/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
