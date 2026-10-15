@@ -113,13 +113,11 @@ html.sd-arena-native form:has(textarea[name="message"]) {
   min-width: 0;
   width: 100%;
   max-width: calc(100vw - 16px);
-  border-radius: 24px;
 }
 
 html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"] {
   display: block;
   box-sizing: border-box;
-  font: inherit;
   width: 100%;
   min-width: 0 !important;
   max-width: 100%;
@@ -129,20 +127,6 @@ html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"]
   resize: none;
   overflow-x: hidden;
   overflow-y: auto;
-  line-height: 1.5;
-  padding-top: 11px;
-  padding-bottom: 11px;
-  -webkit-appearance: none;
-  border: 0 !important;
-  border-radius: 14px;
-  background: transparent;
-  color: inherit;
-  box-shadow: none;
-}
-
-html.sd-arena-native form:has(textarea[name="message"]) :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker, button.whitespace-nowrap:not([aria-label])) {
-  font: inherit;
-  border-radius: 12px;
 }
 
 html.sd-arena-native form:has(textarea[name="message"]) button[aria-label="Send message"] {
@@ -359,13 +343,11 @@ html.sd-arena-native .sd-arena-composer {
   min-width: 0;
   width: 100%;
   max-width: calc(100vw - 16px);
-  border-radius: 24px;
 }
 
 html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   display: block;
   box-sizing: border-box;
-  font: inherit;
   width: 100%;
   min-width: 0 !important;
   max-width: 100%;
@@ -374,20 +356,9 @@ html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   resize: none;
   overflow-x: hidden;
   overflow-y: auto;
-  line-height: 1.5;
-  padding-top: 11px;
-  padding-bottom: 11px;
-  -webkit-appearance: none;
-  border: 0 !important;
-  border-radius: 14px;
-  background: transparent;
-  color: inherit;
-  box-shadow: none;
 }
 
 html.sd-arena-native .sd-arena-composer :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker, button.whitespace-nowrap:not([aria-label])) {
-  font: inherit;
-  border-radius: 12px;
 }
 
 html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
@@ -501,11 +472,4 @@ html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] .bds-arena-rail-lab
 
 html.sd-arena-native #bds-settings-rail[data-dock="pending"] {
   display: none !important;
-}
-
-/* Do not skin the official composer action strip: Arena owns its icon shapes,
-   native spacing and controls. The adapter only handles their existing events. */
-html.sd-arena-native form:has(textarea[name="message"]) .bds-composer-controls
-  :is(button:not(.bds-plus-btn), [role="combobox"], select) {
-  -webkit-appearance: auto;
 }
