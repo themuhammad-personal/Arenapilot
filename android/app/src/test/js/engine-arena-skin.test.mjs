@@ -118,8 +118,8 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
   assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
   assert.match(SITE, /form button\[aria-label="Add files"\]/);
-  assert.match(SITE, /enginePlus\.setAttribute\('aria-label', original\.getAttribute\('aria-label'\) \|\| 'Add files'\)/,
-    'the working engine target inherits the native Arena control’s accessible label');
+  assert.match(SITE, /enginePlus\.setAttribute\('aria-label', 'Arena attachment options'\)/,
+    'the working engine target has an accessible label without colliding with Arena’s native selector');
   assert.match(SITE, /setImportantStyle\(enginePlus\.style, 'opacity', '0'\)/,
     'the engine target is transparent over the untouched native icon');
   assert.match(SITE, /setImportantStyle\(original\.style, 'pointer-events', 'none'\)/,
