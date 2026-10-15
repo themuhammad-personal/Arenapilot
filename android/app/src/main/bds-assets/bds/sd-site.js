@@ -633,6 +633,25 @@
       if (!pr) return;
       var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
       var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+
+      /* The captured Arena drawer can stop short of the bottom of a phone.
+       * Expand only the already-open navigation container, never the chat. */
+      try {
+        panel.setAttribute('data-bds-arena-sidebar', 'true');
+        var desired = {
+          position: 'fixed', left: Math.max(0, pr.left) + 'px', top: '0px',
+          bottom: '0px', height: vh + 'px', 'min-height': vh + 'px',
+          'max-height': vh + 'px', 'box-sizing': 'border-box'
+        };
+        Object.keys(desired).forEach(function (key) {
+          var current = panel.style.getPropertyValue(key);
+          if (current !== desired[key] || panel.style.getPropertyPriority(key) !== 'important') {
+            panel.style.setProperty(key, desired[key], 'important');
+          }
+        });
+        pr = rectOf(panel) || pr;
+      } catch (_) {}
+
       var account = accountRow(panel);
       var top = account ? account.top - 48 : pr.bottom - 60;
       top = Math.max(pr.top + Math.min(140, pr.height * 0.2), Math.min(top, pr.bottom - 56));
