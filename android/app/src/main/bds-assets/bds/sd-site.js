@@ -743,7 +743,8 @@
     function schedule() {
       if (scheduled) return;
       scheduled = true;
-      setTimeout(sync, 80);
+      if (window && typeof window.setTimeout === 'function') window.setTimeout(sync, 80);
+      else sync();
     }
 
     if (typeof MutationObserver === 'function') {
