@@ -604,6 +604,7 @@ export function acceptanceFailures(result) {
   if (e.composer?.named === 1) {
     if (!e.skin || !['has', 'class'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
     if (!e.skin || e.skin.sendInsideComposer !== true) errors.push('send-outside-composer');
+    if (!e.skin || !(Number(e.skin.sendMinWidth) >= 44)) errors.push('send-target-too-small');
   }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
