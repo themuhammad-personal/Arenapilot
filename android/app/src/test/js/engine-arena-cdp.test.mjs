@@ -445,7 +445,7 @@ test('without capture.js the engine facts still come back', async () => {
 test('the settings drawer is opened by a REAL click on the rail and closed by the engine’s own Back', async () => {
   const { result } = await runProbe();
   assert.equal(result.drawer.visible, true, 'opened');
-  assert.equal(result.drawer.railDock, 'composer');
+  assert.equal(result.drawer.railDock, 'sidebar');
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
   const noRail = await runProbe({ noRail: true });
