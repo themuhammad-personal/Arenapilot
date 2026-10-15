@@ -184,7 +184,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     api: window.__sdApi || null,
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
-    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn'))), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
+    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn)')), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
