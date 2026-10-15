@@ -638,6 +638,13 @@
       savedParentPosition = null;
     }
 
+    function setImportantStyle(style, key, value) {
+      if (!style) return;
+      if (style.getPropertyValue(key) !== value || style.getPropertyPriority(key) !== 'important') {
+        style.setProperty(key, value, 'important');
+      }
+    }
+
     function syncOriginalAttachTrigger() {
       var original = null;
       var enginePlus = null;
@@ -707,16 +714,16 @@
             parent.style.setProperty('position', 'relative', 'important');
           }
         }
-        original.style.setProperty('position', 'absolute', 'important');
-        original.style.setProperty('left', '0px', 'important');
-        original.style.setProperty('top', '50%', 'important');
-        original.style.setProperty('right', 'auto', 'important');
-        original.style.setProperty('bottom', 'auto', 'important');
-        original.style.setProperty('transform', 'translateY(-50%)', 'important');
-        original.style.setProperty('z-index', '1', 'important');
+        setImportantStyle(original.style, 'position', 'absolute');
+        setImportantStyle(original.style, 'left', '0px');
+        setImportantStyle(original.style, 'top', '50%');
+        setImportantStyle(original.style, 'right', 'auto');
+        setImportantStyle(original.style, 'bottom', 'auto');
+        setImportantStyle(original.style, 'transform', 'translateY(-50%)');
+        setImportantStyle(original.style, 'z-index', '1');
 
         var mount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
-        if (mount && mount.style) mount.style.removeProperty('margin-right');
+        if (mount && mount.style && mount.style.getPropertyValue('margin-right')) mount.style.removeProperty('margin-right');
 
         if (original.__sdArenaSheetBound !== true) {
           original.__sdArenaSheetBound = true;
