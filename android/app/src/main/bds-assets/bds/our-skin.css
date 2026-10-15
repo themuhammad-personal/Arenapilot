@@ -140,7 +140,7 @@ html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"]
   box-shadow: none;
 }
 
-html.sd-arena-native form:has(textarea[name="message"]) :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker) {
+html.sd-arena-native form:has(textarea[name="message"]) :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker, button.whitespace-nowrap:not([aria-label])) {
   font: inherit;
   border-radius: 12px;
 }
@@ -192,12 +192,13 @@ html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", mo
   }
 
   html.sd-arena-native form:has(textarea[name="message"]) .model-picker,
-  html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", model "] {
+  html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", model "],
+  html.sd-arena-native form:has(textarea[name="message"]) button.whitespace-nowrap:not([aria-label]) {
     box-sizing: border-box;
     width: auto !important;
     min-width: 0;
-    max-width: 20vw;
-    flex: 0 1 20vw;
+    max-width: 16vw;
+    flex: 0 1 16vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -384,7 +385,7 @@ html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   box-shadow: none;
 }
 
-html.sd-arena-native .sd-arena-composer :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker) {
+html.sd-arena-native .sd-arena-composer :is(button[aria-label="Send message"], button[aria-label*=", model "], button[role="combobox"], select, .model-picker, button.whitespace-nowrap:not([aria-label])) {
   font: inherit;
   border-radius: 12px;
 }
@@ -431,12 +432,13 @@ html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
   }
 
   html.sd-arena-native .sd-arena-composer .model-picker,
-  html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
+  html.sd-arena-native .sd-arena-composer button[aria-label*=", model "],
+  html.sd-arena-native .sd-arena-composer button.whitespace-nowrap:not([aria-label]) {
     box-sizing: border-box;
     width: auto !important;
     min-width: 0;
-    max-width: 20vw;
-    flex: 0 1 20vw;
+    max-width: 16vw;
+    flex: 0 1 16vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
