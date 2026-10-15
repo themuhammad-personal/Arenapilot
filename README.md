@@ -42,7 +42,7 @@ mode; Battle / Side-by-side / Agent mode pages stay untouched.
 | ⚡ **Type less** | Type `/` for built-in commands and your own snippets. |
 | 🔌 **Plug in tools** | Connect MCP servers, and the AI finds and calls their tools by itself. |
 | 🔎 **Research deeply** | Multi-step Deep Research with page fetching, source ranking and a context guard. |
-| 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; native support screens handle settings, Linux Studio and other tools. |
+| 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; the Android shell adds device integration and Linux Studio. |
 
 ## The in-place mobile redesign (N0 in progress)
 
