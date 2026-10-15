@@ -97,6 +97,7 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /max-width: 28vw/);
   assert.match(SKIN, /max-width: 20vw/);
   assert.match(SKIN, /border-radius: 14px/);
+  assert.match(SKIN, /font: inherit/);
   assert.match(SKIN, /border: 0 !important/);
   assert.match(SKIN, /border-radius: 12px/);
   assert.match(SKIN, /> \* > \* > \* \{/);
