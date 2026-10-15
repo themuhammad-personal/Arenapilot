@@ -140,7 +140,13 @@ test('a site-side gate after the click is classified, evidenced and PASSES the a
 });
 
 test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden composer, script-only click, an undrivable composer or a dead drawer', () => {
-  const good = { engine: { host: 'arena.ai', site: { id: 'arena' }, engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' }, composer: { named: 1, rect: [0, 0, 320, 50] }, attach: { toggle: 1 } },
+  const good = { engine: {
+    host: 'arena.ai', site: { id: 'arena' },
+    engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' },
+    composer: { named: 1, rect: [0, 0, 320, 50] },
+    attach: { toggle: 1 },
+    skin: { active: true, composerTarget: 'has', sendInsideComposer: true, sendMinWidth: 44 },
+  },
     sheetOpenedBy: 'real-click', steps: [],
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'composer' } };
