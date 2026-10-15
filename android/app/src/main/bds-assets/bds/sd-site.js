@@ -617,25 +617,58 @@
     var positionedParent = null;
     var savedOriginalPosition = null;
     var savedParentPosition = null;
+    var positionedMount = null;
+    var savedMountStyles = null;
+    var positionedWrapper = null;
+    var savedWrapperStyles = null;
+    var positionedPlus = null;
+    var savedPlusStyles = null;
 
-    function restoreOriginalPosition() {
+    function saveInlineStyles(node, keys) {
+      var saved = {};
+      if (!node || !node.style) return saved;
+      keys.forEach(function (key) {
+        saved[key] = {
+          value: node.style.getPropertyValue(key),
+          priority: node.style.getPropertyPriority(key)
+        };
+      });
+      return saved;
+    }
+    function restoreInlineStyles(node, saved) {
+      if (!node || !node.style || !saved) return;
+      Object.keys(saved).forEach(function (key) {
+        var item = saved[key];
+        if (item.value) node.style.setProperty(key, item.value, item.priority);
+        else node.style.removeProperty(key);
+      });
+    }
+    function clearOverlay() {
+      restoreInlineStyles(positionedOriginal, savedOriginalPosition);
+      restoreInlineStyles(positionedParent, savedParentPosition);
+      restoreInlineStyles(positionedMount, savedMountStyles);
+      restoreInlineStyles(positionedWrapper, savedWrapperStyles);
+      restoreInlineStyles(positionedPlus, savedPlusStyles);
       try {
-        if (positionedOriginal && positionedOriginal.style && savedOriginalPosition) {
-          Object.keys(savedOriginalPosition).forEach(function (key) {
-            var saved = savedOriginalPosition[key];
-            if (saved.value) positionedOriginal.style.setProperty(key, saved.value, saved.priority);
-            else positionedOriginal.style.removeProperty(key);
-          });
-        }
-        if (positionedParent && positionedParent.style && savedParentPosition) {
-          if (savedParentPosition.value) positionedParent.style.setProperty('position', savedParentPosition.value, savedParentPosition.priority);
-          else positionedParent.style.removeProperty('position');
+        if (positionedOriginal && positionedOriginal.__sdArenaOverlayA11y) {
+          var a = positionedOriginal.__sdArenaOverlayA11y;
+          if (a.ariaHidden == null) positionedOriginal.removeAttribute('aria-hidden');
+          else positionedOriginal.setAttribute('aria-hidden', a.ariaHidden);
+          if (a.tabindex == null) positionedOriginal.removeAttribute('tabindex');
+          else positionedOriginal.setAttribute('tabindex', a.tabindex);
+          delete positionedOriginal.__sdArenaOverlayA11y;
         }
       } catch (_) {}
       positionedOriginal = null;
       positionedParent = null;
       savedOriginalPosition = null;
       savedParentPosition = null;
+      positionedMount = null;
+      savedMountStyles = null;
+      positionedWrapper = null;
+      savedWrapperStyles = null;
+      positionedPlus = null;
+      savedPlusStyles = null;
     }
 
     function setImportantStyle(style, key, value) {
@@ -648,100 +681,162 @@
     function syncOriginalAttachTrigger() {
       var original = null;
       var enginePlus = null;
+      var mount = null;
+      var wrapper = null;
       try {
         enginePlus = document.querySelector('#bds-root .bds-plus-btn') ||
           document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
         var buttons = document.querySelectorAll('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
         for (var i = 0; i < buttons.length; i++) {
           var candidate = buttons[i];
-          /* The official Arena composer lives inside #bds-root on the live page. */
+          if (candidate === enginePlus || (candidate.closest && candidate.closest('.bds-attach-menu-mount, .bds-attach-wrapper'))) continue;
           original = candidate;
           break;
         }
+        mount = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
+        wrapper = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-wrapper') : null;
       } catch (_) {}
 
-      /* Undo the engine's original hide rule; the official control is the
-       * visible plus in ArenaPilot, not a visually substituted button. */
-      try {
-        if (original && original.style) {
-          if (original.style.getPropertyValue('display') === 'none') original.style.removeProperty('display');
-          /* Preserve Arena's own button/classes; override only the injected hide rule. */
-          setImportantStyle(original.style, 'display', 'flex');
-        }
-      } catch (_) {}
-
-      if (positionedOriginal && positionedOriginal !== original) restoreOriginalPosition();
-
-      if (!enginePlus || !enginePlus.style || !original || !original.style) {
-        restoreOriginalPosition();
-        if (enginePlus && enginePlus.style && (!original || !original.style)) {
+      if (!enginePlus || !enginePlus.style || !original || !original.style || !mount || !mount.style) {
+        clearOverlay();
+        /* If Arena has no source button on this page state, retain the engine's
+         * ordinary trigger as a functional fallback rather than hiding it. */
+        if (enginePlus && enginePlus.style) {
           try {
             if (enginePlus.style.getPropertyValue('display') === 'none') enginePlus.style.removeProperty('display');
+            enginePlus.style.removeProperty('opacity');
+            enginePlus.style.removeProperty('position');
+            enginePlus.style.removeProperty('pointer-events');
           } catch (_) {}
         }
         return;
       }
 
       try {
-        if (enginePlus.style.getPropertyValue('display') !== 'none' ||
-            enginePlus.style.getPropertyPriority('display') !== 'important') {
-          enginePlus.style.setProperty('display', 'none', 'important');
-        }
-
-        /* Keep the internal mount's 44px slot (so the Send layout does not
-         * grow), but position Arena's untouched original button over that slot.
-         * This keeps one Plus, the original spacing, and the existing sheet. */
-        if (positionedOriginal !== original) {
+        if (positionedOriginal !== original || positionedMount !== mount ||
+            positionedPlus !== enginePlus || positionedParent !== original.parentElement) {
+          clearOverlay();
           positionedOriginal = original;
           positionedParent = original.parentElement;
-          var keys = ['position','left','top','right','bottom','transform','z-index'];
-          savedOriginalPosition = {};
-          keys.forEach(function (key) {
-            savedOriginalPosition[key] = {
-              value: original.style.getPropertyValue(key),
-              priority: original.style.getPropertyPriority(key)
+          positionedMount = mount;
+          positionedWrapper = wrapper;
+          positionedPlus = enginePlus;
+          savedOriginalPosition = saveInlineStyles(original, ['display','pointer-events']);
+          savedParentPosition = saveInlineStyles(positionedParent, ['position']);
+          savedMountStyles = saveInlineStyles(mount, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','flex','flex-basis',
+            'transform','display','pointer-events','overflow'
+          ]);
+          savedWrapperStyles = saveInlineStyles(wrapper, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','transform','display',
+            'pointer-events','overflow','align-items','justify-content'
+          ]);
+          savedPlusStyles = saveInlineStyles(enginePlus, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','transform','display',
+            'pointer-events','opacity','visibility','background','border','box-shadow'
+          ]);
+          if (!original.__sdArenaOverlayA11y) {
+            original.__sdArenaOverlayA11y = {
+              ariaHidden: original.getAttribute('aria-hidden'),
+              tabindex: original.getAttribute('tabindex')
             };
-          });
-          savedParentPosition = positionedParent && positionedParent.style ? {
-            value: positionedParent.style.getPropertyValue('position'),
-            priority: positionedParent.style.getPropertyPriority('position')
-          } : null;
+          }
         }
+
+        /* Keep Arena's original button/SVG in the layout exactly as designed.
+         * Put the engine's real, working trigger over the same 32px slot with
+         * zero opacity: what the user sees is still Arena's native icon, but
+         * the touch lands on the engine button and opens our attachment sheet.
+         * No cloned icon, second visible button, or scripted click forwarding. */
+        if (original.style.getPropertyValue('display') === 'none') original.style.removeProperty('display');
+        setImportantStyle(original.style, 'display', 'flex');
+        setImportantStyle(original.style, 'pointer-events', 'none');
+        try {
+          original.setAttribute('aria-hidden', 'true');
+          original.setAttribute('tabindex', '-1');
+          enginePlus.setAttribute('aria-label', original.getAttribute('aria-label') || 'Add files');
+          enginePlus.setAttribute('title', original.getAttribute('title') || 'Add files');
+          enginePlus.setAttribute('type', 'button');
+        } catch (_) {}
 
         var parent = original.parentElement;
         if (parent && parent.style) {
-          var computedParent = null;
-          try { computedParent = window.getComputedStyle && window.getComputedStyle(parent); } catch (_) {}
-          if (!computedParent || computedParent.position === 'static') {
-            parent.style.setProperty('position', 'relative', 'important');
-          }
+          var parentComputed = null;
+          try { parentComputed = window.getComputedStyle && window.getComputedStyle(parent); } catch (_) {}
+          if (!parentComputed || parentComputed.position === 'static') setImportantStyle(parent.style, 'position', 'relative');
         }
-        setImportantStyle(original.style, 'position', 'absolute');
-        setImportantStyle(original.style, 'left', '0px');
-        setImportantStyle(original.style, 'top', '50%');
-        setImportantStyle(original.style, 'right', 'auto');
-        setImportantStyle(original.style, 'bottom', 'auto');
-        setImportantStyle(original.style, 'transform', 'translateY(-50%)');
-        setImportantStyle(original.style, 'z-index', '1');
+        var pr = rectOf(parent);
+        var or = rectOf(original);
+        if (!pr || !or) return;
+        setImportantStyle(mount.style, 'position', 'absolute');
+        setImportantStyle(mount.style, 'left', (or.left - pr.left) + 'px');
+        setImportantStyle(mount.style, 'top', (or.top - pr.top) + 'px');
+        setImportantStyle(mount.style, 'right', 'auto');
+        setImportantStyle(mount.style, 'bottom', 'auto');
+        setImportantStyle(mount.style, 'width', or.width + 'px');
+        setImportantStyle(mount.style, 'height', or.height + 'px');
+        setImportantStyle(mount.style, 'min-width', or.width + 'px');
+        setImportantStyle(mount.style, 'min-height', or.height + 'px');
+        setImportantStyle(mount.style, 'max-width', or.width + 'px');
+        setImportantStyle(mount.style, 'max-height', or.height + 'px');
+        setImportantStyle(mount.style, 'margin', '0');
+        setImportantStyle(mount.style, 'padding', '0');
+        setImportantStyle(mount.style, 'flex', '0 0 auto');
+        setImportantStyle(mount.style, 'transform', 'none');
+        setImportantStyle(mount.style, 'display', 'inline-flex');
+        setImportantStyle(mount.style, 'align-items', 'center');
+        setImportantStyle(mount.style, 'justify-content', 'center');
+        setImportantStyle(mount.style, 'overflow', 'visible');
+        setImportantStyle(mount.style, 'pointer-events', 'auto');
+        setImportantStyle(mount.style, 'z-index', '2147483646');
 
-        var mount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
-        if (mount && mount.style && mount.style.getPropertyValue('margin-right')) mount.style.removeProperty('margin-right');
-
-        if (original.__sdArenaSheetBound !== true) {
-          original.__sdArenaSheetBound = true;
-          original.addEventListener('click', function (event) {
-            var trigger = null;
-            try {
-              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-            } catch (_) {}
-            if (!trigger || trigger.disabled) return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-            try { trigger.click(); } catch (_) {}
-          }, true);
+        if (wrapper && wrapper.style) {
+          setImportantStyle(wrapper.style, 'position', 'absolute');
+          setImportantStyle(wrapper.style, 'left', '0px');
+          setImportantStyle(wrapper.style, 'top', '0px');
+          setImportantStyle(wrapper.style, 'right', '0px');
+          setImportantStyle(wrapper.style, 'bottom', '0px');
+          setImportantStyle(wrapper.style, 'width', '100%');
+          setImportantStyle(wrapper.style, 'height', '100%');
+          setImportantStyle(wrapper.style, 'min-width', '0');
+          setImportantStyle(wrapper.style, 'min-height', '0');
+          setImportantStyle(wrapper.style, 'max-width', '100%');
+          setImportantStyle(wrapper.style, 'max-height', '100%');
+          setImportantStyle(wrapper.style, 'margin', '0');
+          setImportantStyle(wrapper.style, 'padding', '0');
+          setImportantStyle(wrapper.style, 'transform', 'none');
+          setImportantStyle(wrapper.style, 'display', 'flex');
+          setImportantStyle(wrapper.style, 'align-items', 'center');
+          setImportantStyle(wrapper.style, 'justify-content', 'center');
+          setImportantStyle(wrapper.style, 'overflow', 'visible');
+          setImportantStyle(wrapper.style, 'pointer-events', 'auto');
         }
+
+        setImportantStyle(enginePlus.style, 'display', 'inline-flex');
+        setImportantStyle(enginePlus.style, 'position', 'absolute');
+        setImportantStyle(enginePlus.style, 'left', '0px');
+        setImportantStyle(enginePlus.style, 'top', '0px');
+        setImportantStyle(enginePlus.style, 'right', '0px');
+        setImportantStyle(enginePlus.style, 'bottom', '0px');
+        setImportantStyle(enginePlus.style, 'width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'min-width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'min-height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'max-width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'max-height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'margin', '0');
+        setImportantStyle(enginePlus.style, 'padding', '0');
+        setImportantStyle(enginePlus.style, 'transform', 'none');
+        setImportantStyle(enginePlus.style, 'opacity', '0');
+        setImportantStyle(enginePlus.style, 'visibility', 'visible');
+        setImportantStyle(enginePlus.style, 'pointer-events', 'auto');
+        setImportantStyle(enginePlus.style, 'z-index', '2147483647');
+        setImportantStyle(enginePlus.style, 'background', 'transparent');
+        setImportantStyle(enginePlus.style, 'border', '0');
+        setImportantStyle(enginePlus.style, 'box-shadow', 'none');
       } catch (_) {}
     }
 
