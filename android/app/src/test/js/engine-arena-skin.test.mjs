@@ -12,20 +12,42 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
 const SKIN = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/our-skin.css'), 'utf8');
 
-function runSite(host) {
+function runSite(host, initiallyHasComposer = true) {
   const htmlClasses = new Set();
   const formClasses = new Set();
+  const observers = [];
   const form = { classList: { add: (name) => formClasses.add(name) } };
   const textarea = { closest: (selector) => selector === 'form' ? form : null };
+  let hasComposer = initiallyHasComposer;
+  let createdNodes = 0;
+  class FakeMutationObserver {
+    constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
+    observe() {}
+    disconnect() { this.disconnected = true; }
+  }
   const document = {
     documentElement: { classList: { add: (name) => htmlClasses.add(name) } },
-    querySelector: (selector) => selector === 'textarea[name="message"]' ? textarea : null,
+    querySelector: (selector) => selector === 'textarea[name="message"]' && hasComposer ? textarea : null,
+    createElement: () => { createdNodes += 1; throw new Error('Do not create replacement chat UI'); },
   };
-  const context = { console, location: { host, hostname: host }, document };
+  const context = {
+    console,
+    location: { host, hostname: host },
+    document,
+    MutationObserver: FakeMutationObserver,
+    setTimeout: () => 0,
+  };
   context.window = context;
   vm.createContext(context);
   vm.runInContext(SITE, context);
-  return { context, htmlClasses, formClasses };
+  return {
+    context, htmlClasses, formClasses, observers,
+    enableComposer() {
+      hasComposer = true;
+      observers.forEach((observer) => observer.callback());
+    },
+    get createdNodes() { return createdNodes; },
+  };
 }
 
 test('Arena skin tags the existing page and composer only', () => {
@@ -33,8 +55,21 @@ test('Arena skin tags the existing page and composer only', () => {
   assert.equal(context.__sdSite.id, 'arena');
   assert.ok(htmlClasses.has('sd-arena-native'));
   assert.ok(formClasses.has('sd-arena-composer'));
-  assert.equal(typeof context.document.createElement, 'undefined',
+  assert.equal(context.document.createElement instanceof Function, true);
+  assert.equal(runSite('arena.ai').createdNodes, 0,
     'the skin hook must not create a parallel chat surface');
+});
+
+
+test('Arena skin waits for the existing composer when the SPA mounts it late', () => {
+  const result = runSite('arena.ai', false);
+  assert.ok(result.htmlClasses.has('sd-arena-native'));
+  assert.equal(result.formClasses.has('sd-arena-composer'), false);
+  assert.equal(result.observers.length, 1);
+  result.enableComposer();
+  assert.ok(result.formClasses.has('sd-arena-composer'));
+  assert.equal(result.observers[0].disconnected, true);
+  assert.equal(result.createdNodes, 0);
 });
 
 test('Arena skin is not enabled for DeepSeek or unknown hosts', () => {
