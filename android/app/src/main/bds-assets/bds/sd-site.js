@@ -757,8 +757,10 @@
         try {
           original.setAttribute('aria-hidden', 'true');
           original.setAttribute('tabindex', '-1');
-          enginePlus.setAttribute('aria-label', original.getAttribute('aria-label') || 'Add files');
-          enginePlus.setAttribute('title', original.getAttribute('title') || 'Add files');
+          /* Do not reuse the native selector label on the engine button:
+           * Arena's own attach-slot discovery queries [aria-label="Add files"]. */
+          enginePlus.setAttribute('aria-label', 'Arena attachment options');
+          enginePlus.setAttribute('title', 'Add files and attachment modes');
           enginePlus.setAttribute('type', 'button');
         } catch (_) {}
 
