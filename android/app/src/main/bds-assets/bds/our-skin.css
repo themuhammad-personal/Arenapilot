@@ -239,6 +239,18 @@ html.sd-arena-native [role="combobox"]:focus-visible {
   outline-offset: 2px;
 }
 
+/* Sign-in and other original Arena forms stay native to the site, but their
+   visible controls remain finger-sized on touch devices. */
+@media (pointer: coarse) {
+  html.sd-arena-native input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  html.sd-arena-native select,
+  html.sd-arena-native button[type="submit"] {
+    box-sizing: border-box;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}
+
 @media (max-width: 480px) {
   html.sd-arena-native form:has(textarea[name="message"]) {
     max-width: calc(100vw - 12px);
