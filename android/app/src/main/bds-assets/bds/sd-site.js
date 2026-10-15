@@ -628,6 +628,13 @@
         }
       } catch (_) {}
 
+      /* Restore the source button even during a brief remount when the
+       * internal trigger has not been attached yet. */
+      try {
+        if (original && original.style && original.style.getPropertyValue('display') === 'none') {
+          original.style.removeProperty('display');
+        }
+      } catch (_) {}
       if (!enginePlus || !enginePlus.style) return;
       if (original && original.style) {
         /* The engine trigger is kept only as an internal event target. The
@@ -637,8 +644,20 @@
               enginePlus.style.getPropertyPriority('display') !== 'important') {
             enginePlus.style.setProperty('display', 'none', 'important');
           }
-          if (original.style.getPropertyValue('display') === 'none') {
-            original.style.removeProperty('display');
+          var mount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
+          if (mount && mount.style) {
+            /* Its empty wrapper would otherwise add another flex gap before
+             * Arena's Plus. Cancel exactly the parent's measured column gap. */
+            var gap = 8;
+            try {
+              var parentStyle = window.getComputedStyle && window.getComputedStyle(mount.parentElement);
+              gap = parseFloat(parentStyle && (parentStyle.columnGap || parentStyle.gap)) || 8;
+            } catch (_) {}
+            var marginRight = (-gap) + 'px';
+            if (mount.style.getPropertyValue('margin-right') !== marginRight ||
+                mount.style.getPropertyPriority('margin-right') !== 'important') {
+              mount.style.setProperty('margin-right', marginRight, 'important');
+            }
           }
           if (original.__sdArenaSheetBound !== true) {
             original.__sdArenaSheetBound = true;
@@ -666,6 +685,8 @@
           if (enginePlus.style.getPropertyValue('display') === 'none') {
             enginePlus.style.removeProperty('display');
           }
+          var fallbackMount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
+          if (fallbackMount && fallbackMount.style) fallbackMount.style.removeProperty('margin-right');
         } catch (_) {}
       }
     }
