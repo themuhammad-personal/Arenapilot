@@ -54,11 +54,19 @@ try {
       JSON.stringify(initialComposerLayout),
   );
 
+  const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
   await wait(() => {
-    const native = document.querySelector('button[aria-label="Add files"]');
+    const native = document.querySelector(nativePlusSelector);
     const trigger = document.querySelector('.bds-plus-btn');
-    return native && trigger && getComputedStyle(native).display !== 'none' &&
-      getComputedStyle(trigger).display === 'none';
+    if (!native || !trigger) return false;
+    const nr = native.getBoundingClientRect();
+    const tr = trigger.getBoundingClientRect();
+    return getComputedStyle(native).display !== 'none' &&
+      getComputedStyle(native).pointerEvents === 'none' &&
+      getComputedStyle(trigger).display !== 'none' &&
+      getComputedStyle(trigger).opacity === '0' &&
+      Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1 &&
+      Math.abs(nr.width - tr.width) <= 1 && Math.abs(nr.height - tr.height) <= 1;
   });
   // N0 responsive skin is exercised in Chromium at 320px, not merely searched
   // for in source. It preserves Arena's original visible attach button and
@@ -79,13 +87,19 @@ try {
       formRight: form.getBoundingClientRect().right,
       settingsDock: document.querySelector('#bds-settings-rail')?.dataset.dock || null,
       originalPlusVisible: (() => {
-        const b = document.querySelector('button[aria-label="Add files"]');
+        const b = document.querySelector(nativePlusSelector);
         return !!b && getComputedStyle(b).display !== 'none' &&
           b.getBoundingClientRect().width >= 24 && b.getBoundingClientRect().height >= 24;
       })(),
-      enginePlusHidden: (() => {
+      enginePlusOverlay: (() => {
+        const native = document.querySelector(nativePlusSelector);
         const b = document.querySelector('.bds-plus-btn');
-        return !!b && getComputedStyle(b).display === 'none';
+        if (!native || !b) return false;
+        const nr = native.getBoundingClientRect(); const r = b.getBoundingClientRect();
+        return getComputedStyle(b).display !== 'none' && getComputedStyle(b).opacity === '0' &&
+          getComputedStyle(native).pointerEvents === 'none' &&
+          Math.abs(nr.left - r.left) <= 1 && Math.abs(nr.top - r.top) <= 1 &&
+          Math.abs(nr.width - r.width) <= 1 && Math.abs(nr.height - r.height) <= 1;
       })(),
     };
   });
@@ -95,7 +109,7 @@ try {
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
   assert.equal(skinLayout.settingsDock, 'pending', 'Settings does not float beside the composer');
   assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control');
-  assert.equal(skinLayout.enginePlusHidden, true, 'the internal trigger cannot create a second visible plus');
+  assert.equal(skinLayout.enginePlusOverlay, true, 'a transparent working target exactly overlays the original Arena icon');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
   await shot(page, 'arena-responsive-320');
@@ -141,7 +155,7 @@ try {
   stage = 'composer-remount';
   for (const mutation of ['style', 'button', 'group']) {
     await page.evaluate((kind) => {
-      const b = document.querySelector('button[aria-label="Add files"]');
+      const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
       if (kind === 'style') b.style.removeProperty('display');
       if (kind === 'button') { const next = b.cloneNode(true); next.removeAttribute('style'); b.replaceWith(next); }
       if (kind === 'group') {
@@ -155,15 +169,21 @@ try {
       }
     }, mutation);
     await wait(() => {
-      const native = document.querySelector('button[aria-label="Add files"]');
+      const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
       const mounts = document.querySelectorAll('.bds-attach-menu-mount');
-      return mounts.length === 1 && mounts[0].parentElement === native.parentElement &&
-        getComputedStyle(native).display !== 'none' &&
-        getComputedStyle(document.querySelector('.bds-plus-btn')).display === 'none';
+      const trigger = document.querySelector('.bds-plus-btn');
+      if (!native || !trigger || mounts.length !== 1 || mounts[0].parentElement !== native.parentElement) return false;
+      const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
+      return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents === 'none' &&
+        getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
+        Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1;
     });
   }
   stage = 'attach-open-and-back';
-  await page.click('button[aria-label="Add files"]');
+  const attachTap = await page.$eval('form button[aria-label="Add files"]:not(.bds-plus-btn)', (b) => {
+    const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.click(attachTap.x, attachTap.y);
   await page.waitForSelector('.bds-attach-dropdown', { visible: true });
   await shot(page, 'arena-attach');
   await page.evaluate(() => window.__sdHandleBack());
