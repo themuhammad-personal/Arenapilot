@@ -132,18 +132,18 @@ const FACTS = {
   host: 'arena.ai', path: '/text/direct', title: 'Arena', readyState: 'complete',
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
-  rail: { label: 'Advanced settings', rect: [4, 300, 40, 40], visible: true },
-  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 30, 30] },
+  rail: { label: 'Advanced settings', rect: [0, 0, 256, 616], visible: true },
+  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44] },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
     sendMinWidth: 44, viewportWidth: 320, formRect: [17, 469, 286, 100],
-    sendRect: [250, 520, 44, 44], settingsDock: 'composer', settingsLabelDisplay: 'none',
+    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline',
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
-  slot: { plus: [25, 517, 34, 34], addFilesDisplay: 'none', group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
-  composerControls: [{ tag: 'button', aria: 'Add files', title: null, type: null, cls: 'rounded-full', rect: [20, 700, 32, 32], svg: 'M12 5v14', hidden: false, engine: false }],
+  slot: { plus: [0, 0, 0, 0], addFilesDisplay: 'inline-block', group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
+  composerControls: [{ tag: 'button', aria: 'Add files', title: null, type: null, cls: 'rounded-full', rect: [60, 700, 44, 44], svg: 'M12 5v14', hidden: false, engine: false }],
   engineMarkup: { mount: '<div class="bds-attach-menu-mount" data-bds-attach-menu-mounted="true"></div>', wrapper: '<div class="bds-attach-wrapper"></div>', controls: null },
 };
 
@@ -209,6 +209,11 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'facts') {
           if (opts.factsThrow) return fail('facts exploded');
           const facts = JSON.parse(JSON.stringify(FACTS));
+          facts.rail.visible = !!state.sidebarOpen;
+          facts.rail.rect = state.sidebarOpen ? [0, 0, 256, 616] : [0, 0, 0, 0];
+          facts.skin.settingsDock = state.sidebarOpen ? 'sidebar' : 'pending';
+          facts.skin.settingsLabelDisplay = state.sidebarOpen ? 'inline' : 'none';
+          if (state.sidebarOpen) facts.attach.siteButton = [60, 700, 44, 44];
           if (state.sheetOpen) facts.attach.dropdown = 1;
           return value(JSON.stringify(facts));
         }
@@ -226,8 +231,8 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
-            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'composer' }
-            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'composer' }));
+            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sidebar' }
+            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'pending' }));
         }
         if (marker === 'back') { state.drawerOpen = false; return value(true); }
         if (marker === 'fillset') {
@@ -339,7 +344,7 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'settings-drawer']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
@@ -371,7 +376,7 @@ test('a real pointer click that opens the sheet is the end of it: no script clic
   assert.equal(result.sheetAfterRealClick.dropdown, 1);
   assert.equal(result.sheetAfterJsClick, undefined);
   assert.ok(!fake.calls.some((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:jsclick*/')));
-  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button.bds-plus-btn.svelte-1y27tjy'], 'what was under the pointer is recorded');
+  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button[aria-label=Add files]'], 'the original Arena Plus is the visible button under the pointer');
   assert.equal(result.engineHit.mobileCss, true);
 });
 
@@ -547,11 +552,12 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=yes "Advanced settings"/);
-  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
-  assert.match(lines[0], /slot\(plus=\[25,517,34,34\] addFiles=none group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
+  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\[aria-label=Add files\]","div\.flex\.items-center","form"\] mobileCss=true\)/);
+  assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
+  assert.match(lines[0], /slot\(plus=\[0,0,0,0\] addFiles=inline-block group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendMin=44 viewport=320 settingsDock=composer settingsLabel=none\)/);
-  assert.match(lines[0], /drawer\(visible=yes dock=composer backCloses=yes\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendMin=44 viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
+  assert.match(lines[0], /drawer\(visible=yes dock=sidebar backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
   assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
