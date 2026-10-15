@@ -349,20 +349,20 @@ test('mounting survives a reference that is not a child of the container', () =>
 
 // ── 3. hiding the site’s own "+" ────────────────────────────────────────────
 
-test('arena’s attach button is hidden, a card of its popup never is', () => {
+test('Arena keeps its native Plus visible; only DeepSeek uses the legacy hide hook', () => {
   const p = arenaPage();
   p.win.__sdSite = { id: 'arena' };
   assert.equal(
     p.run(`Yvt(document.querySelector('form input[type="file"]')) === document.querySelector('button[aria-label="Attach files"]')`),
-    true, 'the site’s own + is replaced by ours, as on DeepSeek');
+    false, 'Arena’s original + is never passed to the engine hide hook');
 
   const q = arenaPage({ fileInputInComposer: false });
   q.win.__sdSite = { id: 'arena' };
   // (booleans only: a failed assert.equal on a fake DOM node inspects a circular graph and kills the run)
   assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('[role="menu"] button')`), false,
-    'a card of arena’s popup must never be hidden');
-  assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('form button[aria-label="Attach files"]')`), true,
-    'what is hidden is the composer’s own attach button, whatever file input was asked about');
+    'a card of Arena’s popup must never be hidden');
+  assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('form button[aria-label="Attach files"]')`), false,
+    'Arena’s native Plus is preserved even when the requested file input differs');
 
   const d = arenaPage({ fileInputInComposer: false });
   d.win.__sdSite = { id: 'deepseek' };
