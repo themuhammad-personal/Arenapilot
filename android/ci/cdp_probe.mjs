@@ -133,6 +133,17 @@ export const FACTS = `/*sdp:facts*/(function () {
   /* every control around the message box: which one is arena's own attach / plus button? */
   var ta = q('textarea[name="message"]');
   var box = ta ? (ta.closest('form') || ta.parentElement) : null;
+  var sendButton = q('button[aria-label="Send message"]');
+  var composerRect = rect(box);
+  var sendRect = rect(sendButton);
+  var sendInsideComposer = !!(composerRect && sendRect &&
+    sendRect[0] + sendRect[2] <= composerRect[0] + composerRect[2] + 1 &&
+    composerRect[0] + composerRect[2] <= window.innerWidth + 1);
+  var sendMinWidth = null;
+  try { sendMinWidth = sendButton ? parseFloat(getComputedStyle(sendButton).minWidth) : null; } catch (e) {}
+  var settingsLabel = rail ? rail.querySelector('.bds-arena-rail-label') : null;
+  var settingsLabelDisplay = null;
+  try { settingsLabelDisplay = settingsLabel ? getComputedStyle(settingsLabel).display : null; } catch (e) {}
   var up = box;
   for (var u = 0; u < 3 && up && up.parentElement && up.parentElement.tagName !== 'BODY'; u += 1) { up = up.parentElement; }
   var controls = up ? Array.prototype.slice.call(up.querySelectorAll('button, [role="button"], input[type="file"]')).slice(0, 16).map(function (b) {
@@ -168,6 +179,19 @@ export const FACTS = `/*sdp:facts*/(function () {
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
     attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('button[aria-label="Add files"]')), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
+    /* N0 evidence from the actual WebView: the real page is skinned in place,
+       and we measure the existing Send control rather than trusting CSS source. */
+    skin: {
+      active: !!(document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('sd-arena-native')),
+      composerSelectorMatches: !!(box && box.matches && box.matches('form:has(textarea[name="message"])')),
+      sendInsideComposer: sendButton && composerRect && sendRect ? sendInsideComposer : null,
+      sendMinWidth: sendMinWidth,
+      viewportWidth: window.innerWidth,
+      formRect: composerRect,
+      sendRect: sendRect,
+      settingsDock: rail ? rail.getAttribute('data-dock') : null,
+      settingsLabelDisplay: settingsLabelDisplay
+    },
     health: { present: !!h, version: h ? h.version : null, site: h ? h.site : null, ok: st ? st.ok : null, visible: st ? st.visible : null, states: st && st.results ? st.results.map(function (r) { return r.id + ':' + r.state; }) : null, notice: !!q('#sd-health-notice') },
     login: /sign in|log in|sign up|continue with|create account/i.test(text.slice(0, 6000)),
     inputs: inputs,
@@ -493,6 +517,7 @@ export function summarize(result) {
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
     `composer(named=${(e.composer || {}).named ?? '?'} textareas=${(e.composer || {}).textareas ?? '?'})`,
+    `skin(active=${yn((e.skin || {}).active)} composer=${yn((e.skin || {}).composerSelectorMatches)} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendMin=${(e.skin || {}).sendMinWidth ?? '?'} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
     `health(site=${h.site || '?'} ok=${h.ok} visible=${h.visible} notice=${yn(h.notice)} ${(h.states || []).join(',')})`,
     `loginWall=${yn(e.login)}`,
     `fill(set=${result.composerFill ? yn(result.composerFill.set) : '?'} value=${result.composerFill ? yn(result.composerFill.valueMatches) : '?'} sendBtn=${result.composerFill ? yn(result.composerFill.sendButton) : '?'} sendEnabled=${result.composerFill && result.composerFill.sendButton ? yn(!result.composerFill.sendDisabledWhileFilled) : '?'} cleared=${result.composerFill ? yn(result.composerFill.cleared) : '?'})`,
