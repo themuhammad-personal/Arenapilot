@@ -9,9 +9,8 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(here, '../../../..');
-const SITE = fs.readFileSync(path.join(ROOT, 'main/bds-assets/bds/sd-site.js'), 'utf8');
-const SKIN = fs.readFileSync(path.join(ROOT, 'main/bds-assets/bds/our-skin.css'), 'utf8');
+const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
+const SKIN = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/our-skin.css'), 'utf8');
 
 function runSite(host) {
   const htmlClasses = new Set();
@@ -47,10 +46,10 @@ test('Arena skin is not enabled for DeepSeek or unknown hosts', () => {
 });
 
 test('mobile skin preserves arena colours and protects the send/model controls', () => {
-  assert.match(SKIN, /html\\.sd-arena-native/);
-  assert.match(SKIN, /button\\[aria-label="Send message"\\]/);
-  assert.match(SKIN, /button\\[aria-label\\*=", model "\\]/);
+  assert.match(SKIN, /html\.sd-arena-native/);
+  assert.match(SKIN, /button\[aria-label="Send message"\]/);
+  assert.match(SKIN, /button\[aria-label\*=", model "\]/);
   assert.match(SKIN, /max-width: 54vw/);
-  assert.doesNotMatch(SKIN, /background(?:-color)?\\s*:\\s*#[0-9a-f]{3,8}/i,
+  assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the skin must not replace arena.ai palette colours');
 });
