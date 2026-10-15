@@ -104,7 +104,16 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /> \* > \* > \* \{/);
   assert.match(SKIN, /max-width: 54vw/);
   assert.ok(SKIN.includes('#bds-settings-rail[data-dock="composer"]'));
+  assert.ok(SKIN.includes('#bds-settings-rail[data-dock="sidebar"]'),
+    'the existing Settings control has a dedicated sidebar presentation');
+  assert.match(SKIN, /#bds-settings-rail\[data-dock="pending"\]/,
+    'the Settings fallback is hidden outside the sidebar rather than floating by the composer');
   assert.match(SKIN, /\.bds-arena-rail-label/);
+  const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
+  assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
+  assert.match(SITE, /leaderboard/i);
+  assert.match(SITE, /search/i);
+  assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
   assert.match(SKIN, /display: none !important/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
