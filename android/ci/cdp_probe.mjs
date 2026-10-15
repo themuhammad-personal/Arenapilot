@@ -333,6 +333,32 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   return JSON.stringify({ present: !!d, visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0), rect: d ? r(d) : null, backdrop: !!q('.bds-drawer-backdrop'), railDock: rail && rail.dataset ? rail.dataset.dock : null });
 })()`;
 
+const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  function visible(el, box) {
+    if (!el || !box || box[2] < 1 || box[3] < 1) return false;
+    try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
+    catch (e) { return true; }
+  }
+  var rail = q('#bds-settings-rail');
+  var panel = q('[data-bds-arena-sidebar="true"]');
+  var rr = r(rail);
+  var pr = r(panel);
+  var inside = !!(rr && pr &&
+    rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
+    rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
+    rr[1] + rr[3] <= pr[1] + pr[3] + 1);
+  return JSON.stringify({
+    dock: rail && rail.dataset ? rail.dataset.dock : null,
+    visible: visible(rail, rr),
+    inside: inside,
+    railRect: rr,
+    panelRect: pr,
+    panelTag: panel ? panel.tagName.toLowerCase() : null
+  });
+})()`;
+
 const snapExpr = (label) => `/*sdp:snap*/JSON.stringify(window.__sdCapture.snap(${JSON.stringify(label)}, { free: true }))`;
 const maskExpr = (urls) => `/*sdp:mask*/JSON.stringify(${JSON.stringify(urls)}.map(function (u) { return window.__sdCapture._t.maskUrl(u); }))`;
 const shapeExpr = (texts) => `/*sdp:shape*/JSON.stringify(${JSON.stringify(texts)}.map(function (t) { return t == null ? null : window.__sdCapture._t.shapeText(t); }))`;
@@ -530,6 +556,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
       return 'Settings entry not visible in the official sidebar';
     }
+    /* Capture placement BEFORE opening Settings can close the site navigation. */
+    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
     await realClick(cdp, t.x, t.y);
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
@@ -605,6 +633,7 @@ export function summarize(result) {
     `site=${e.site ? `${e.site.id}@v${e.site.version}` : 'none'}`,
     `engine(css=${yn(eng.css)} root=${yn(eng.root)} handleBack=${eng.handleBack || '?'})`,
     `rail=${rail ? `${yn(rail.visible)} "${rail.label}" at ${JSON.stringify(rail.rect)}` : 'absent'}`,
+    `settingsAnchor(dock=${(result.settingsSidebarBeforeClick || {}).dock || '?'} visible=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.visible) : '?'} inside=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.inside) : '?'} rect=${JSON.stringify((result.settingsSidebarBeforeClick || {}).railRect || null)})`,
     `plusSheet(toggle=${att.toggle ?? '?'} mount=${att.mount ?? '?'} wrapper=${att.wrapper ?? '?'} dropdownAfterClick=${(result.engineSheet || {}).dropdown ?? '?'} openedBy=${result.sheetOpenedBy ?? 'n/a'} hit=${JSON.stringify((result.engineHit || {}).chain)} mobileCss=${(result.engineHit || {}).mobileCss ?? '?'})`,
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
@@ -702,6 +731,10 @@ export function acceptanceFailures(result) {
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
+  const sidebar = result.settingsSidebarBeforeClick;
+  if (!sidebar || sidebar.dock !== 'sidebar' || sidebar.visible !== true || sidebar.inside !== true ||
+      !(Number(sidebar.railRect?.[2]) >= 44 && Number(sidebar.railRect?.[3]) >= 40) ||
+      !sidebar.panelRect || sidebar.panelTag === null) errors.push('settings-not-inside-original-sidebar');
   const drawer = result.drawer;
   if (!drawer || drawer.visible !== true) errors.push('settings-drawer-not-openable');
   for (const step of result.steps || []) {
