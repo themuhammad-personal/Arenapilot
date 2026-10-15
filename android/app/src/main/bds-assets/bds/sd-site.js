@@ -512,5 +512,173 @@
   }
   installArenaNativeSkin();
 
+
+  /*
+   * Arena's own mobile navigation is not consistently exposed as an <aside>.
+   * Keep our existing Settings control, but anchor it visually to the open
+   * official sidebar using its navigation landmarks. When the sidebar closes,
+   * hide the fallback: the account menu remains the other entry point. This
+   * does not create a new button or re-style Arena's composer controls.
+   */
+  function installArenaSidebarSettingsDock() {
+    if (site.id !== 'arena' || typeof document === 'undefined' ||
+        !document.documentElement || !document.body) return;
+
+    var railSelector = '#bds-settings-rail';
+    var scheduled = false;
+    var lastSignature = '';
+
+    function textOf(node) {
+      try { return String(node && (node.innerText || node.textContent) || '').replace(/\s+/g, ' ').trim(); }
+      catch (_) { return ''; }
+    }
+    function rectOf(node) {
+      try {
+        var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+        if (!r || r.width <= 0 || r.height <= 0) return null;
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+      } catch (_) { return null; }
+    }
+    function isVisible(node) {
+      var r = rectOf(node);
+      if (!r) return false;
+      try {
+        var cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
+        return !cs || (cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0);
+      } catch (_) { return true; }
+    }
+    function hasNavLandmarks(node) {
+      var t = textOf(node);
+      return /new\s*chat/i.test(t) &&
+        /leaderboard/i.test(t) &&
+        /\bsearch\b/i.test(t);
+    }
+    function sidebar() {
+      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
+      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+      var roots = [];
+      try {
+        var navItems = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+        for (var i = 0; i < navItems.length; i++) {
+          var item = navItems[i];
+          var t = textOf(item);
+          var href = '';
+          try { href = String(item.getAttribute('href') || ''); } catch (_) {}
+          if (!/new\s*chat/i.test(t) && !/\/text\/direct(?:[/?#]|$)/i.test(href)) continue;
+          var parent = item;
+          for (var depth = 0; parent && parent !== document.body && depth < 9; depth++, parent = parent.parentElement) {
+            if (roots.indexOf(parent) < 0) roots.push(parent);
+          }
+        }
+      } catch (_) {}
+      /* Some Arena builds render the drawer as a generic div, not an aside. */
+      try {
+        var semantic = document.querySelectorAll('aside,nav,[role="dialog"],[data-state="open"]');
+        for (var k = 0; k < semantic.length; k++) if (roots.indexOf(semantic[k]) < 0) roots.push(semantic[k]);
+      } catch (_) {}
+
+      var best = null;
+      var bestArea = Infinity;
+      for (var n = 0; n < roots.length; n++) {
+        var node = roots[n];
+        if (!node || node === document.documentElement || node === document.body || !isVisible(node)) continue;
+        var r = rectOf(node);
+        if (!r || r.left > vw * 0.12 || r.width < vw * 0.42 ||
+            r.width > vw * 0.96 || r.height < vh * 0.72 || r.right > vw * 0.97) continue;
+        if (!hasNavLandmarks(node)) continue;
+        var area = r.width * r.height;
+        if (area < bestArea) { best = node; bestArea = area; }
+      }
+      return best;
+    }
+    function accountRow(panel) {
+      var found = null;
+      var foundWidth = 0;
+      try {
+        var nodes = panel.querySelectorAll('button,a,[role="button"],footer,div');
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          if (!/@/.test(textOf(node)) || textOf(node).length > 180 || !isVisible(node)) continue;
+          var r = rectOf(node);
+          if (!r || r.width < panel.getBoundingClientRect().width * 0.55 ||
+              r.height < 30 || r.height > 110) continue;
+          if (r.width > foundWidth) { found = r; foundWidth = r.width; }
+        }
+      } catch (_) {}
+      return found;
+    }
+    function clearInlineDock(rail) {
+      try {
+        ['position','left','top','right','bottom','width','height','max-width','min-width','z-index','margin','transform']
+          .forEach(function (key) { rail.style.removeProperty(key); });
+      } catch (_) {}
+    }
+    function sync() {
+      scheduled = false;
+      if (site.id !== 'arena') return;
+      var rail = null;
+      try { rail = document.querySelector(railSelector); } catch (_) {}
+      if (!rail || !rail.style) return;
+      var panel = sidebar();
+      if (!panel) {
+        var signature = 'pending';
+        if (lastSignature !== signature) {
+          rail.dataset.dock = 'pending';
+          clearInlineDock(rail);
+          lastSignature = signature;
+        }
+        return;
+      }
+      var pr = rectOf(panel);
+      if (!pr) return;
+      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
+      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+      var account = accountRow(panel);
+      var top = account ? account.top - 48 : pr.bottom - 60;
+      top = Math.max(pr.top + Math.min(140, pr.height * 0.2), Math.min(top, pr.bottom - 56));
+      var left = Math.max(4, pr.left + 8);
+      var width = Math.max(44, Math.min(pr.width - 16, vw - left - 4));
+      top = Math.max(4, Math.min(top, vh - 48));
+      var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width)].join(':');
+      if (lastSignature === signature2) return;
+      rail.dataset.dock = 'sidebar';
+      rail.style.setProperty('position', 'fixed', 'important');
+      rail.style.setProperty('left', left + 'px', 'important');
+      rail.style.setProperty('top', top + 'px', 'important');
+      rail.style.setProperty('right', 'auto', 'important');
+      rail.style.setProperty('bottom', 'auto', 'important');
+      rail.style.setProperty('width', width + 'px', 'important');
+      rail.style.setProperty('min-width', '0', 'important');
+      rail.style.setProperty('max-width', width + 'px', 'important');
+      rail.style.setProperty('height', '44px', 'important');
+      rail.style.setProperty('margin', '0', 'important');
+      rail.style.setProperty('transform', 'none', 'important');
+      rail.style.setProperty('z-index', '2147483647', 'important');
+      lastSignature = signature2;
+    }
+    function schedule() {
+      if (scheduled) return;
+      scheduled = true;
+      setTimeout(sync, 80);
+    }
+
+    if (typeof MutationObserver === 'function') {
+      try {
+        var observer = new MutationObserver(schedule);
+        observer.observe(document.documentElement, {
+          childList: true, subtree: true, attributes: true,
+          attributeFilter: ['class','style','aria-expanded','aria-hidden','data-state','data-dock']
+        });
+      } catch (_) {}
+    }
+    try {
+      document.addEventListener('click', schedule, true);
+      document.addEventListener('scroll', schedule, true);
+      if (window.addEventListener) window.addEventListener('resize', schedule, false);
+    } catch (_) {}
+    schedule();
+  }
+  installArenaSidebarSettingsDock();
+
   window.__sdProfile = applyProfile;
 })();
