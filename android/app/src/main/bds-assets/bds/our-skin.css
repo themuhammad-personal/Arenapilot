@@ -467,6 +467,9 @@ html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] .bds-arena-rail-lab
   white-space: nowrap;
 }
 
-html.sd-arena-native #bds-settings-rail[data-dock="pending"] {
+html.sd-arena-native #bds-settings-rail[data-dock="pending"],
+html.sd-arena-native #bds-settings-rail[data-dock="composer"] {
+  /* Engine scans can briefly restore its default composer dock. Keep the
+     fallback invisible unless our site-owned sidebar anchor is confirmed. */
   display: none !important;
 }
