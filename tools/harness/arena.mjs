@@ -106,6 +106,7 @@ try {
       'Send/composer overflow at ' + width + 'px: ' + JSON.stringify(layout));
     assert.ok(layout.sendMinWidth >= 44, 'Send target shrank below 44px at ' + width + 'px');
     assert.equal(layout.chatForms, 1, 'responsive width created a second chat composer');
+    await shot(page, 'arena-responsive-' + width);
   }
   await page.setViewport({ width: 320, height: 740, isMobile: true, hasTouch: true });
   console.log('PASS N0 responsive skin at 320/360/390px: original page/composer, reachable Send, no duplicate chat');
