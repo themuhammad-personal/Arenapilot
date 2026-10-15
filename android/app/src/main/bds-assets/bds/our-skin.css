@@ -200,6 +200,35 @@ html.sd-arena-native [role="combobox"]:focus-visible {
     max-height: 32vh;
     max-height: 32dvh;
   }
+
+  /*
+   * On arena's mobile layout there may be no site sidebar. The existing
+   * Settings fallback sits beside the composer; keep it icon-only here so its
+   * label cannot consume the Send button's width on a 320px screen.
+   */
+  html.sd-arena-native #bds-settings-rail[data-dock="composer"] {
+    box-sizing: border-box;
+    flex: 0 0 40px;
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    height: 40px;
+    padding: 0;
+    margin-top: 4px;
+    gap: 0;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  html.sd-arena-native #bds-settings-rail[data-dock="composer"] .bds-arena-rail-label {
+    display: none !important;
+  }
+
+  html.sd-arena-native #bds-settings-rail[data-dock="composer"] .bds-arena-rail-icon {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
 }
 
 /* ── Mixed-script text (Arabic + Bengali/English in one reply) ──
