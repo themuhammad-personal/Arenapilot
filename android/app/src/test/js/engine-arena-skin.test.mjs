@@ -95,7 +95,8 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /button\[aria-label="Send message"\]/);
   assert.match(SKIN, /button\[aria-label\*=", model "\]/);
   assert.match(SKIN, /max-width: 28vw/);
-  assert.match(SKIN, /max-width: 20vw/);
+  assert.match(SKIN, /max-width: 16vw/);
+  assert.match(SKIN, /button\.whitespace-nowrap:not\(\[aria-label\]\)/);
   assert.match(SKIN, /border-radius: 14px/);
   assert.match(SKIN, /font: inherit/);
   assert.match(SKIN, /border: 0 !important/);
