@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bds_update_title">به‌روزرسانی موجود است</string>
+    <string name="bds_update_message">نسخه %1$s از ArenaPilot موجود است. نسخه شما %2$s است.</string>
+    <string name="bds_update_message_beta">نسخهٔ جدیدتری از ArenaPilot %1$s موجود است.</string>
+    <string name="bds_update_download">دانلود</string>
+    <string name="bds_update_later">بعداً</string>
+    <string name="bds_update_downloading">در حال دانلود به‌روزرسانی…</string>
+    <string name="bds_update_download_failed">دانلود ناموفق بود (%1$s).</string>
+    <string name="bds_update_need_permission">برای ArenaPilot اجازه نصب برنامه‌های ناشناس را بدهید و دوباره تلاش کنید.</string>
+    <string name="bds_update_install_failed">باز کردن نصب‌کننده ممکن نشد.</string>
+    <string name="bds_download_started">در حال دانلود %1$s…</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_new_chat">گفتگوی جدید</string>
+    <string name="shortcut_deep_research">پژوهش عمیق</string>
+
+    <!-- Linux sandbox (foreground service notification) -->
+    <string name="sandbox_channel">سندباکس لینوکس</string>
+    <string name="sandbox_title">سندباکس لینوکس</string>
+    <string name="sandbox_idle">بیکار</string>
+    <string name="sandbox_agent_working">دستیار در حال کار است</string>
+    <string name="sandbox_stop">توقف</string>
+    <plurals name="sandbox_running">
+        <item quantity="one">در حال اجرای %d فرمان</item>
+        <item quantity="other">در حال اجرای %d فرمان</item>
+    </plurals>
+</resources>

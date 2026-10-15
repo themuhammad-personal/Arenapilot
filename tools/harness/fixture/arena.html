@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" class="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arena adapter fixture — not live Arena</title>
+<style>
+body{font:14px system-ui;margin:0;color:#222;background:#fff}header{padding:12px;background:#eef2ff}main{padding:12px}ol{display:flex;flex-direction:column-reverse;list-style:none;padding:0;max-height:60vh;overflow:auto}ol.mt-8{flex-direction:column}li{padding:12px;border-bottom:1px solid #ddd;white-space:pre-wrap}li.h-0{height:0;padding:0;border:0;overflow:hidden}.justify-end{text-align:right;background:#f4f4f5}.justify-end .prose{text-align:inherit}.prose{text-align:left}form{display:flex;flex-direction:column;border:1px solid #ccc;border-radius:18px;padding:8px}textarea{width:100%;box-sizing:border-box;min-height:60px}.controls,.left{display:flex;align-items:center;gap:8px}.controls{justify-content:space-between;gap:16px}.left{min-width:0}button{cursor:pointer;min-height:36px}aside{padding:12px;border-bottom:1px solid #ddd}aside a{display:block}
+</style></head><body><header>Modelled Arena DOM · real ArenaPilot engine</header><main><ol id="thread" class="flex-col-reverse"></ol><form><div class="column"><input type="file" hidden><textarea name="message" placeholder="Ask anything…"></textarea><div class="controls"><div class="left"><button type="button" aria-label="Add files">+</button><button type="button" role="combobox" style="width:48px">Direct</button><button type="button" class="model-picker" style="width:78px">Model</button></div><div class="right" style="display:flex;gap:8px"><button type="button" style="width:32px">T</button><button type="submit" aria-label="Send message" style="width:32px">↑</button></div></div></div></form></main>
+<script>
+// Composer shape comes from the anonymous CI capture. Message rows and response
+// rendering are MODELLED from arena-utils, not a logged-in capture. No DS classes.
+window.__arena = { beats: [], sent: [], outgoing: [], streaming: false, replies: [] };
+(function () {
+  const state = window.__arena;
+  const form = document.querySelector('form');
+  const input = document.querySelector('textarea');
+  const send = document.querySelector('[type=submit]');
+  const thread = document.querySelector('#thread');
+  // Real arena serves BOTH list shapes (dexforint/arena-utils ground truth):
+  // a reversed column and a plain `ol.mt-8`. ?list=mt8 switches this fixture to
+  // the plain shape so the engine's direction logic is exercised for real.
+  const mt8 = /[?&]list=mt8/.test(location.search);
+  if (mt8) { thread.classList.remove('flex-col-reverse'); thread.classList.add('mt-8'); }
+  // Real arena keeps zero-height spacer rows in the thread list; every scanner
+  // must skip them (class `h-0`, no .prose inside).
+  const spacer = document.createElement('li');
+  spacer.className = 'h-0';
+  thread.appendChild(spacer);
+  // Rows model the verified arena shape: BOTH roles carry a .prose block; a
+  // user row additionally wears `justify-end` on the row itself.
+  function row(role, text) {
+    const li = document.createElement('li');
+    li.className = role === 'user' ? 'justify-end' : 'assistant-row';
+    const md = document.createElement('div');
+    md.className = 'prose';
+    const p = document.createElement('p'); p.textContent = text;
+    md.appendChild(p); li.appendChild(md);
+    if (mt8) thread.appendChild(li); else thread.prepend(li);
+    return p;
+  }
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = function (url, init) {
+    if (String(url).includes('/nextjs-api/stream/')) state.outgoing.push(JSON.parse(init.body));
+    return originalFetch(url, init);
+  };
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (state.streaming || !input.value.trim()) return;
+    const text = input.value; input.value = '';
+    const index = state.sent.length;
+    state.sent.push(text); row('user', text);
+    const p = row('assistant', '');
+    state.streaming = true; send.setAttribute('aria-label', 'Stop');
+    await fetch(index ? '/nextjs-api/stream/post-to-evaluation/fixture' : '/nextjs-api/stream/create-evaluation', {
+      method: 'POST', headers: { 'content-type': 'text/plain' },
+      body: JSON.stringify({ id: 'fixture', mode: 'direct-battle', userMessage: { content: text }, modelAId: 'fixture-model', recaptchaV3Token: 'fixture-only' })
+    });
+    const beat = state.beats.shift() || 'Task complete.';
+    let end = 0;
+    await new Promise(function (resolve) {
+      function tick() {
+        end = Math.min(beat.length, end + Math.max(1, Math.ceil(beat.length / 8)));
+        p.textContent = beat.slice(0, end);
+        if (end < beat.length) setTimeout(tick, 60); else resolve();
+      }
+      tick();
+    });
+    state.replies.push(beat);
+    state.streaming = false; send.setAttribute('aria-label', 'Send message');
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+  if (mt8) { row('user', 'Seeded user line'); row('assistant', 'Seeded reply on the plain list'); }
+})();
+</script></body></html>

@@ -1,0 +1,26 @@
+--- a/src/tracee/seccomp.c
++++ b/src/tracee/seccomp.c
+@@ -9,0 +10 @@
++#include <sched.h>     /* CLONE_VM, CLONE_VFORK */
+@@ -157,0 +159,17 @@
++	case PR_fork:
++	case PR_vfork:
++		/* Android's app seccomp policy traps these legacy syscalls.
++		 * Bionic implements them through clone; do the same for a guest
++		 * libc (e.g. Alpine musl) without weakening the host filter.
++		 * A zero child stack preserves fork/vfork's inherited stack.
++		 * No namespaces, privilege changes or thread-sharing flags. */
++		set_sysnum(tracee, PR_clone);
++		poke_reg(tracee, SYSARG_1, SIGCHLD |
++			(sysnum == PR_vfork ? CLONE_VM | CLONE_VFORK : 0));
++		poke_reg(tracee, SYSARG_2, 0);
++		poke_reg(tracee, SYSARG_3, 0);
++		poke_reg(tracee, SYSARG_4, 0);
++		poke_reg(tracee, SYSARG_5, 0);
++		restart_syscall_after_seccomp(tracee);
++		break;
++
+--- a/src/extension/ashmem_memfd/ashmem_memfd.c
++++ b/src/extension/ashmem_memfd/ashmem_memfd.c
+@@ -3,0 +4 @@
++#include <string.h> /* strcmp, memset: required by NDK Clang */

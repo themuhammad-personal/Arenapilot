@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DeepSeek</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Stand-in for DeepSeek's own chrome: enough structure for the engine. */
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #1e1f23; color: #ececec; }
+  #layout { display: flex; min-height: 100vh; }
+  aside { width: 220px; background: #17181c; padding: 12px; box-sizing: border-box; }
+  aside a { display: block; color: #cfcfd4; text-decoration: none; padding: 8px 10px; border-radius: 8px; }
+  aside a.active { background: #2a2b30; }
+  main { flex: 1; display: flex; flex-direction: column; position: relative; }
+  #thread { flex: 1; overflow-y: auto; padding: 16px 12px 8px; }
+  .ds-message { max-width: 720px; margin: 0 auto 14px; padding: 10px 14px; border-radius: 12px; }
+  .ds-message.d29f3d7d { background: #2a2b30; }
+  .ds-message._4f9bf79._43c05b5 { background: #232428; }
+  .ds-markdown pre { background: #111214; padding: 10px; border-radius: 8px; overflow-x: auto; }
+  .ds-markdown code { font-family: ui-monospace, Menlo, monospace; }
+  .ds-icon-send, .ds-icon-stop-circle { width: 14px; height: 14px; display: inline-block; border-radius: 3px; }
+  .ds-icon-send { background: #4d6bfe; }
+  .ds-icon-stop-circle { background: #ff6b6b; border-radius: 50%; }
+  #composer { padding: 10px 12px calc(env(safe-area-inset-bottom,0px) + 12px); }
+  ._75e1990 { max-width: 720px; margin: 0 auto; background: #2a2b30; border-radius: 14px; padding: 8px; display: flex; gap: 8px; align-items: flex-end; }
+  .ds-textarea { flex: 1; }
+  #chat-input { width: 100%; min-height: 44px; box-sizing: border-box; background: transparent; color: inherit; border: 0; outline: none; font: inherit; resize: none; }
+  #send-btn { border: 0; background: #35363c; color: #fff; border-radius: 10px; padding: 10px 14px; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .bds-model-badge { font-size: 12px; opacity: .7; text-align: center; padding: 4px; }
+</style>
+</head>
+<body>
+<div id="layout">
+  <aside id="sidebar">
+    <button id="new-chat" role="button" aria-label="new chat" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:0;background:#2a2b30;color:#ddd">New chat</button>
+    <a href="/a/chat/s/old-chat-1" id="chat-old">Old conversation</a>
+    <a href="/a/chat/s/fixture-chat" id="chat-current" class="active">Fixture chat</a>
+  </aside>
+  <main>
+    <div class="bds-model-badge" id="model-badge">DeepThink (deepseek-flash)</div>
+    <div id="thread">
+      <div class="ds-message _63c77b1 d29f3d7d" data-mid="m1"><div class="ds-markdown"><p>Hello! Please list the files and write a hello script.</p></div></div>
+      <div class="ds-message _63c77b1 _4f9bf79 _43c05b5" data-mid="m2"><div class="ds-markdown"><p>Sure — here is a plan. <span class="ds-thinking">thinking…</span></p></div></div>
+    </div>
+    <div id="composer">
+      <div class="_75e1990">
+        <div class="ds-textarea"><textarea id="chat-input" placeholder="Message DeepSeek"></textarea></div>
+        <button id="send-btn" role="button" aria-label="send"><span class="ds-icon-send"></span><span>Send</span></button>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+/* ── Mini DeepSeek: what the real page does, minus React ─────────────────
+   - send: POST /api/v0/chat/completion (the engine's injected.js hooks it)
+   - streams the reply into a growing .ds-markdown (send/stop toggle)
+   - history endpoints feed sd-agent's request-history round trip
+   - sidebar links do SPA navigation (pushState, no reload)              */
+(function () {
+  'use strict';
+  var thread = document.getElementById('thread');
+  var input = document.getElementById('chat-input');
+  var sendBtn = document.getElementById('send-btn');
+  var SESSION = 'fixture-chat';
+  var STORE_KEY = 'fixture_history';
+  var history;
+  try { history = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) { history = null; }
+  if (!history || !Array.isArray(history) || !history.length) {
+    history = [
+      { role: 'USER', content: 'Hello! Please list the files and write a hello script.', id: 'm1' },
+      { role: 'ASSISTANT', content: 'Sure — here is a plan.', id: 'm2' },
+    ];
+  }
+  var midSeq = history.reduce(function (n, m) { return Math.max(n, Number(String(m.id).slice(1)) || 0); }, 2);
+  var streaming = false;
+  var lastComposerAtSend = '';
+
+  function persistHistory() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(history)); } catch (_) {}
+  }
+
+  // Rebuild the thread from the persisted history so a reload (the no-rerun
+  // scenario) shows the same conversation the engine has to recognise.
+  thread.innerHTML = '';
+  history.forEach(function (m) { thread.appendChild(rowFor(m.role, m.content, m.id)); });
+
+  function setSendIcon(streamingNow) {
+    streaming = streamingNow;
+    sendBtn.innerHTML = streamingNow
+      ? '<span class="ds-icon-stop-circle"></span><span>Stop</span>'
+      : '<span class="ds-icon-send"></span><span>Send</span>';
+    sendBtn.setAttribute('aria-label', streamingNow ? 'stop' : 'send');
+    window.__fixtureStreaming = streamingNow;
+  }
+
+  function rowFor(role, text, id) {
+    var el = document.createElement('div');
+    el.className = role === 'USER'
+      ? 'ds-message _63c77b1 d29f3d7d'
+      : 'ds-message _63c77b1 _4f9bf79 _43c05b5';
+    if (id) el.setAttribute('data-mid', id);
+    var md = document.createElement('div');
+    md.className = 'ds-markdown';
+    md.innerHTML = '<p></p>';
+    md.querySelector('p').textContent = text;
+    el.appendChild(md);
+    return el;
+  }
+
+  function addUser(text) {
+    var id = 'm' + (++midSeq);
+    history.push({ role: 'USER', content: text, id: id });
+    persistHistory();
+    thread.appendChild(rowFor('USER', text, id));
+    thread.scrollTop = thread.scrollHeight;
+    return id;
+  }
+
+  function addAssistantShell() {
+    var id = 'm' + (++midSeq);
+    var el = rowFor('ASSISTANT', '', id);
+    thread.appendChild(el);
+    return { el: el, md: el.querySelector('.ds-markdown'), id: id };
+  }
+
+  /** Grow the reply in small pieces, like the real streaming renderer. */
+  function streamInto(md, fullText, done) {
+    setSendIcon(true);
+    var shown = 0;
+    md.innerHTML = '<p></p>';
+    var p = md.querySelector('p');
+    (function tick() {
+      if (window.__fixtureAbortStream) {
+        window.__fixtureAbortStream = false;
+        setSendIcon(false);
+        done(shown);
+        return;
+      }
+      // Keep the reader at the bottom only when they were already there —
+      // exactly the behaviour the engine's scroll guard must preserve.
+      var atBottom = thread.scrollTop + thread.clientHeight >= thread.scrollHeight - 40;
+      shown = Math.min(fullText.length, shown + Math.max(2, Math.ceil(fullText.length / 8)));
+      p.textContent = fullText.slice(0, shown);
+      if (atBottom) thread.scrollTop = thread.scrollHeight;
+      if (shown < fullText.length) setTimeout(tick, 25);
+      else { setSendIcon(false); done(fullText.length); }
+    })();
+  }
+
+  /** The scenario's model: every send gets the next scripted beat. */
+  function completionBeat(payload) {
+    var beats = window.__fixtureBeats || [];
+    var n = window.__fixtureBeatIndex || 0;
+    window.__fixtureBeatIndex = n + 1;
+    window.__fixtureSends = window.__fixtureSends || [];
+    window.__fixtureSends.push({ beat: n, composerAtSend: lastComposerAtSend, payload: payload,
+      quiet: !!window.__sdQuietN,
+      autoClass: document.documentElement.classList.contains('sd-auto-send') });
+    if (n < beats.length) return beats[n];
+    return 'Done — nothing more to do.';
+  }
+
+  async function send(text) {
+    lastComposerAtSend = input.value;
+    addUser(text);
+    input.value = '';
+    var shell = addAssistantShell();
+    var body = JSON.stringify({
+      messages: history.map(function (m) { return { role: m.role.toLowerCase(), content: m.content }; }),
+      model: 'deepseek-flash',
+      stream: true,
+    });
+    var resp = await fetch('/api/v0/chat/completion', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer fixture-token' },
+      body: body,
+    });
+    var beat = completionBeat(body);
+    streamInto(shell.md, beat, function (shownLen) {
+      history.push({ role: 'ASSISTANT', content: beat.slice(0, shownLen) || beat, id: shell.id });
+      persistHistory();
+    });
+  }
+
+  sendBtn.addEventListener('click', function () {
+    if (streaming) { window.__fixtureAbortStream = true; return; }
+    var text = input.value.trim();
+    if (text) send(text);
+  });
+  input.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      ev.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  // SPA navigation: sidebar links move without reloading (the engine stays).
+  document.getElementById('sidebar').addEventListener('click', function (ev) {
+    var a = ev.target.closest && ev.target.closest('a[href*="/chat/s/"]');
+    if (!a) return;
+    ev.preventDefault();
+    document.querySelectorAll('aside a').forEach(function (x) { x.classList.remove('active'); });
+    a.classList.add('active');
+    var url = new URL(a.href, location.href).pathname;
+    window.history.pushState({}, '', url);
+    window.__fixtureNavigations = (window.__fixtureNavigations || 0) + 1;
+  });
+
+  document.getElementById('new-chat').addEventListener('click', function () {
+    window.history.pushState({}, '', '/a/chat/s/new-' + Math.random().toString(36).slice(2, 8));
+    thread.innerHTML = '';
+  });
+
+  // ── API endpoints the engine's injected.js expects ──────────────────────
+  var realFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.indexOf('/api/v0/chat/history_messages') >= 0) {
+      return Promise.resolve(new Response(JSON.stringify({
+        code: 0,
+        data: { biz_data: { chat_session: { id: SESSION }, chat_messages: history.slice() } },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    }
+    if (url.indexOf('/api/v0/chat_session/fetch_page') >= 0) {
+      return Promise.resolve(new Response(JSON.stringify({
+        code: 0,
+        data: { biz_data: { chat_sessions: [{ id: SESSION, title: 'Fixture chat' }] } },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    }
+    return realFetch(input, init);
+  };
+
+  window.__fixtureSend = function (text) { input.value = text; sendBtn.click(); };
+  window.__fixtureSetBeats = function (beats) {
+    window.__fixtureBeats = beats;
+    window.__fixtureBeatIndex = 0;
+    window.__fixtureSends = [];
+    window.__fixtureCalls = window.__fixtureCalls || [];
+  };
+  window.__fixtureState = function () {
+    return {
+      streaming: streaming,
+      composer: input.value,
+      sends: window.__fixtureSends || [],
+      history: history.slice(),
+      threadText: thread.innerText,
+    };
+  };
+  setSendIcon(false);
+})();
+</script>
+</body>
+</html>

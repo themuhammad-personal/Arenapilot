@@ -1,0 +1,570 @@
+/* Arena capture kit - ground truth for the arena.ai port (Phase 0).
+
+   WHAT IT IS: a small script you run on https://arena.ai in a normal browser tab.
+   It records the STRUCTURE of the page and of its network traffic so the engine's
+   guesses (menus, the "+" popup, the composer, request/response shapes) can be
+   replaced by facts. It changes nothing on the page.
+
+   WHAT IT RECORDS: element tags, roles, aria-labels, classes, layout; request
+   methods, paths, key names and value TYPES; the shape of JSON bodies; the first
+   lines of a streamed answer as shapes.
+   WHAT IT NEVER RECORDS: message text, chat titles, tokens, cookies, header values,
+   e-mail addresses, ids (they become {uuid} / {id}). Anything that still looks like
+   a secret is masked again at export, and the export says how many it masked.
+
+   USE:  paste this file into the browser console (F12), or run the bookmarklet made
+   from it (tools/arena-capture/bookmarklet.txt). Then, on the page:
+     __sdCapture.snap("new-chat")            right now
+     __sdCapture.snapIn(8, "account-menu")   in 8 seconds - open the menu meanwhile
+     (a third argument {free:true} keeps interface words in the sidebar and header
+      too - only for a session with no account in it, such as a CI emulator)
+     __sdCapture.export({redact:["Your Name"]})   the JSON to send back (also: copy(...));
+                                             list any name that is on screen so it is hidden
+   The little panel (bottom-left) does the same with buttons.
+
+   FILE RULES (the bookmarklet is this file squeezed onto one line): ASCII only,
+   block comments only, every statement ends with a semicolon. A test enforces it. */
+(function () {
+  'use strict';
+  var G = typeof window !== 'undefined' ? window : globalThis;
+  if (G.__sdCapture && G.__sdCapture.version) {
+    try { if (G.__sdCapture.panel) { G.__sdCapture.panel(); } } catch (e) { return; }
+    return;
+  }
+
+  var VERSION = 1;
+  var MAX_NET = 300;
+  var MAX_SNAPS = 24;
+  var MAX_NODES = 340;
+  var MAX_DEPTH = 8;
+  var MAX_JSON = 700000;
+  var T0 = Date.now();
+
+  /* ---- masking ---------------------------------------------------------- */
+
+  var UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  var UUID_G = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig;
+  var JWT = /^eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}$/;
+  var SECRET_KEY = /(token|secret|password|passwd|auth|cookie|session|key|signature|jwt|email|phone|address|credential)/i;
+  /* a NUMBER under one of these is personal or secret; under any other secret-looking
+     name (promptTokens, keyCount, ...) it is just a count and its shape is the point */
+  var SECRET_NUMBER_KEY = /(secret|password|passwd|phone|credential|pin|ssn|card)/i;
+  /* values of these keys are structural enums, safe and useful to keep verbatim */
+  var KEEP_KEY = /^(mode|modality|role|type|status|finishReason|kind|trigger|object|event|state|phase)$/;
+
+  function maskSegment(seg) {
+    if (!seg) { return seg; }
+    if (UUID.test(seg)) { return seg.replace(UUID_G, '{uuid}'); }
+    if (/^[0-9]{5,}$/.test(seg)) { return '{n}'; }
+    if (/^[A-Za-z0-9_-]{20,}$/.test(seg)) { return '{id}'; }
+    return seg;
+  }
+  function maskPath(path) {
+    return String(path || '').split('/').map(maskSegment).join('/');
+  }
+  function maskUrl(raw) {
+    var u;
+    try { u = new URL(String(raw), G.location && G.location.href); } catch (e) { return '<bad-url>'; }
+    var keys = [];
+    u.searchParams.forEach(function (v, k) { keys.push(k); });
+    var own = G.location && u.host === G.location.host;
+    return (own ? '' : '[' + u.host + ']') + maskPath(u.pathname) + (keys.length ? '?' + keys.join('&') : '');
+  }
+
+  /* ---- shapes: what a value LOOKS like, never what it says -------------- */
+
+  function shape(v, depth) {
+    depth = depth || 0;
+    if (v === null) { return 'null'; }
+    var t = typeof v;
+    if (t === 'boolean') { return 'bool'; }
+    if (t === 'number') { return 'num'; }
+    if (t === 'string') {
+      if (UUID.test(v) && v.length <= 40) { return '<uuid>'; }
+      if (JWT.test(v)) { return '<jwt>'; }
+      return '<str len=' + v.length + '>';
+    }
+    if (t !== 'object') { return '<' + t + '>'; }
+    if (depth >= MAX_DEPTH) { return '<deep>'; }
+    if (Array.isArray(v)) {
+      var out = v.slice(0, 3).map(function (x) { return shape(x, depth + 1); });
+      if (v.length > 3) { out.push('+' + (v.length - 3) + ' more'); }
+      return { '$array': v.length, items: out };
+    }
+    var res = {};
+    var keys = Object.keys(v).slice(0, 60);
+    keys.forEach(function (k) {
+      var val = v[k];
+      if (KEEP_KEY.test(k) && typeof val === 'string' && val.length <= 40 && !UUID.test(val)) { res[k] = val; return; }
+      if ((SECRET_KEY.test(k) && typeof val === 'string') || (SECRET_NUMBER_KEY.test(k) && typeof val === 'number')) {
+        res[k] = '<redacted' + (typeof val === 'string' ? ' len=' + val.length : '') + '>';
+        return;
+      }
+      res[k] = shape(val, depth + 1);
+    });
+    if (Object.keys(v).length > 60) { res['$more_keys'] = Object.keys(v).length - 60; }
+    return res;
+  }
+  function shapeText(text) {
+    var s = String(text == null ? '' : text);
+    try { return shape(JSON.parse(s)); } catch (e) { return '<non-json len=' + s.length + '>'; }
+  }
+
+  /* one line of a streamed answer: "a0:{json}", "data: {json}", "event: x" */
+  function lineShape(line) {
+    var m = /^([a-z])([0-9a-z]):([\s\S]*)$/.exec(line);
+    if (m) { return { prefix: m[1], code: m[2], value: shapeText(m[3]) }; }
+    var d = /^data:\s?([\s\S]*)$/.exec(line);
+    if (d) { return { sse: 'data', value: shapeText(d[1]) }; }
+    var ev = /^event:\s?([A-Za-z0-9_.-]{1,40})$/.exec(line);
+    if (ev) { return { sse: 'event', name: ev[1] }; }
+    return { other: '<str len=' + line.length + '>' };
+  }
+
+  function bodyShape(body) {
+    if (body == null) { return null; }
+    if (typeof body === 'string') { return shapeText(body); }
+    if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) {
+      var ks = []; body.forEach(function (v, k) { ks.push(k); }); return { form: ks };
+    }
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      var fs = []; body.forEach(function (v, k) { fs.push(k + (typeof v === 'object' ? ':file' : '')); }); return { multipart: fs };
+    }
+    return '<' + Object.prototype.toString.call(body).slice(8, -1) + '>';
+  }
+
+  /* ---- network ---------------------------------------------------------- */
+
+  var net = [];
+  function record(e) { if (net.length < MAX_NET) { net.push(e); } }
+  var STATIC = /(^\/_next\/(static|image)|\.(js|css|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|mp4|webm)$)/i;
+  var THIRD = /(recaptcha|posthog|google-analytics|googletagmanager|sentry|cloudflare|trigger\.dev)/i;
+
+  function wanted(raw) {
+    var u;
+    try { u = new URL(String(raw), G.location && G.location.href); } catch (e) { return false; }
+    if (G.location && u.host === G.location.host) { return !STATIC.test(u.pathname); }
+    return THIRD.test(u.host + u.pathname);
+  }
+  function headerNames(init, input) {
+    var names = [];
+    var h = (init && init.headers) || (input && input.headers);
+    if (!h) { return names; }
+    if (typeof h.forEach === 'function' && !Array.isArray(h)) { h.forEach(function (v, k) { names.push(String(k).toLowerCase()); }); }
+    else if (Array.isArray(h)) { h.forEach(function (p) { names.push(String(p[0]).toLowerCase()); }); }
+    else { names = Object.keys(h).map(function (k) { return k.toLowerCase(); }); }
+    return names.sort();
+  }
+  function headerValue(init, input, name) {
+    var h = (init && init.headers) || (input && input.headers);
+    if (!h) { return null; }
+    var v = null;
+    if (typeof h.get === 'function') { v = h.get(name); }
+    else if (Array.isArray(h)) { h.forEach(function (p) { if (String(p[0]).toLowerCase() === name) { v = p[1]; } }); }
+    else { Object.keys(h).forEach(function (k) { if (k.toLowerCase() === name) { v = h[k]; } }); }
+    return v == null ? null : String(v).slice(0, 80);
+  }
+
+  function readStream(res, entry) {
+    var reader;
+    try { reader = res.clone().body.getReader(); } catch (e) { return; }
+    var dec = new TextDecoder();
+    var buf = '';
+    var lines = 0;
+    var samples = [];
+    var seen = {};
+    function take(final) {
+      var parts = buf.split('\n');
+      buf = final ? '' : parts.pop();
+      parts.forEach(function (ln) {
+        ln = ln.replace(/\r$/, '');
+        if (!ln) { return; }
+        lines += 1;
+        var sh = lineShape(ln);
+        var key = JSON.stringify(sh);
+        if (!seen[key] && samples.length < 24) { seen[key] = 1; samples.push(sh); }
+      });
+    }
+    function pump() {
+      reader.read().then(function (r) {
+        if (r.done) { take(true); entry.stream = { lines: lines, samples: samples }; return; }
+        buf += dec.decode(r.value, { stream: true });
+        take(false);
+        if (lines >= 400) { entry.stream = { lines: lines, samples: samples, truncated: true }; try { reader.cancel(); } catch (e) { return; } return; }
+        pump();
+      }, function () { entry.stream = { lines: lines, samples: samples, aborted: true }; });
+    }
+    pump();
+  }
+
+  function describeResponse(res, entry) {
+    var ct = String(res.headers.get('content-type') || '').toLowerCase();
+    entry.resType = ct.split(';')[0];
+    if (/json/.test(ct)) {
+      res.clone().text().then(function (t) { entry.resLen = t.length; entry.resShape = shapeText(t.slice(0, 250000)); }, function () { return; });
+    } else if (/event-stream|text\/plain|ndjson|octet-stream/.test(ct)) {
+      readStream(res, entry);
+    } else {
+      entry.resLen = res.headers.get('content-length');
+    }
+  }
+
+  var origFetch = G.fetch;
+  if (typeof origFetch === 'function') {
+    G.fetch = function (input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url) || String(input);
+      var p = origFetch.apply(this, arguments);
+      if (!wanted(url)) { return p; }
+      var entry = {
+        t: Date.now() - T0,
+        via: 'fetch',
+        method: String((init && init.method) || (input && input.method) || 'GET').toUpperCase(),
+        url: maskUrl(url),
+        reqHeaders: headerNames(init, input),
+        reqType: headerValue(init, input, 'content-type'),
+        reqBody: null
+      };
+      try { entry.reqBody = bodyShape(init && init.body); } catch (e) { entry.reqBody = '<unreadable>'; }
+      p.then(function (res) {
+        entry.status = res.status;
+        try { describeResponse(res, entry); } catch (e) { entry.err = 'describe'; }
+        record(entry);
+      }, function () { entry.error = 'network'; record(entry); });
+      return p;
+    };
+  }
+
+  var XHR = G.XMLHttpRequest;
+  if (XHR && XHR.prototype) {
+    var xOpen = XHR.prototype.open;
+    var xSend = XHR.prototype.send;
+    var xHeader = XHR.prototype.setRequestHeader;
+    XHR.prototype.open = function (method, url) {
+      this.__sdc = { method: String(method || 'GET').toUpperCase(), url: String(url || ''), headers: [] };
+      return xOpen.apply(this, arguments);
+    };
+    XHR.prototype.setRequestHeader = function (name, value) {
+      if (this.__sdc) { this.__sdc.headers.push(String(name).toLowerCase()); }
+      return xHeader.apply(this, arguments);
+    };
+    XHR.prototype.send = function (body) {
+      var meta = this.__sdc;
+      if (meta && wanted(meta.url)) {
+        var entry = { t: Date.now() - T0, via: 'xhr', method: meta.method, url: maskUrl(meta.url), reqHeaders: meta.headers.sort(), reqBody: null };
+        try { entry.reqBody = bodyShape(body); } catch (e) { entry.reqBody = '<unreadable>'; }
+        this.addEventListener('loadend', function () {
+          entry.status = this.status;
+          var ct = String(this.getResponseHeader('content-type') || '').toLowerCase();
+          entry.resType = ct.split(';')[0];
+          if (/json/.test(ct)) { try { entry.resShape = shapeText(String(this.responseText).slice(0, 250000)); } catch (e) { entry.err = 'xhr-body'; } }
+          record(entry);
+        }.bind(this));
+      }
+      return xSend.apply(this, arguments);
+    };
+  }
+
+  /* ---- the page: landmarks and skeletons -------------------------------- */
+
+  var LANDMARKS = [
+    'textarea[name="message"]', 'form textarea', 'textarea[placeholder]', '[role="textbox"]', '[contenteditable="true"]',
+    'button[aria-label="Send message"]', 'button[type="submit"]', 'button[aria-label="Stop"]', 'button[aria-label*="Stop"]',
+    'button[aria-label="Add files"]', 'button[aria-label*="file" i]', 'button[role="combobox"]', 'select', 'input[type="file"]',
+    'main ol.flex-col-reverse', 'main ol.flex-col-reverse > *', 'ol.flex-col-reverse > *', 'ol.mt-8.flex', 'ol.mt-8', '.prose', '[data-code-block="true"]',
+    'button[aria-label*=", model "]', '[role="menu"]', '[role="menuitem"]', '[role="dialog"]', '[role="listbox"]',
+    '[data-radix-popper-content-wrapper]', '#root-portal-target', 'nav', 'aside', 'header', 'a[href*="/c/"]', 'html.dark',
+    '#bds-root', '#bds-settings-rail', '.bds-composer-controls', '.bds-attach-menu-mount', '.bds-attach-wrapper',
+    '.bds-plus-btn', '.bds-attach-dropdown', '.bds-attach-item', '.bds-attach-backdrop', '#sd-health-notice'
+  ];
+  var TEXT_TAGS = /^(button|a|label|summary|h1|h2|h3|h4|option)$/;
+  var PRIVATE = 'a[href*="/c/"], a[href*="/agent/"], .prose, [data-message-id]';
+
+  function attr(el, name) { return el.getAttribute ? el.getAttribute(name) : null; }
+  function visible(el) {
+    try {
+      var r = el.getBoundingClientRect();
+      return !!(r && r.width > 0 && r.height > 0);
+    } catch (e) { return false; }
+  }
+  function classes(el, n) {
+    var c = attr(el, 'class');
+    return c ? String(c).split(/\s+/).filter(Boolean).slice(0, n).join(' ') : '';
+  }
+  function norm(t) { return String(t || '').replace(/\s+/g, ' ').trim(); }
+  function maskText(t) {
+    var s = norm(t);
+    if (!s) { return ''; }
+    if (/@/.test(s) || /[0-9]{6,}/.test(s)) { return '<masked>'; }
+    return s.length > 40 ? s.slice(0, 40) + '~' : s;
+  }
+  /* Words that are interface, never a person: kept verbatim in the 'safe' mode. */
+  var SAFE_LABEL = /^(new chat|new|search|search chats|sign in|sign up|log in|log out|sign out|settings|account|menu|close|open|toggle|collapse|expand|sidebar|close sidebar|open sidebar|toggle sidebar|chats?|history|archived?|help|feedback|leaderboard|docs|pricing|theme|language|profile|terms|privacy|send message|stop|attach files|direct|battle|side by side|agent|text|image|video|upgrade|more|share|copy|retry|edit|delete|rename|pin|unpin|dark|light|system|download|upload|add|remove|cancel|ok|continue|back|next|today|yesterday|previous 7 days|previous 30 days)$/i;
+  function safeLabel(t) {
+    var s = norm(t);
+    if (!s) { return ''; }
+    return SAFE_LABEL.test(s) ? s : '<label len=' + s.length + '>';
+  }
+  /* mode: 'free' = interface text as it is (menus, composer); 'safe' = only known
+     interface words (sidebar, header: chat titles and your name live there);
+     'none' = never any text (message rows). */
+  function labelFor(t, mode) {
+    if (!norm(t)) { return ''; }
+    if (mode === 'free') { return maskText(t); }
+    if (mode === 'safe') { return safeLabel(t); }
+    return '<label len=' + norm(t).length + '>';
+  }
+  function inPrivate(el) {
+    try { return !!(el.closest && el.closest(PRIVATE)); } catch (e) { return false; }
+  }
+  function describeEl(el, mode) {
+    mode = inPrivate(el) ? 'none' : (mode || 'safe');
+    var rect = null;
+    try { var r = el.getBoundingClientRect(); rect = { x: Math.round(r.x || r.left || 0), y: Math.round(r.y || r.top || 0), w: Math.round(r.width), h: Math.round(r.height) }; } catch (e) { rect = null; }
+    var d = {
+      tag: String(el.tagName || '').toLowerCase(),
+      role: attr(el, 'role') || undefined,
+      aria: attr(el, 'aria-label') ? labelFor(attr(el, 'aria-label'), mode) : undefined,
+      name: attr(el, 'name') || undefined,
+      type: attr(el, 'type') || undefined,
+      placeholder: attr(el, 'placeholder') ? labelFor(attr(el, 'placeholder'), mode) : undefined,
+      cls: classes(el, 14) || undefined,
+      rect: rect || undefined
+    };
+    return d;
+  }
+  function skeleton(el, depth, state) {
+    state = state || { n: 0, mode: 'free' };
+    if (!el || state.n >= MAX_NODES) { return null; }
+    state.n += 1;
+    var mode = inPrivate(el) ? 'none' : state.mode;
+    var node = describeEl(el, mode);
+    var id = attr(el, 'id');
+    if (id) { node.id = maskSegment(id); }
+    var data = {};
+    var attrs = el.attributes || [];
+    for (var i = 0; i < attrs.length; i += 1) {
+      var a = attrs[i];
+      if (/^data-/.test(a.name) && a.name !== 'data-message-id') { data[a.name] = maskSegment(String(a.value).slice(0, 40)); }
+    }
+    if (Object.keys(data).length) { node.data = data; }
+    var href = attr(el, 'href');
+    if (href) { node.href = maskUrl(href); }
+    var tag = node.tag;
+    if (tag === 'svg') {
+      var path = el.querySelector ? el.querySelector('path') : null;
+      if (path && attr(path, 'd')) { node.svgPath = String(attr(path, 'd')).slice(0, 24); }
+      return node;
+    }
+    var kids = el.children ? Array.prototype.slice.call(el.children) : [];
+    var uiText = mode !== 'none' && (TEXT_TAGS.test(tag) || attr(el, 'role') === 'menuitem' || attr(el, 'role') === 'tab' || kids.length === 0);
+    if (uiText) {
+      var own = '';
+      var nodes = el.childNodes ? Array.prototype.slice.call(el.childNodes) : [];
+      nodes.forEach(function (c) { if (c.nodeType === 3) { own += c.textContent; } });
+      if (!own && kids.length === 0) { own = el.textContent || ''; }
+      own = labelFor(own, mode);
+      if (own) { node.text = own; }
+    }
+    if (depth > 0 && kids.length) {
+      node.children = [];
+      for (var k = 0; k < kids.length && state.n < MAX_NODES; k += 1) {
+        var child = skeleton(kids[k], depth - 1, state);
+        if (child) { node.children.push(child); }
+      }
+    } else if (kids.length) {
+      node.childCount = kids.length;
+    }
+    return node;
+  }
+
+  function all(sel) {
+    try { return Array.prototype.slice.call(G.document.querySelectorAll(sel)); } catch (e) { return []; }
+  }
+  function ourUi(el) {
+    try { return !!(el.closest && el.closest('#sd-capture-panel')); } catch (e) { return false; }
+  }
+
+  function computed(el) {
+    try {
+      var s = G.getComputedStyle(el);
+      return { display: s.display, flexDirection: s.flexDirection, position: s.position, overflowY: s.overflowY };
+    } catch (e) { return null; }
+  }
+
+  var snaps = [];
+  function snap(label, opts) {
+    var free = !!(opts && opts.free);
+    if (snaps.length >= MAX_SNAPS) { return { error: 'too many snapshots' }; }
+    var doc = G.document;
+    var out = {
+      label: String(label || 'snap').slice(0, 40),
+      t: Date.now() - T0,
+      path: maskPath(G.location && G.location.pathname),
+      html: { cls: classes(doc.documentElement, 20), lang: attr(doc.documentElement, 'lang') || undefined },
+      viewport: { w: G.innerWidth, h: G.innerHeight },
+      landmarks: [],
+      regions: {}
+    };
+    LANDMARKS.forEach(function (sel) {
+      var found = all(sel).filter(function (e) { return !ourUi(e); });
+      var first = found[0];
+      out.landmarks.push({ selector: sel, count: found.length, visible: found.filter(visible).length, first: first ? describeEl(first, 'free') : undefined });
+    });
+
+    var composer = all('textarea[name="message"], form textarea, textarea[placeholder]').filter(function (e) { return !ourUi(e); })[0];
+    if (composer) {
+      var box = (composer.closest && composer.closest('form')) || composer.parentElement;
+      var up = box;
+      for (var i = 0; i < 2 && up && up.parentElement && up.parentElement.tagName !== 'BODY'; i += 1) { up = up.parentElement; }
+      out.regions.composer = skeleton(up || box, 7, { n: 0, mode: 'free' });
+      out.computed = { composerBox: computed(box), composerAncestor: up ? computed(up) : null };
+    }
+    var list = all('main ol.flex-col-reverse, ol.flex-col-reverse, ol.mt-8.flex, ol.mt-8')[0];
+    if (list) {
+      out.computed = out.computed || {};
+      out.computed.messageList = computed(list);
+      out.regions.messageRows = Array.prototype.slice.call(list.children || [], 0, 2).map(function (r) { return skeleton(r, 6, { n: 0, mode: 'none' }); });
+    }
+    var popups = all('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]').filter(function (e) { return !ourUi(e) && visible(e); }).slice(0, 4);
+    if (popups.length) { out.regions.popups = popups.map(function (p) { return skeleton(p, 8, { n: 0, mode: 'free' }); }); }
+    var sheet = all('.bds-attach-dropdown')[0];
+    if (sheet) { out.regions.engineSheet = skeleton(sheet, 6, { n: 0, mode: 'free' }); }
+    /* whatever the engine put straight under <body> (its "+" sheet and backdrop), by whatever class name */
+    var overlays = Array.prototype.slice.call((doc.body && doc.body.children) || []).filter(function (e) {
+      return !ourUi(e) && e.getAttribute('id') !== 'bds-root' && (/(^|\s)bds-/.test(attr(e, 'class') || '') || /^bds-/.test(attr(e, 'id') || ''));
+    }).slice(0, 3);
+    if (overlays.length) { out.regions.engineOverlays = overlays.map(function (o) { return skeleton(o, 6, { n: 0, mode: 'free' }); }); }
+    var side = all('nav, aside').filter(function (e) { return !ourUi(e); })[0];
+    if (side) { out.regions.sidebar = skeleton(side, 6, { n: 0, mode: free ? 'free' : 'safe' }); }
+    var head = all('header').filter(function (e) { return !ourUi(e); })[0];
+    if (head) { out.regions.header = skeleton(head, 5, { n: 0, mode: free ? 'free' : 'safe' }); }
+    snaps.push(out);
+    refresh();
+    return { ok: true, label: out.label, landmarks: out.landmarks.filter(function (l) { return l.count; }).length, popups: popups.length };
+  }
+  function snapIn(seconds, label, opts) {
+    var ms = Math.max(1, Number(seconds) || 5) * 1000;
+    G.setTimeout(function () { snap(label, opts); }, ms);
+    return 'snapshot "' + label + '" in ' + Math.round(ms / 1000) + 's - open what you want to capture now';
+  }
+
+  /* ---- export, with a last line of defence ------------------------------ */
+
+  var LEAKS = [
+    ['email', /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>'],
+    ['jwt', /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '<jwt>'],
+    ['bearer', /Bearer\s+[A-Za-z0-9._~+/=-]{12,}/g, 'Bearer <redacted>'],
+    ['uuid', UUID_G, '{uuid}'],
+    ['opaque', /[A-Za-z0-9_-]{40,}/g, '<opaque>']
+  ];
+  function escapeRe(w) { return String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function scrub(text, redact) {
+    var counts = {};
+    var out = text;
+    (redact || []).forEach(function (w) {
+      var word = norm(w);
+      if (word.length < 2) { return; }
+      var n = 0;
+      out = out.replace(new RegExp(escapeRe(word), 'ig'), function () { n += 1; return '<redacted-word>'; });
+      if (n) { counts['redact:' + word.length + ' chars'] = n; }
+    });
+    LEAKS.forEach(function (rule) {
+      var n = 0;
+      out = out.replace(rule[1], function () { n += 1; return rule[2]; });
+      if (n) { counts[rule[0]] = n; }
+    });
+    return { text: out, counts: counts };
+  }
+  function build(netList) {
+    return {
+      kit: 'sd-arena-capture',
+      version: VERSION,
+      capturedAt: new Date().toISOString(),
+      page: { path: maskPath(G.location && G.location.pathname), host: G.location && G.location.host, lang: G.navigator && G.navigator.language },
+      note: 'structure only: no text, titles, tokens, cookies or ids',
+      snaps: snaps,
+      network: netList
+    };
+  }
+  function exportJson(opts) {
+    var redact = (opts && opts.redact) || [];
+    var list = net.slice();
+    var json = JSON.stringify(build(list));
+    while (json.length > MAX_JSON && list.length > 20) { list = list.slice(Math.floor(list.length / 4)); json = JSON.stringify(build(list)); }
+    var clean = scrub(json, redact);
+    var obj = JSON.parse(clean.text);
+    obj.masked = clean.counts;
+    obj.counts = { snaps: snaps.length, network: list.length };
+    return JSON.stringify(obj);
+  }
+
+  /* ---- a small panel (phone-friendly) ----------------------------------- */
+
+  var panelEl = null;
+  var statusEl = null;
+  function refresh() {
+    if (statusEl) { statusEl.textContent = snaps.length + ' snaps, ' + net.length + ' requests'; }
+  }
+  function panel() {
+    var doc = G.document;
+    if (!doc || !doc.createElement || !doc.body) { return null; }
+    if (panelEl && panelEl.parentNode) { return panelEl; }
+    panelEl = doc.createElement('div');
+    panelEl.id = 'sd-capture-panel';
+    panelEl.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#111;color:#eee;font:12px/1.4 system-ui,sans-serif;padding:8px;border-radius:10px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,.5)';
+    var title = doc.createElement('div');
+    title.textContent = 'Arena capture';
+    title.style.cssText = 'font-weight:600;margin-bottom:4px';
+    statusEl = doc.createElement('div');
+    statusEl.style.cssText = 'opacity:.8;margin-bottom:6px';
+    var labels = ['new-chat', 'conversation', 'account-menu', 'plus-popup', 'model-picker', 'other'];
+    var pick = doc.createElement('select');
+    pick.style.cssText = 'width:100%;margin-bottom:6px;background:#222;color:#eee';
+    labels.forEach(function (l) { var o = doc.createElement('option'); o.value = l; o.textContent = l; pick.appendChild(o); });
+    function button(text, fn) {
+      var b = doc.createElement('button');
+      b.type = 'button';
+      b.textContent = text;
+      b.style.cssText = 'margin:2px 4px 2px 0;padding:6px 8px;background:#2b2b2b;color:#eee;border:1px solid #555;border-radius:8px';
+      b.addEventListener('click', fn);
+      return b;
+    }
+    var words = doc.createElement('input');
+    words.placeholder = 'your name / words to hide (comma)';
+    words.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:6px;background:#222;color:#eee;border:1px solid #555;border-radius:6px;padding:4px';
+    var out = doc.createElement('textarea');
+    out.style.cssText = 'display:none;width:100%;height:90px;margin-top:6px;background:#000;color:#9f9';
+    panelEl.appendChild(title);
+    panelEl.appendChild(statusEl);
+    panelEl.appendChild(pick);
+    panelEl.appendChild(words);
+    panelEl.appendChild(button('Snap in 6s', function () { snapIn(6, pick.value); statusEl.textContent = 'open it now... (6s)'; }));
+    panelEl.appendChild(button('Snap now', function () { snap(pick.value); }));
+    panelEl.appendChild(button('Export', function () {
+      var text = exportJson({ redact: String(words.value || '').split(',') });
+      out.value = text;
+      out.style.display = 'block';
+      out.focus();
+      out.select();
+      try { if (G.navigator.clipboard) { G.navigator.clipboard.writeText(text); } } catch (e) { return; }
+    }));
+    panelEl.appendChild(button('Close', function () { if (panelEl.parentNode) { panelEl.parentNode.removeChild(panelEl); } }));
+    panelEl.appendChild(out);
+    doc.body.appendChild(panelEl);
+    refresh();
+    return panelEl;
+  }
+
+  G.__sdCapture = {
+    version: VERSION,
+    snap: snap,
+    snapIn: snapIn,
+    export: exportJson,
+    panel: panel,
+    network: function () { return net.slice(); },
+    snaps: function () { return snaps.slice(); },
+    _t: { shape: shape, shapeText: shapeText, lineShape: lineShape, maskPath: maskPath, maskUrl: maskUrl, maskText: maskText, scrub: scrub, skeleton: skeleton }
+  };
+  /* a driver that clicks the page for itself (the CI probe) sets this first: the panel would be under its pointer */
+  try { if (!G.__sdCaptureNoPanel) { panel(); } } catch (e) { return; }
+}());

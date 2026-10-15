@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">ArenaPilot</string>
+    <string name="bds_asset_authority" translatable="false">bds-asset.local</string>
+
+    <!-- In-app updates (#157). Native strings follow the device locale, which is what
+         applySystemLocaleCookie() already assumes when it seeds NEXT_LOCALE. -->
+    <string name="bds_update_title">Update available</string>
+    <string name="bds_update_message">ArenaPilot %1$s is available. You have %2$s.</string>
+    <string name="bds_update_message_beta">A newer build of ArenaPilot %1$s is available.</string>
+    <string name="bds_update_download">Download</string>
+    <string name="bds_update_later">Later</string>
+    <string name="bds_update_downloading">Downloading the update…</string>
+    <string name="bds_update_download_failed">Download failed (%1$s).</string>
+    <string name="bds_update_need_permission">Grant the install unknown apps permission for ArenaPilot, then try again.</string>
+    <string name="bds_download_started">Downloading %1$s…</string>
+    <string name="bds_update_install_failed">Could not open the package installer.</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_new_chat">New Chat</string>
+    <string name="shortcut_deep_research">Deep Research</string>
+
+    <!-- Branded boot overlay (shown while the engine page loads) -->
+    <string name="bds_boot_title" translatable="false">ArenaPilot</string>
+
+    <!-- Linux sandbox (foreground service notification) -->
+    <string name="sandbox_channel">Linux sandbox</string>
+    <string name="sandbox_title">Linux sandbox</string>
+    <string name="sandbox_idle">Idle</string>
+    <string name="sandbox_agent_working">The agent is working</string>
+    <string name="sandbox_stop">Stop</string>
+    <plurals name="sandbox_running">
+        <item quantity="one">Running %d command</item>
+        <item quantity="other">Running %d commands</item>
+    </plurals>
+    <!-- Independent-app notice, shown once on the first launch (formerly the
+     arenaDeck flavor override; the app is arena-only now). It is deliberately
+     translatable="false": a legal statement ships verbatim in English with a
+     Bengali line underneath. -->
+    <string name="arena_notice_title" translatable="false">An independent app · স্বতন্ত্র অ্যাপ</string>
+    <string name="arena_notice_message" translatable="false">ArenaPilot is an independent, unofficial app. It is not affiliated with, endorsed by or sponsored by arena.ai. You use arena.ai through its own website, under its own terms and privacy policy.\n\nPrivacy defaults (changed in this update): app instructions are ON by default, because the app’s tools, Deep Research, personas and projects depend on them. Stored memory stays OFF by default; it is a separate opt-in. This notice is shown again because the defaults changed, and app instructions that the early preview had forced off are turned back on. Your saved data is not deleted. In Advanced settings → Chat &amp; messages, turn ON “Disable Hidden System Prompt” to stop sharing app instructions, enabled skills, characters, projects and tool definitions. Turn OFF “Disable Stored Memory Injection” separately to share memories. Enabled context is sent to arena.ai and to the provider of the model you picked. Previously sent context remains in that conversation; start a new chat after changing privacy settings. Files and messages you explicitly send still go to the website.\n\nArenaPilot একটি স্বতন্ত্র, অনানুষ্ঠানিক অ্যাপ। arena.ai-এর সঙ্গে এর কোনো সম্পর্ক নেই এবং arena.ai এটি অনুমোদন বা পৃষ্ঠপোষকতা করে না। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট, শর্ত ও গোপনীয়তা নীতি ব্যবহার করছেন।\n\nগোপনীয়তার ডিফল্ট (এই আপডেটে বদলেছে): অ্যাপের নির্দেশনা ডিফল্টে চালু, কারণ অ্যাপের টুল, ডিপ রিসার্চ, পারসোনা ও প্রজেক্ট এর উপর নির্ভর করে। সংরক্ষিত মেমোরি ডিফল্টে বন্ধই থাকে; সেটি আলাদাভাবে চালু করতে হয়। ডিফল্ট বদলেছে বলে এই নোটিশটি আবার দেখানো হচ্ছে, আর আগের প্রিভিউ যেটি জোর করে বন্ধ করে রেখেছিল, সেই নির্দেশনা আবার চালু করা হয়েছে। আপনার সংরক্ষিত ডেটা মুছবে না। Advanced settings → Chat &amp; messages-এ “Disable Hidden System Prompt” চালু করলে নির্দেশনা, সক্রিয় স্কিল, ক্যারেক্টার, প্রজেক্ট ও টুলের বিবরণ যাওয়া বন্ধ হবে। “Disable Stored Memory Injection” আলাদাভাবে বন্ধ করলে মেমোরি যাবে। চালু করা তথ্য arena.ai ও আপনার মডেল-প্রদানকারীর কাছে যায়। আগে পাঠানো তথ্য চ্যাটে থেকে যায়; গোপনীয়তা বদলানোর পর নতুন চ্যাট খুলুন। নিজে পাঠানো বার্তা ও ফাইল ওয়েবসাইটে আগের মতোই যাবে।</string>
+    <!-- N0 native chat shell: the floating affordance that returns from the
+         raw web view (sign-in, settings) to the native chat. -->
+    <string name="arena_notice_ok" translatable="false">OK</string>
+</resources>

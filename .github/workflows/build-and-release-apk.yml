@@ -1,0 +1,440 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - v3-real-exact-ui
+      - qa/real-world-testing
+      - arena/01a0cebd-deepseek
+      - arena/01a0dc4d-deepseek
+      # arena.ai port (docs/arena/PLAN-BN.md): build + unit tests only — the
+      # release job below is gated on tags/main, so nothing is published.
+      - arena/43c0caca-super-deepseek
+      - arena/7401e440-super-deepseek
+      # Roadmap 3 (docs/arena/ROADMAP-3-BN.md): privacy defaults flip + inline
+      # file delivery — same build + unit tests only policy as above.
+      - arena/0e0268d7-super-deepseek
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - qa/real-world-testing
+  workflow_dispatch:
+    inputs:
+      arena_live_message:
+        description: 'Send ONE synthetic anonymous Direct Chat message (no login/challenge bypass; or push a head commit carrying [arena-live-probe])'
+        type: boolean
+        default: false
+      publish:
+        description: 'Publish to GitHub Releases (leave OFF for branch test builds)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Verify APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/**/gradle-wrapper.properties
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Write Android local.properties
+        run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+      - name: Install NPM Dependencies
+        run: npm ci
+      - name: Template & engine unit tests
+        run: |
+          npm run test:template
+          npm run test:engine
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Stage engine assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          rm -rf android/app/src/main/assets/bds
+          cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds
+          echo "=== Engine assets staged ==="
+          ls -lh android/app/src/main/assets/bds/
+      - name: Install pinned NDK for sandbox runtime
+        run: sdkmanager 'ndk;27.2.12479018'
+      - name: Build required Linux sandbox runtime
+        # Use the same verified source/patch/NDK as the native emulator gate.
+        # A missing runtime is a build failure, not a silently disabled feature.
+        timeout-minutes: 10
+        run: |
+          python3 scripts/fetch_sandbox_deps.py --patched-proot
+          find android/app/src/main/jniLibs -type f -exec ls -l {} +
+      - name: Make Gradle Wrapper Executable
+        working-directory: android
+        run: chmod +x ./gradlew
+      - name: Run Android Unit Tests
+        id: unittests
+        working-directory: android
+        run: |
+          set -o pipefail
+          if ! ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee /tmp/gradle-unit.log; then
+            # Surface compile errors and failed tests as annotations (readable
+            # from the run page and the checks API without downloading logs).
+            grep -E '^e: |FAILED$|Error|Exception|expected' /tmp/gradle-unit.log | head -60 | while IFS= read -r line; do
+              line="${line//'%'/'%25'}"; echo "::error::${line}"
+            done
+            exit 1
+          fi
+
+      - name: Upload unit-test reports on failure
+        # Inspect failures from the run page (Artifacts) instead of committing
+        # generated reports back into the repository.
+        if: failure() && steps.unittests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            /tmp/gradle-unit.log
+            android/app/build/reports/tests
+            android/app/build/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Setup Signing Keystore
+        working-directory: android
+        env:
+          BDS_KEYSTORE: ${{ secrets.BDS_KEYSTORE }}
+        run: |
+          if [ -n "$BDS_KEYSTORE" ]; then
+            echo "Decoding release keystore from secrets..."
+            echo "$BDS_KEYSTORE" | base64 --decode > ci-release.jks
+          elif [ -f "app/superdeepseek-release.jks" ]; then
+            echo "Using permanent Super DeepSeek release keystore..."
+            cp app/superdeepseek-release.jks ci-release.jks
+          else
+            echo "Generating fallback release keystore..."
+            keytool -genkeypair -v \
+              -keystore ci-release.jks \
+              -alias superdeepseek \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 20000 \
+              -storepass superdeepseek \
+              -keypass superdeepseek \
+              -dname "CN=SuperDeepSeek, OU=Mobile, O=SuperDeepSeek, L=Dhaka, ST=Dhaka, C=BD"
+          fi
+          ls -la ci-release.jks
+      - name: Build Android Release APK
+        working-directory: android
+        run: |
+          set -o pipefail
+          if ! ./gradlew --no-daemon assembleRelease -PbdsBuildId=${{ github.run_number }} 2>&1 | tee /tmp/gradle-release.log; then
+            grep -E '^e: |^w: .*(error)|FAILED|Error' /tmp/gradle-release.log | head -40 | while IFS= read -r line; do
+              line="${line//'%'/'%25'}"; echo "::error::${line}"
+            done
+            exit 1
+          fi
+        env:
+          BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD || 'superdeepseek' }}
+          BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS || 'superdeepseek' }}
+          BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD || 'superdeepseek' }}
+      - name: Verify the release APK sandbox payload
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find android/app/build/outputs/apk -path "*/release/*.apk" ! -name '*unaligned*')
+          [ "${#apks[@]}" -gt 0 ] || { echo "::error::Missing release APK"; exit 1; }
+          for apk in "${apks[@]}"; do
+            python3 android/ci/sandbox_apk_check.py "$apk"
+            python3 android/ci/startup_check.py "$apk" --aapt "$ANDROID_HOME/build-tools/34.0.0/aapt"
+          done
+      - name: Prepare APK and Compute Checksums
+        id: prep
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          APK_RAW=$(find android/app/build/outputs/apk -path "*/release/*.apk" ! -name "*unaligned*" | head -n 1)
+          if [ -z "$APK_RAW" ]; then
+            echo "Error: No release APK found under android/app/build/outputs/apk!"
+            exit 1
+          fi
+          APK_NAME="arenapilot-latest.apk"
+          cp "$APK_RAW" "$APK_NAME"
+          sha256sum "$APK_NAME" > "${APK_NAME}.sha256"
+          echo "apk_path=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "checksum_path=${APK_NAME}.sha256" >> "$GITHUB_OUTPUT"
+          echo "--- Prepared Artifacts ---"
+          ls -lh "$APK_NAME" "${APK_NAME}.sha256"
+          cat "${APK_NAME}.sha256"
+          echo "=== APK contents ==="
+          unzip -l "$APK_NAME" | grep -E "assets/bds/|lib/" | head -n 20
+          echo "=== site profile in the APK (sd-site.js must be staged) ==="
+          unzip -l "$APK_NAME" | grep -E "assets/bds/sd-site.js" || { echo "::error::sd-site.js missing from the APK"; exit 1; }
+          echo "=== Native libraries (sandbox) ==="
+          unzip -l "$APK_NAME" | grep -E "lib/.*\.so|assets/sandbox" || echo "::warning::APK has no sandbox runtime"
+      - name: Verify APK Signature
+        run: |
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose "${{ steps.prep.outputs.apk_path }}"
+      - name: Upload ArenaPilot APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arenapilot-apk
+          path: |
+            arenapilot-latest.apk
+            arenapilot-latest.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  lint:
+    # Diagnostics only: Android Lint and Kotlin compiler warnings, reported as
+    # annotations. Never blocks the build or the release.
+    name: Lint (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/**/gradle-wrapper.properties
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Android Lint
+        working-directory: android
+        run: |
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          chmod +x ./gradlew
+          ./gradlew --no-daemon lintDebug -Dorg.gradle.jvmargs=-Xmx3g 2>&1 | tee /tmp/gradle-lint.log || true
+          python3 ../scripts/ci_annotate_lint.py app/build/reports/lint-results-debug.xml /tmp/gradle-lint.log
+
+  harness:
+    # Layer 2: the real engine bundle in a real Chromium against the chat
+    # fixture (tools/harness/). Report-only until the job proves stable;
+    # screenshots + report.json are uploaded as artifacts, never committed.
+    name: Engine harness (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install NPM Dependencies
+        run: npm ci
+      - name: Real-engine harness scenarios
+        run: npm run test:harness
+        env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
+      - name: Upload harness report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-report
+          path: tools/harness/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  arena-harness:
+    # Offline integration gate: real bundle, modelled DOM, fake native tools.
+    # No real messages are sent to arena.ai; this is not an end-to-end live test.
+    name: Arena adapter integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:harness:arena
+        env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
+      - name: Upload Arena fixture screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arena-adapter-fixture
+          path: tools/harness/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  emulator:
+    # Layer 3: a real Android boot of the ArenaPilot debug APK (API 34).
+    #   android/ci/emulator-smoke.sh checks what is inside the APK, that the app
+    #   survives a launch, and that the first-launch independence notice shows
+    #   exactly once. Screenshots, UI dumps and logcat are artifacts.
+    name: Emulator smoke (API ${{ matrix.api-level }} · ArenaPilot)
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { api-level: 34, flavor: ArenaDeck }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/**/gradle-wrapper.properties
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Write Android local.properties
+        run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+      - name: Install NPM Dependencies
+        run: npm ci
+      - name: Stage engine assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          rm -rf android/app/src/main/assets/bds
+          cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds
+      - name: Install pinned NDK for Arena Linux compatibility runtime
+        run: sdkmanager 'ndk;27.2.12479018'
+      - name: Fetch required Arena sandbox runtime
+        timeout-minutes: 10
+        run: python3 scripts/fetch_sandbox_deps.py --patched-proot
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug -Dorg.gradle.jvmargs=-Xmx3g
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator and smoke-test the app
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # One deliberate live probe per push whose HEAD commit message carries
+          # the [arena-live-probe] marker (workflow_dispatch stays the other
+          # door; `gh workflow run` is owner-only). The marker makes every live
+          # send auditable in git history: one push, one message, never a loop.
+          script: SMOKE_NATIVE_SANDBOX=1 ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
+      - name: Report native sandbox evidence
+        if: always()
+        run: node android/ci/sandbox-smoke.mjs --report
+      - name: Report anonymous live message evidence
+        if: always() && ((github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')))
+        run: node android/ci/arena-live-smoke.mjs --report
+      - name: Report launch evidence
+        if: always()
+        run: python3 android/ci/launch_report.py /tmp/emulator-smoke --package com.arenadeck.app
+      # ArenaPilot's CDP probe saved what it read from the real page; GitHub allows ten
+      # annotations per step and the smoke step spends nine, so the capture goes out
+      # as its own step's annotations (gzip + base64, <= ten chunks).
+      - name: Report the CDP capture (ArenaPilot)
+        if: always()
+        run: node android/ci/cdp_probe.mjs --report /tmp/emulator-smoke/cdp-capture.json
+      - name: Upload smoke screenshots and logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-smoke-api-${{ matrix.api-level }}-arena
+          path: /tmp/emulator-smoke
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release-arena:
+    # ArenaPilot's continuous channel (arena-latest). The app is arena-only
+    # since the 2026-10-15 cleanup: this is the repository's one and only
+    # release job, never marked as the repository's latest release.
+    name: Publish ArenaPilot Release
+    needs: build-apk
+    if: github.ref == 'refs/heads/arena/0e0268d7-super-deepseek'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: arenapilot-apk
+      - id: rel_cfg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: arena-latest
+          name: ArenaPilot (Continuous Build #${{ github.run_number }})
+          body: |
+            ### ArenaPilot for Android
+
+            **Version:** `${{ steps.rel_cfg.outputs.version }}`
+            **Build:** `${{ github.run_number }}`
+            **Commit:** `${{ github.sha }}`
+
+            ArenaPilot is an **independent, unofficial** Android client for
+            [arena.ai](https://arena.ai) Direct Chat. It is NOT affiliated with,
+            endorsed by or sponsored by arena.ai. You use arena.ai through its own
+            website, under its own terms and privacy policy.
+
+            ArenaPilot একটি স্বতন্ত্র, অনানুষ্ঠানিক অ্যাপ — arena.ai-এর সঙ্গে এর কোনো
+            সম্পর্ক নেই। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট ও শর্তাবলির অধীনেই এটি ব্যবহার করছেন।
+
+            #### What is inside
+            - The Super DeepSeek engine on top of arena.ai Direct Chat: an AI agent
+              with its own Linux sandbox (run code, files, export results), Deep
+              Research, personas, projects, skills, MCP tools and widgets
+            - **+ menu file cards**: text-like files are delivered through the chat
+              itself (every model receives them); images go through arena's own picker
+            - Privacy defaults (v2): **app instructions are ON** (the tools and
+              Deep Research need the model to know the protocol), **stored memory is
+              OFF** — a separate opt-in. Both are switchable in Advanced settings →
+              Chat & messages, and the first-launch notice explains exactly what is sent
+            - Works on Direct Chat only; Battle / Side-by-side / Agent modes show a
+              notice and stay untouched
+
+            #### Honest status
+            - Verified on the real site by CI on every push: engine UI mounts, the
+              **+** sheet opens with a real click, the settings drawer opens, and the
+              engine can drive arena's composer (fill/clear — no message is sent)
+            - Verified on the fixture: full tool loop (assistant tag → sandbox →
+              result → follow-up) and widget rendering
+            - The one thing CI does not do automatically: send a real message.
+              That is the owner-run live probe (Actions → run workflow with
+              "Send ONE synthetic anonymous Direct Chat message")
+
+            Install on Android 8.0+ (enable "install unknown apps" for your browser).
+            Builds are signed with the same key, so each one installs as an update.
+
+            <!-- bds-build-id: ${{ github.run_number }} -->
+          files: |
+            arenapilot-latest.apk
+            arenapilot-latest.apk.sha256
+          prerelease: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
