@@ -654,7 +654,7 @@
         var buttons = document.querySelectorAll('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
         for (var i = 0; i < buttons.length; i++) {
           var candidate = buttons[i];
-          if (candidate.closest && candidate.closest('#bds-root')) continue;
+          /* The official Arena composer lives inside #bds-root on the live page. */
           original = candidate;
           break;
         }
@@ -663,8 +663,10 @@
       /* Undo the engine's original hide rule; the official control is the
        * visible plus in ArenaPilot, not a visually substituted button. */
       try {
-        if (original && original.style && original.style.getPropertyValue('display') === 'none') {
-          original.style.removeProperty('display');
+        if (original && original.style) {
+          if (original.style.getPropertyValue('display') === 'none') original.style.removeProperty('display');
+          /* Preserve Arena's own button/classes; override only the injected hide rule. */
+          setImportantStyle(original.style, 'display', 'flex');
         }
       } catch (_) {}
 
