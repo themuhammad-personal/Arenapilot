@@ -927,7 +927,29 @@
 
     if (typeof MutationObserver === 'function') {
       try {
-        var observer = new MutationObserver(schedule);
+        var observer = new MutationObserver(function (records) {
+          /* The engine's SPA scan may set the native Add files button back to
+           * display:none after every pass. Repair that one mutation immediately
+           * (before paint), instead of waiting for the general 80ms layout pass.
+           * The native SVG remains visible while the transparent target receives taps. */
+          var nativeAttachStyleChanged = false;
+          for (var i = 0; i < records.length; i++) {
+            var record = records[i];
+            var node = record && record.target;
+            if (!record || record.type !== 'attributes' || record.attributeName !== 'style' ||
+                !node || String(node.tagName || '').toUpperCase() !== 'BUTTON') continue;
+            var label = '';
+            try { label = String(node.getAttribute('aria-label') || ''); } catch (_) {}
+            if (label !== 'Add files' && label !== 'Attach files') continue;
+            try {
+              if (node.closest && node.closest('.bds-attach-menu-mount, .bds-attach-wrapper')) continue;
+            } catch (_) {}
+            nativeAttachStyleChanged = true;
+            break;
+          }
+          if (nativeAttachStyleChanged) syncOriginalAttachTrigger();
+          schedule();
+        });
         observer.observe(document.documentElement, {
           childList: true, subtree: true, attributes: true,
           attributeFilter: ['class','style','aria-expanded','aria-hidden','data-state','data-dock']
