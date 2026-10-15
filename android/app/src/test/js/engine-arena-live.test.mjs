@@ -144,7 +144,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     host: 'arena.ai', site: { id: 'arena' },
     engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' },
     composer: { named: 1, rect: [0, 0, 320, 50] },
-    attach: { toggle: 1, siteButton: [20, 520, 44, 44] },
+    attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPassThrough: true, enginePlusOverlayReady: true },
     skin: { active: true, composerTarget: 'has', sendInsideComposer: true, sendMinWidth: 44 },
   },
     sheetOpenedBy: 'real-click', steps: [],
@@ -153,7 +153,9 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   assert.deepEqual(acceptanceFailures(good), []);
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
-  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { toggle: 2 } } }).includes('plus-count-not-one'));
+  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
+  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, overlayAligned: false } } }).includes('arena-original-plus-overlay-not-ready'));
+  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, enginePlusOverlayReady: false } } }).includes('arena-original-plus-overlay-not-ready'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, composer: { named: 1, rect: [0, 0, 0, 0] } } }).includes('composer-not-visible'));
   // the composer-fill facts: React ignoring the engine's events is the one
   // failure mode that kills every feature at once, so the gate demands it
