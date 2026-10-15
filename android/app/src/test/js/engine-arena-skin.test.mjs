@@ -17,7 +17,12 @@ function runSite(host, initiallyHasComposer = true) {
   const formClasses = new Set();
   const observers = [];
   const form = { classList: { add: (name) => formClasses.add(name) } };
-  const textarea = { closest: (selector) => selector === 'form' ? form : null };
+  const textarea = {
+    nodeType: 1,
+    matches: (selector) => selector === 'textarea[name="message"]',
+    querySelectorAll: () => [],
+    closest: (selector) => selector === 'form' ? form : null,
+  };
   let hasComposer = initiallyHasComposer;
   let createdNodes = 0;
   class FakeMutationObserver {
@@ -44,19 +49,19 @@ function runSite(host, initiallyHasComposer = true) {
     context, htmlClasses, formClasses, observers,
     enableComposer() {
       hasComposer = true;
-      observers.forEach((observer) => observer.callback());
+      observers.forEach((observer) => observer.callback([{ addedNodes: [textarea] }]));
     },
     get createdNodes() { return createdNodes; },
   };
 }
 
 test('Arena skin tags the existing page and composer only', () => {
-  const { context, htmlClasses, formClasses } = runSite('arena.ai');
+  const result = runSite('arena.ai');
+  const { context, htmlClasses, formClasses } = result;
   assert.equal(context.__sdSite.id, 'arena');
   assert.ok(htmlClasses.has('sd-arena-native'));
   assert.ok(formClasses.has('sd-arena-composer'));
-  assert.equal(context.document.createElement instanceof Function, true);
-  assert.equal(runSite('arena.ai').createdNodes, 0,
+  assert.equal(result.createdNodes, 0,
     'the skin hook must not create a parallel chat surface');
 });
 
@@ -68,7 +73,8 @@ test('Arena skin waits for the existing composer when the SPA mounts it late', (
   assert.equal(result.observers.length, 1);
   result.enableComposer();
   assert.ok(result.formClasses.has('sd-arena-composer'));
-  assert.equal(result.observers[0].disconnected, true);
+  assert.equal(result.observers[0].disconnected, false,
+    'keep observing so a later SPA route replacement is handled too');
   assert.equal(result.createdNodes, 0);
 });
 
