@@ -534,7 +534,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
   assert.match(lines[0], /slot\(plus=\[25,517,34,34\] addFiles=none group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\\(active=yes composer=has sendInside=yes sendMin=44 viewport=320 settingsDock=composer settingsLabel=none\\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendMin=44 viewport=320 settingsDock=composer settingsLabel=none\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=composer backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
