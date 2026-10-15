@@ -206,7 +206,7 @@ export const FACTS = `/*sdp:facts*/(function () {
   });
 })()`;
 
-const sidebarToggleExpr = \`/*sdp:sidebar*/(function () {
+const sidebarToggleExpr = `/*sdp:sidebar*/(function () {
   var nodes = Array.prototype.slice.call(document.querySelectorAll('button,[role="button"]'));
   var candidates = [];
   for (var i = 0; i < nodes.length; i++) {
@@ -229,7 +229,7 @@ const sidebarToggleExpr = \`/*sdp:sidebar*/(function () {
   candidates.sort(function (a, b) { return a.score - b.score || a.r.top - b.r.top || a.r.left - b.r.left; });
   var r = candidates[0].r;
   return JSON.stringify({ found: true, x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height });
-})()\`;
+})()`;
 
 const rectExpr = (selector) => `/*sdp:rect*/(function (sel) {
   var el = document.querySelector(sel);
