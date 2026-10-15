@@ -90,17 +90,20 @@
    টেক্সট-ফাইল/ফোল্ডার/লিংক→ইনলাইন ডেলিভারি-কার্ড।
 6. **ট্যাগ-নরমালাইজার** (N1-এর সাথে মিলিয়ে): raw ট্যাগ কখনোই স্ক্রিনে নয়।
 
-### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৫; প্রথম slice)
+### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৫; মোবাইল skin + sidebar/Plus follow-up)
 
 - [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell যোগ করা হয়নি।
 - [x] Arena-only skin hook; DeepSeek/অজানা host-এ skin সক্রিয় নয়।
-- [x] ৩২০px fixture-এ Send বাটন মূল composer-এর সীমানার ভেতরে রাখার acceptance test।
-- [x] ছোট স্ক্রিনে Settings fallback icon-only; model/mode control সংকুচিত হতে পারে, কিন্তু Send-এর জন্য জায়গা রাখে।
-- [x] দীর্ঘ reply-এর table/image/video/SVG/code block-কে transcript-এর viewport-এর মধ্যে রাখা।
+- [x] ৩২০/৩৬০/৩৯০px fixture-এ মূল composer-এর ভেতরে Send রাখা; মডেল/মোডের নাম সংকুচিত হলেও Send-এর জায়গা অক্ষুণ্ণ।
+- [x] Sidebar খোলা থাকলে সেটিকে ফোনের দৃশ্যমান উচ্চতা পর্যন্ত বাড়ানো; Settings-কে sidebar-এর নিচের account row-এর কাছে দেখানো, composer-এর পাশে ভাসতে না দেওয়া।
+- [x] Arena-র আসল Add files/+ বাটন ও icon দৃশ্যমান রাখা; তার tap বিদ্যমান attachment sheet খোলে। ইঞ্জিনের অভ্যন্তরীণ trigger দৃশ্যমান নয়—দ্বিতীয় + নেই।
+- [x] মূল Arena model/mode/Send আইকনের রং/আকৃতি নতুন করে আঁকা নয়; কেবল মোবাইল লেআউট ও টাচ-টার্গেটের ন্যূনতম সীমা।
+- [x] দীর্ঘ reply-এর table/image/video/SVG/code block-কে transcript viewport-এর মধ্যে রাখা।
+- [ ] এই follow-up-এর পূর্ণ CI: engine tests, 320px sidebar/Plus harness ও emulator/CDP evidence সফল হওয়া।
 - [ ] মালিকের বাস্তব Android ফোনে যাচাই—লগইন, account menu/Settings, model picker, Thinking এবং attachment sheet।
 - [ ] বাস্তব authenticated সেশনের স্ক্রিনশট/DOM-প্রমাণ দেখে অবশিষ্ট spacing ও typography polish।
 
-**অবস্থা: N0 চলছে, সম্পূর্ণ নয়।** CI fixture/এমুলেটর যাচাই বাস্তব ফোনে গ্রহণযোগ্যতার বিকল্প নয়; শেষের দুইটি যাচাই না হওয়া পর্যন্ত N0-কে সম্পন্ন ধরা হবে না।
+**অবস্থা: N0 চলছে, সম্পূর্ণ নয়।** Fixture/CI যাচাই এখনো বাস্তব ফোনে গ্রহণযোগ্যতার বিকল্প নয়; উপরের শেষের তিনটি যাচাই সফল না হওয়া পর্যন্ত N0-কে সম্পন্ন ধরা হবে না।
 
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
