@@ -73,8 +73,8 @@ test('Arena skin waits for the existing composer when the SPA mounts it late', (
   assert.equal(result.observers.length, 1);
   result.enableComposer();
   assert.ok(result.formClasses.has('sd-arena-composer'));
-  assert.equal(result.observers[0].disconnected, false,
-    'keep observing so a later SPA route replacement is handled too');
+  assert.equal(result.observers[0].disconnected, true,
+    'stop observing after the original composer is found to avoid transcript overhead');
   assert.equal(result.createdNodes, 0);
 });
 
