@@ -4,8 +4,9 @@ ArenaPilot (`com.arenadeck.app`) is a native Android app around the **official**
 [arena.ai](https://arena.ai) Direct Chat. Instead of re-implementing a private API,
 it loads `arena.ai` in a WebView and injects the engine, which adds every feature on
 top of the real page. The protocol, sign-in, anti-bot checks and model behaviour stay
-exactly what arena.ai ships — and the UI is being rebuilt as a native Jetpack Compose
-UI ([docs/arena/ROADMAP-4-BN.md](arena/ROADMAP-4-BN.md), phase N0 under way).
+exactly what arena.ai ships. For chat, the official page itself remains the single
+visible conversation surface: N0 improves it in place with an Arena-only mobile skin.
+There is deliberately no parallel Compose chat shell ([roadmap](arena/ROADMAP-4-BN.md)).
 
 ```
 ┌──────────────────────────── MainActivity ───────────────────────────┐
