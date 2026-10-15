@@ -463,39 +463,50 @@
     function markComposerInput(input) {
       try {
         var form = input && typeof input.closest === 'function' ? input.closest('form') : null;
-        if (!form || !form.classList || typeof form.classList.add !== 'function') return;
+        if (!form || !form.classList || typeof form.classList.add !== 'function') return false;
         form.classList.add('sd-arena-composer');
-      } catch (_) {}
+        return true;
+      } catch (_) { return false; }
     }
 
     function markAddedNode(node) {
-      if (!node || node.nodeType !== 1) return;
+      if (!node || node.nodeType !== 1) return false;
+      var marked = false;
       try {
-        if (node.matches && node.matches('textarea[name="message"]')) markComposerInput(node);
+        if (node.matches && node.matches('textarea[name="message"]')) {
+          marked = markComposerInput(node) || marked;
+        }
         /* A route transition may insert a wrapper that already contains it. */
         if (node.querySelectorAll) {
           var inputs = node.querySelectorAll('textarea[name="message"]');
-          for (var i = 0; i < inputs.length; i++) markComposerInput(inputs[i]);
+          for (var i = 0; i < inputs.length; i++) {
+            marked = markComposerInput(inputs[i]) || marked;
+          }
         }
       } catch (_) {}
+      return marked;
     }
 
+    var hasComposer = false;
     try {
       var current = document.querySelector('textarea[name="message"]');
-      if (current) markComposerInput(current);
+      if (current) hasComposer = markComposerInput(current);
     } catch (_) {}
+    if (hasComposer || typeof MutationObserver !== 'function') return;
 
     /*
-     * Keep a narrow observer for SPA route changes (including login -> chat).
-     * It inspects only added element subtrees, not message text or attributes,
-     * and never disconnects after the first composer because React may replace it.
+     * Wait for the existing composer (including after a slow sign-in), then
+     * disconnect immediately. This avoids watching the streaming transcript.
      */
-    if (typeof MutationObserver !== 'function') return;
     var observer = new MutationObserver(function (records) {
+      var found = false;
       for (var r = 0; records && r < records.length; r++) {
         var nodes = records[r].addedNodes;
-        for (var n = 0; nodes && n < nodes.length; n++) markAddedNode(nodes[n]);
+        for (var n = 0; nodes && n < nodes.length; n++) {
+          found = markAddedNode(nodes[n]) || found;
+        }
       }
+      if (found) observer.disconnect();
     });
     observer.observe(html, { childList: true, subtree: true });
   }
