@@ -613,9 +613,67 @@
           .forEach(function (key) { rail.style.removeProperty(key); });
       } catch (_) {}
     }
+    function syncOriginalAttachTrigger() {
+      var original = null;
+      var enginePlus = null;
+      try {
+        enginePlus = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        var buttons = document.querySelectorAll('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
+        for (var i = 0; i < buttons.length; i++) {
+          var candidate = buttons[i];
+          if (candidate.closest && candidate.closest('#bds-root')) continue;
+          original = candidate;
+          break;
+        }
+      } catch (_) {}
+
+      if (!enginePlus || !enginePlus.style) return;
+      if (original && original.style) {
+        /* The engine trigger is kept only as an internal event target. The
+         * visible control must remain Arena's untouched button and SVG. */
+        try {
+          if (enginePlus.style.getPropertyValue('display') !== 'none' ||
+              enginePlus.style.getPropertyPriority('display') !== 'important') {
+            enginePlus.style.setProperty('display', 'none', 'important');
+          }
+          if (original.style.getPropertyValue('display') === 'none') {
+            original.style.removeProperty('display');
+          }
+          if (original.__sdArenaSheetBound !== true) {
+            original.__sdArenaSheetBound = true;
+            original.addEventListener('click', function (event) {
+              var trigger = null;
+              try {
+                trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+                  document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+              } catch (_) {}
+              if (!trigger || trigger.disabled) return;
+              /* The user tapped Arena's original button. Route that exact tap
+               * into the existing sheet, without duplicating its icon or
+               * letting the site's image-only picker swallow the interaction. */
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+              try { trigger.click(); } catch (_) {}
+            }, true);
+          }
+        } catch (_) {}
+      } else {
+        /* No native button in this page state: fall back to the original engine
+         * trigger rather than removing attachment functionality altogether. */
+        try {
+          if (enginePlus.style.getPropertyValue('display') === 'none') {
+            enginePlus.style.removeProperty('display');
+          }
+        } catch (_) {}
+      }
+    }
+
     function sync() {
       scheduled = false;
       if (site.id !== 'arena') return;
+      syncOriginalAttachTrigger();
       var rail = null;
       try { rail = document.querySelector(railSelector); } catch (_) {}
       if (!rail || !rail.style) return;
