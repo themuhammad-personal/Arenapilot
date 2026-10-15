@@ -97,10 +97,12 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /max-width: 28vw/);
   assert.match(SKIN, /max-width: 16vw/);
   assert.match(SKIN, /button\.whitespace-nowrap:not\(\[aria-label\]\)/);
-  assert.match(SKIN, /border-radius: 14px/);
-  assert.match(SKIN, /font: inherit/);
-  assert.match(SKIN, /border: 0 !important/);
-  assert.match(SKIN, /border-radius: 12px/);
+  assert.doesNotMatch(SKIN, /border-radius: (?:12|14)px/,
+    'the skin must not redraw the official Arena controls');
+  assert.doesNotMatch(SKIN, /font: inherit/,
+    'the original button and composer typography stay under Arena control');
+  assert.doesNotMatch(SKIN, /border: 0 !important/,
+    'the skin must not strip the original textarea border');
   assert.match(SKIN, /> \* > \* > \* \{/);
   assert.match(SKIN, /max-width: 54vw/);
   assert.ok(SKIN.includes('#bds-settings-rail[data-dock="composer"]'));
