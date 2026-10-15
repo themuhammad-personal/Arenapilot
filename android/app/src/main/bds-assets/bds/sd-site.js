@@ -613,6 +613,31 @@
           .forEach(function (key) { rail.style.removeProperty(key); });
       } catch (_) {}
     }
+    var positionedOriginal = null;
+    var positionedParent = null;
+    var savedOriginalPosition = null;
+    var savedParentPosition = null;
+
+    function restoreOriginalPosition() {
+      try {
+        if (positionedOriginal && positionedOriginal.style && savedOriginalPosition) {
+          Object.keys(savedOriginalPosition).forEach(function (key) {
+            var saved = savedOriginalPosition[key];
+            if (saved.value) positionedOriginal.style.setProperty(key, saved.value, saved.priority);
+            else positionedOriginal.style.removeProperty(key);
+          });
+        }
+        if (positionedParent && positionedParent.style && savedParentPosition) {
+          if (savedParentPosition.value) positionedParent.style.setProperty('position', savedParentPosition.value, savedParentPosition.priority);
+          else positionedParent.style.removeProperty('position');
+        }
+      } catch (_) {}
+      positionedOriginal = null;
+      positionedParent = null;
+      savedOriginalPosition = null;
+      savedParentPosition = null;
+    }
+
     function syncOriginalAttachTrigger() {
       var original = null;
       var enginePlus = null;
@@ -628,67 +653,87 @@
         }
       } catch (_) {}
 
-      /* Restore the source button even during a brief remount when the
-       * internal trigger has not been attached yet. */
+      /* Undo the engine's original hide rule; the official control is the
+       * visible plus in ArenaPilot, not a visually substituted button. */
       try {
         if (original && original.style && original.style.getPropertyValue('display') === 'none') {
           original.style.removeProperty('display');
         }
       } catch (_) {}
-      if (!enginePlus || !enginePlus.style) return;
-      if (original && original.style) {
-        /* The engine trigger is kept only as an internal event target. The
-         * visible control must remain Arena's untouched button and SVG. */
-        try {
-          if (enginePlus.style.getPropertyValue('display') !== 'none' ||
-              enginePlus.style.getPropertyPriority('display') !== 'important') {
-            enginePlus.style.setProperty('display', 'none', 'important');
-          }
-          var mount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
-          if (mount && mount.style) {
-            /* Its empty wrapper would otherwise add another flex gap before
-             * Arena's Plus. Cancel exactly the parent's measured column gap. */
-            var gap = 8;
-            try {
-              var parentStyle = window.getComputedStyle && window.getComputedStyle(mount.parentElement);
-              gap = parseFloat(parentStyle && (parentStyle.columnGap || parentStyle.gap)) || 8;
-            } catch (_) {}
-            var marginRight = (-gap) + 'px';
-            if (mount.style.getPropertyValue('margin-right') !== marginRight ||
-                mount.style.getPropertyPriority('margin-right') !== 'important') {
-              mount.style.setProperty('margin-right', marginRight, 'important');
-            }
-          }
-          if (original.__sdArenaSheetBound !== true) {
-            original.__sdArenaSheetBound = true;
-            original.addEventListener('click', function (event) {
-              var trigger = null;
-              try {
-                trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-                  document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-              } catch (_) {}
-              if (!trigger || trigger.disabled) return;
-              /* The user tapped Arena's original button. Route that exact tap
-               * into the existing sheet, without duplicating its icon or
-               * letting the site's image-only picker swallow the interaction. */
-              event.preventDefault();
-              event.stopPropagation();
-              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-              try { trigger.click(); } catch (_) {}
-            }, true);
-          }
-        } catch (_) {}
-      } else {
-        /* No native button in this page state: fall back to the original engine
-         * trigger rather than removing attachment functionality altogether. */
-        try {
-          if (enginePlus.style.getPropertyValue('display') === 'none') {
-            enginePlus.style.removeProperty('display');
-          }
-          var fallbackMount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
-          if (fallbackMount && fallbackMount.style) fallbackMount.style.removeProperty('margin-right');
-        } catch (_) {}
+
+      if (positionedOriginal && positionedOriginal !== original) restoreOriginalPosition();
+
+      if (!enginePlus || !enginePlus.style || !original || !original.style) {
+        restoreOriginalPosition();
+        if (enginePlus && enginePlus.style && (!original || !original.style)) {
+          try {
+            if (enginePlus.style.getPropertyValue('display') === 'none') enginePlus.style.removeProperty('display');
+          } catch (_) {}
+        }
+        return;
       }
+
+      try {
+        if (enginePlus.style.getPropertyValue('display') !== 'none' ||
+            enginePlus.style.getPropertyPriority('display') !== 'important') {
+          enginePlus.style.setProperty('display', 'none', 'important');
+        }
+
+        /* Keep the internal mount's 44px slot (so the Send layout does not
+         * grow), but position Arena's untouched original button over that slot.
+         * This keeps one Plus, the original spacing, and the existing sheet. */
+        if (positionedOriginal !== original) {
+          positionedOriginal = original;
+          positionedParent = original.parentElement;
+          var keys = ['position','left','top','right','bottom','transform','z-index'];
+          savedOriginalPosition = {};
+          keys.forEach(function (key) {
+            savedOriginalPosition[key] = {
+              value: original.style.getPropertyValue(key),
+              priority: original.style.getPropertyPriority(key)
+            };
+          });
+          savedParentPosition = positionedParent && positionedParent.style ? {
+            value: positionedParent.style.getPropertyValue('position'),
+            priority: positionedParent.style.getPropertyPriority('position')
+          } : null;
+        }
+
+        var parent = original.parentElement;
+        if (parent && parent.style) {
+          var computedParent = null;
+          try { computedParent = window.getComputedStyle && window.getComputedStyle(parent); } catch (_) {}
+          if (!computedParent || computedParent.position === 'static') {
+            parent.style.setProperty('position', 'relative', 'important');
+          }
+        }
+        original.style.setProperty('position', 'absolute', 'important');
+        original.style.setProperty('left', '0px', 'important');
+        original.style.setProperty('top', '50%', 'important');
+        original.style.setProperty('right', 'auto', 'important');
+        original.style.setProperty('bottom', 'auto', 'important');
+        original.style.setProperty('transform', 'translateY(-50%)', 'important');
+        original.style.setProperty('z-index', '1', 'important');
+
+        var mount = enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
+        if (mount && mount.style) mount.style.removeProperty('margin-right');
+
+        if (original.__sdArenaSheetBound !== true) {
+          original.__sdArenaSheetBound = true;
+          original.addEventListener('click', function (event) {
+            var trigger = null;
+            try {
+              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+            } catch (_) {}
+            if (!trigger || trigger.disabled) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            try { trigger.click(); } catch (_) {}
+          }, true);
+        }
+      } catch (_) {}
     }
 
     function sync() {
