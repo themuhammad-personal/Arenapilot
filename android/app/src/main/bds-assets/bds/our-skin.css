@@ -454,3 +454,58 @@ html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
     max-height: 32vh;
   }
 }
+
+
+/* Settings fallback: show it inside Arena's already-open official nav drawer.
+   sd-site.js computes the drawer's live viewport geometry; this rule keeps the
+   existing control legible and finger-sized without touching native site icons. */
+html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] {
+  position: fixed !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  max-width: calc(100vw - 8px) !important;
+  z-index: 2147483647 !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.2;
+  touch-action: manipulation;
+}
+
+html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] .bds-arena-rail-icon {
+  display: inline-flex !important;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] .bds-arena-rail-label {
+  display: inline !important;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.sd-arena-native #bds-settings-rail[data-dock="pending"] {
+  display: none !important;
+}
+
+/* Do not skin the official composer action strip: Arena owns its icon shapes,
+   native spacing and controls. The adapter only handles their existing events. */
+html.sd-arena-native form:has(textarea[name="message"]) .bds-composer-controls
+  :is(button:not(.bds-plus-btn), [role="combobox"], select) {
+  -webkit-appearance: auto;
+}
