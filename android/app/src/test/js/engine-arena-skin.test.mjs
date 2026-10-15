@@ -93,6 +93,9 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /max-width: 54vw/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
+  assert.match(SKIN, /main \.prose table/);
+  assert.match(SKIN, /main \.prose img/);
+  assert.match(SKIN, /main \.prose pre code/);
   assert.doesNotMatch(SKIN, /html\.sd-arena-native button\[aria-label\],/,
     'touch sizing must not indiscriminately resize every official page button');
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
