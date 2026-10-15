@@ -515,6 +515,10 @@ test('N0 acceptance gate rejects a missing skin target or Send overflow without 
   overflow.engine.skin.sendInsideComposer = false;
   assert.ok(acceptanceFailures(overflow).includes('send-outside-composer'));
 
+  const undersizedSend = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  undersizedSend.engine.skin.sendMinWidth = 32;
+  assert.ok(acceptanceFailures(undersizedSend).includes('send-target-too-small'));
+
   const consentGate = { engine: JSON.parse(JSON.stringify(FACTS)) };
   consentGate.engine.composer.named = 0;
   assert.ok(!acceptanceFailures(consentGate).includes('composer-skin-target-missing'));
