@@ -502,6 +502,25 @@ test('packChunks / unpackChunks: any size round-trips, every chunk fits an annot
   assert.equal(unpackChunks(packChunks('{"a":1}')), '{"a":1}');
 });
 
+test('N0 acceptance gate rejects a missing skin target or Send overflow without requiring a composer at the consent gate', () => {
+  const missingSkin = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  missingSkin.engine.skin.active = false;
+  assert.ok(acceptanceFailures(missingSkin).includes('arena-skin-inactive'));
+
+  const missingTarget = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  missingTarget.engine.skin.composerTarget = 'none';
+  assert.ok(acceptanceFailures(missingTarget).includes('composer-skin-target-missing'));
+
+  const overflow = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  overflow.engine.skin.sendInsideComposer = false;
+  assert.ok(acceptanceFailures(overflow).includes('send-outside-composer'));
+
+  const consentGate = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  consentGate.engine.composer.named = 0;
+  assert.ok(!acceptanceFailures(consentGate).includes('composer-skin-target-missing'));
+  assert.ok(!acceptanceFailures(consentGate).includes('send-outside-composer'));
+});
+
 test('the default output is the readable summary, the engine’s own markup and the composer’s controls — no payload', async () => {
   const { result } = await runProbe();
   const lines = annotations(result);
