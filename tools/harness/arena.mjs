@@ -158,10 +158,29 @@ try {
 
   await page.evaluate(() => {
     const aside = document.createElement('aside');
-    aside.innerHTML = '<a href="/text/direct">New chat</a><button aria-label="Settings">Native settings</button>';
+    aside.setAttribute('aria-label', 'Arena navigation drawer');
+    aside.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;bottom:0;width:80vw;height:100vh;background:white;color:#222;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto';
+    aside.innerHTML = '<nav><a href="/text/direct">New Chat</a><a href="/leaderboard">Leaderboard</a><a href="/search">Search</a></nav>' +
+      '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
+      '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
     document.body.prepend(aside);
   });
   await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sidebar');
+  const sidebarSettingsLayout = await page.evaluate(() => {
+    const rail = document.querySelector('#bds-settings-rail');
+    const r = rail.getBoundingClientRect();
+    const panel = document.querySelector('aside').getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+      panelLeft: panel.left, panelRight: panel.right, dock: rail.dataset.dock,
+      position: getComputedStyle(rail).position,
+      labelVisible: getComputedStyle(rail.querySelector('.bds-arena-rail-label')).display !== 'none' };
+  });
+  assert.equal(sidebarSettingsLayout.dock, 'sidebar', 'settings fallback moves into the existing sidebar');
+  assert.equal(sidebarSettingsLayout.position, 'fixed', 'settings row anchors to the visible drawer rather than composer');
+  assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
+    sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight, 'settings row stays inside sidebar bounds');
+  assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
+  assert.equal(sidebarSettingsLayout.labelVisible, true, 'sidebar entry keeps its label');
   stage = 'settings-open-and-back';
   await page.click('#bds-settings-rail');
   await page.waitForSelector('#bds-drawer', { visible: true });
