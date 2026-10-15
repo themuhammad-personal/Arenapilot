@@ -81,7 +81,7 @@ html.sd-arena-native main .prose pre code {
 }
 
 /* ── Composer: the site's textarea and submit control stay usable on phones ── */
-html.sd-arena-native .sd-arena-composer {
+html.sd-arena-native form:has(textarea[name="message"]) {
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
@@ -89,7 +89,7 @@ html.sd-arena-native .sd-arena-composer {
   border-radius: 24px;
 }
 
-html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"] {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -107,13 +107,13 @@ html.sd-arena-native .sd-arena-composer textarea[name="message"] {
   -webkit-appearance: none;
 }
 
-html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
+html.sd-arena-native form:has(textarea[name="message"]) button[aria-label="Send message"] {
   flex-shrink: 0;
   min-width: 44px;
   min-height: 44px;
 }
 
-html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
+html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", model "] {
   box-sizing: border-box;
   min-width: 0;
   max-width: 54vw;
@@ -127,8 +127,8 @@ html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
 /* The mobile mode control is a native select on Arena; keep its hit target
    comfortable while allowing long labels to yield space to Send. */
 @media (max-width: 767px) {
-  html.sd-arena-native .sd-arena-composer [role="combobox"],
-  html.sd-arena-native .sd-arena-composer select {
+  html.sd-arena-native form:has(textarea[name="message"]) [role="combobox"],
+  html.sd-arena-native form:has(textarea[name="message"]) select {
     box-sizing: border-box;
     min-width: 0;
     max-width: 28vw;
@@ -137,7 +137,7 @@ html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
     touch-action: manipulation;
   }
 
-  html.sd-arena-native .sd-arena-composer [role="combobox"] {
+  html.sd-arena-native form:has(textarea[name="message"]) [role="combobox"] {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -190,9 +190,9 @@ html.sd-arena-native .bds-attach-menu-mount {
 /* Touch targets only for chat actions and the known settings entry.
    Avoid enlarging every button across login and other official site pages. */
 @media (pointer: coarse) {
-  html.sd-arena-native .sd-arena-composer button[aria-label="Send message"],
-  html.sd-arena-native .sd-arena-composer button[aria-label*=", model "],
-  html.sd-arena-native .sd-arena-composer button[role="combobox"],
+  html.sd-arena-native form:has(textarea[name="message"]) button[aria-label="Send message"],
+  html.sd-arena-native form:has(textarea[name="message"]) button[aria-label*=", model "],
+  html.sd-arena-native form:has(textarea[name="message"]) button[role="combobox"],
   html.sd-arena-native button[aria-label="Add files"],
   html.sd-arena-native [role="menuitem"],
   html.sd-arena-native #bds-settings-rail {
@@ -212,11 +212,11 @@ html.sd-arena-native [role="combobox"]:focus-visible {
 }
 
 @media (max-width: 480px) {
-  html.sd-arena-native .sd-arena-composer {
+  html.sd-arena-native form:has(textarea[name="message"]) {
     max-width: calc(100vw - 12px);
   }
 
-  html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+  html.sd-arena-native form:has(textarea[name="message"]) textarea[name="message"] {
     max-height: 32vh;
     max-height: 32dvh;
   }
