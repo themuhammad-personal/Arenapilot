@@ -63,6 +63,8 @@ test('Arena skin tags the existing page and composer only', () => {
   assert.ok(formClasses.has('sd-arena-composer'));
   assert.match(SKIN, /form:has\(textarea\[name="message"\]\)/,
     'responsive styles survive SPA replacement of the official composer');
+  assert.match(SKIN, /html\.sd-arena-native \.sd-arena-composer/,
+    'older WebViews have a class-based fallback for the original composer');
   assert.equal(result.createdNodes, 0,
     'the skin hook must not create a parallel chat surface');
 });
