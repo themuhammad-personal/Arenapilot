@@ -135,6 +135,11 @@ const FACTS = {
   rail: { label: 'Advanced settings', rect: [4, 300, 40, 40], visible: true },
   attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: null },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
+  skin: {
+    active: true, composerSelectorMatches: true, sendInsideComposer: true,
+    sendMinWidth: 44, viewportWidth: 320, formRect: [17, 469, 286, 100],
+    sendRect: [250, 520, 44, 44], settingsDock: 'composer', settingsLabelDisplay: 'none',
+  },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
   slot: { plus: [25, 517, 34, 34], addFilesDisplay: 'none', group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
@@ -506,6 +511,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
   assert.match(lines[0], /slot\(plus=\[25,517,34,34\] addFiles=none group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
+  assert.match(lines[0], /skin\(active=yes composer=yes sendInside=yes sendMin=44 viewport=320 settingsDock=composer settingsLabel=none\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=composer backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
