@@ -91,6 +91,9 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /button\[aria-label="Send message"\]/);
   assert.match(SKIN, /button\[aria-label\*=", model "\]/);
   assert.match(SKIN, /max-width: 54vw/);
+  assert.match(SKIN, /#bds-settings-rail\\[data-dock="composer"\\]/);
+  assert.match(SKIN, /\.bds-arena-rail-label/);
+  assert.match(SKIN, /display: none !important/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
   assert.match(SKIN, /main \.prose table/);
