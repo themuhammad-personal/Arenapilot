@@ -30,30 +30,31 @@
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                ArenaPilot (নেটিভ, Jetpack Compose)        │
+│ ArenaPilot — Android shell + non-chat native surfaces    │
 │                                                          │
-│  চ্যাট UI · মডেল পিকার · ধাপ-কার্ড · Computer ভিউ ·      │
-│  MCP ম্যানেজার · ডেলিভারেবল এক্সপোর্ট · সেটিংস · ডক্টর    │
+│ Native support screens (as implemented in later phases): │
+│ Linux Studio · MCP manager · export · settings · doctor  │
 │                                                          │
-│  AgentCore (Kotlin): প্ল্যান-স্টেটমেশিন, টুল-লুপ,          │
-│  ইন্টারভেনশন (পজ/রিডাইরেক্ট), নোটিফিকেশন                  │
-│         ▲ ইভেন্ট (মেসেজ-ডেল্টা, রিজনিং, স্ট্যাটাস, এরর)    │
-└─────────┼────────────────────────────────────────────────┘
-          │ JS ব্রিজ (যা আজও চলে: scanner, setComposer)
-┌─────────┴────────────────────────────────────────────────┐
-│  SessionCore — দৃশ্যমান WebView-ই অ্যাপের মুখ (২০২-১০-১৫   │
-│  সিদ্ধান্ত; লুকানো নয়): arena.ai আসল পেজ + ইনজেক্ট করা      │
-│  Material-3 স্কিন · সাইন-ইন · recaptcha (পেজের ভেতরেই) ·   │
-│  composer-ড্রাইভিং · মেসেজ/রিজনিং DOM-স্ক্যান (ভেরিফায়েড    │
-│  arena-utils চুক্তি) · মডেল-তালিকা                         │
+│ AgentCore (Kotlin): plan state, tool loop, pause/redirect│
+│ background progress + notifications                     │
+└─────────┬────────────────────────────────────────────────┘
+          │ JS bridge (existing scanner + setComposer)
+          ▼
+┌──────────────────────────────────────────────────────────┐
+│ THE ONLY CHAT SURFACE: the real arena.ai page in WebView │
+│ always visible · original sign-in/CAPTCHA · original     │
+│ model picker/composer/messages/reasoning                 │
+│ injected Arena-colour mobile skin · DOM step cards       │
 └──────────────────────────────────────────────────────────┘
           │
-   Linux Computer (অন-ডিভাইস, proot Alpine — বিদ্যমান):
-   টার্মিনাল · ফাইল · pip/নেটওয়ার্ক · প্রিভিউ — AgentCore এটা
-   টুল হিসেবে কল করে; আউটপুট নেটিভ কার্ডে/লাইভ ভিউতে স্ট্রিম হয়
+          ▼
+   On-device Linux Computer (existing proot Alpine):
+   terminal · files · pip/network · preview; AgentCore calls
+   it as a tool; output streams into the page's step cards or
+   the optional live Computer view. No parallel chat UI.
 ```
 
-**নীতিগত সীমা (অপরিবর্তিত):** লগইন/ক্যাপচা বাইপাস নয় — সেশনটা একটা **আসল arena.ai পেজ**; recaptcha-টোকেন পেজের ভেতরেই তৈরি হয়। সাইন-ইন-সহ সবকিছু পেজের ভেতরেই — পেজটাই সবসময় দৃশ্যমান অ্যাপের মুখ (নেটিভ-স্কিনে)।
+**নীতিগত সীমা (অপরিবর্তিত):** লগইন/ক্যাপচা বাইপাস নয় — সেশনটা একটা **আসল arena.ai পেজ**; recaptcha-টোকেন পেজের ভেতরেই তৈরি হয়। সাইন-ইন-সহ চ্যাটের পুরো অভিজ্ঞতা পেজের ভেতরেই — পেজটাই সবসময় দৃশ্যমান একমাত্র chat surface (নেটিভ-স্কিনে)। Native Android/Compose UI থাকলেও তা কেবল non-chat support screen; চ্যাটের parallel copy, second composer, বা replacement model picker বানানো যাবে না.
 
 **যা বর্তমান কোডবেস থেকে টিকে থাকবে:** ইঞ্জিন বান্ডেল (স্ক্যানার, composer-ড্রাইভিং, ব্রিজ), proot স্যান্ডবক্স রানটাইম+CI, লাইভ প্রোব, হার্নেস/টেস্ট-অবকাঠামো, রিলিজ চ্যানেল। **যা নতুন করে লেখা হবে:** ইনজেক্ট করা Material-3 স্কিন (arena-র নিজের রঙে), এজেন্ট অর্কেস্ট্রেশন (Kotlin), পার্সিং-নরমালাইজার, DOM-ধাপ-কার্ড।
 
