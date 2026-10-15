@@ -133,7 +133,7 @@ const FACTS = {
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
   rail: { label: 'Advanced settings', rect: [4, 300, 40, 40], visible: true },
-  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: null },
+  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 30, 30] },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
@@ -186,9 +186,13 @@ async function startFakeCdp(opts = {}) {
       case 'Network.getResponseBody':
         return ok({ body: JSON.stringify({ id: PRIVATE.uuid, email: PRIVATE.email, plan: 'free' }), base64Encoded: false });
       case 'Input.dispatchMouseEvent':
-        if (msg.params.type === 'mousePressed' && msg.params.x === 100 && msg.params.y === 200) {
+        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 700) {
           state.clickedToggle = true;
-          if (!opts.realClickIgnored && !opts.neverOpens) state.sheetOpen = true; // a real pointer click opens the sheet
+          if (!opts.realClickIgnored && !opts.neverOpens && opts.siteButton !== false) state.sheetOpen = true; // Arena's original Plus opens the engine sheet
+        }
+        if (msg.params.type === 'mousePressed' && msg.params.x === 100 && msg.params.y === 200) {
+          state.internalClicked = true;
+          if (!opts.neverOpens) state.sheetOpen = true; // internal fallback for hosts without Arena's button
         }
         if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
           state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
@@ -209,7 +213,7 @@ async function startFakeCdp(opts = {}) {
           return value(JSON.stringify(facts));
         }
         if (marker === 'hit') {
-          return value(JSON.stringify({ chain: ['button.bds-plus-btn.svelte-1y27tjy', 'div.bds-attach-wrapper.svelte-1y27tjy', 'div.bds-attach-menu-mount'], viewport: [320, 616], mobileCss: true }));
+          return value(JSON.stringify({ chain: ['button[aria-label=Add files]', 'div.flex.items-center', 'form'], viewport: [320, 616], mobileCss: true }));
         }
         if (marker === 'sheet') {
           const o = state.sheetOpen ? 1 : 0;
@@ -239,7 +243,7 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'rect') {
           const found = (x, y, w, h) => value(JSON.stringify({ found: true, x, y, w, h }));
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(100, 200, 40, 40);
-          if (expr.includes('Add files')) return opts.siteButton ? found(60, 700, 30, 30) : value(JSON.stringify({ found: false }));
+          if (expr.includes('Add files')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 30, 30);
           if (expr.includes('bds-settings-rail')) {
             if (opts.noRail) return value(JSON.stringify({ found: false }));
             return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
@@ -284,7 +288,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'site-attach-popup', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -299,10 +303,11 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
   const { fake, result } = await runProbe();
   const mouse = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent').map((c) => `${c.params.type}@${c.params.x},${c.params.y}`);
   assert.deepEqual(mouse, [
-    'mouseMoved@100,200', 'mousePressed@100,200', 'mouseReleased@100,200',
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
     'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550',
-  ], 'open the official sidebar first, then tap the visible Settings row; both are real pointer clicks');
+  ], 'tap Arena’s original Plus, verify it again, then open the official sidebar and Settings row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
@@ -454,8 +459,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the plus toggle and the settings rail — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['100,200', '60,35', '140,550'],
-    'only the plus toggle, original sidebar button and visible Settings rail are ever clicked');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '140,550'],
+    'only Arena’s original Plus, original sidebar button and visible Settings row are clicked');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
