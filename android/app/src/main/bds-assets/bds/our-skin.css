@@ -1,24 +1,141 @@
-/* ==========================================================================
-   Super DeepSeek — our-skin.css  (RETIRED — intentionally empty)
+/*
+ * ArenaPilot N0 — responsive skin for the REAL arena.ai page.
+ *
+ * This file must never create or replace the chat surface. sd-site.js marks
+ * arena.ai's existing document and composer; every rule below is opt-in to
+ * that marker. The official site's own palette, login, menus and message DOM
+ * remain in charge.
+ *
+ * Shared mixed-script text support follows below and remains site-agnostic.
+ */
 
-   Decision (user, after live testing): the engine's own design frame — this
-   fork's already-branded drawer, sheets, settings and controls — is the app's
-   design. Every custom color / geometry override that used to live here sat
-   on top of the official page's own palette and caused patchwork: a dark body
-   in light mode, mis-tinted official bars, and a drawer that no longer fit
-   phone screens. All of it is removed.
+/* ── Arena page: use the available width without forcing a new palette ── */
+html.sd-arena-native {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 
-   Functional shaping (hiding out-of-scope entries, trimming redundant rows,
-   repairing raw i18n keys) lives in UiPolish.kt, not here.
-   ========================================================================== */
+html.sd-arena-native,
+html.sd-arena-native body {
+  min-width: 320px;
+  max-width: 100%;
+  overscroll-behavior-y: contain;
+}
 
-/* ==========================================================================
-   Mixed-script text (Arabic + Bengali/English in one reply)
-   sd-native.js gives each paragraph the direction of the script it is mostly
-   written in (dir + data-sd-bidi): an Arabic verse reads right-to-left, the
-   Bengali sentence around it stays left-to-right, and brackets stay with the
-   words they enclose. Paragraphs made of several lines decide line by line.
-   ========================================================================== */
+html.sd-arena-native body,
+html.sd-arena-native main {
+  min-width: 0;
+}
+
+html.sd-arena-native main ol.flex-col-reverse,
+html.sd-arena-native main ol.mt-8.flex,
+html.sd-arena-native main ol.mt-8 {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.sd-arena-native main .prose {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+html.sd-arena-native main .prose pre,
+html.sd-arena-native main [data-code-block="true"] {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Composer: the site's textarea and submit control stay usable on phones ── */
+html.sd-arena-native .sd-arena-composer {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: calc(100vw - 16px);
+  border-radius: 24px;
+}
+
+html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: 44px;
+  max-height: 36vh;
+  max-height: 36dvh;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  line-height: 1.5;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  -webkit-appearance: none;
+}
+
+html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 54vw;
+  max-width: min(54vw, 15rem);
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keep official popovers inside the phone viewport and their scroll contained. */
+html.sd-arena-native [role="menu"],
+html.sd-arena-native [role="dialog"],
+html.sd-arena-native [role="listbox"] {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  max-height: 78vh;
+  max-height: 78dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Comfortable touch targets without recolouring arena's original controls. */
+@media (pointer: coarse) {
+  html.sd-arena-native button[aria-label],
+  html.sd-arena-native button[title],
+  html.sd-arena-native a[aria-label] {
+    min-width: 40px;
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+}
+
+html.sd-arena-native button:focus-visible,
+html.sd-arena-native textarea:focus-visible,
+html.sd-arena-native [role="combobox"]:focus-visible {
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  html.sd-arena-native .sd-arena-composer {
+    max-width: calc(100vw - 12px);
+  }
+
+  html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+    max-height: 32vh;
+    max-height: 32dvh;
+  }
+}
+
+/* ── Mixed-script text (Arabic + Bengali/English in one reply) ──
+   sd-native.js marks paragraphs according to their dominant script so Arabic
+   remains right-to-left while the surrounding Bengali/English stays readable.
+*/
 [data-sd-bidi] {
   text-align: start;
 }
@@ -28,7 +145,6 @@
 li[data-sd-bidi="rtl"] {
   list-style-position: inside;
 }
-/* A bold/italic/link run keeps its own direction and its brackets. */
 .ds-markdown :is(strong, b, em, i, a, del, s, u, mark),
 .bds-message-overlay :is(strong, b, em, i, a, del, s, u, mark) {
   unicode-bidi: plaintext;
