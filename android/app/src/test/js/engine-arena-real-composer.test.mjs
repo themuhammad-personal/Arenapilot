@@ -121,10 +121,11 @@ test('the engine’s "+" takes the slot of arena’s own "Add files" — before 
   assert.equal(mountsOf(g)[0].props.props.nativeInput === g.fileInput, true, 'and the sheet is given the real file input to drive');
 });
 
-test('arena’s own "+" is hidden, so there is ONE "+", as on DeepSeek', () => {
+test('Arena’s original Add files button is never hidden by the engine hook', () => {
   const g = realArena();
   g.run('$vt()');
-  assert.equal(hidden(g.attach), true, 'Add files is display:none');
+  assert.equal(hidden(g.attach), false, 'the official Arena Plus remains visible');
+  assert.equal(g.left.children[1] === g.attach, true, 'the native button keeps its original slot after the transparent engine mount');
   for (const [name, el] of Object.entries({ mode: g.mode, send: g.send, icon: g.icon, input: g.fileInput, textarea: g.textarea })) {
     assert.equal(hidden(el), false, `${name} is left alone`);
   }
@@ -167,7 +168,7 @@ test('a localised or renamed label still works: the button right before the mode
   const g = realArena({ label: 'ফাইল যোগ করুন' });
   assert.equal(g.run('sdsArenaAttachSlot().button') === g.attach, true);
   g.run('$vt()');
-  assert.equal(hidden(g.attach), true);
+  assert.equal(hidden(g.attach), false, 'renamed/localised native Arena Plus is also preserved');
   assert.equal(g.left.children[0].classList.contains('bds-attach-menu-mount'), true);
 });
 
@@ -220,8 +221,9 @@ test('off arena, a button whose label is "Add files" is nobody’s business', ()
 test('the three seams are in the bundle, each exactly once', () => {
   const times = (needle) => CONTENT.split(needle).length - 1;
   assert.equal(times('function sdsArenaAttachSlot('), 1);
-  assert.equal(times('function Yvt(e){if(sdsIsArena()){const sl=sdsArenaAttachSlot();return sl?sl.button:null}'), 1);
-  assert.equal(times('i=e||sdsIsArena()?Yvt(e):null;'), 1, 'hide even before a file input exists');
+  assert.equal(times('function Yvt(e){if(sdsIsArena())return null;'), 1,
+    'Arena must not pass its native Plus to the engine hide hook');
+  assert.equal(times('i=e||sdsIsArena()?Yvt(e):null;'), 1, 'the original hide call remains unchanged for DeepSeek');
   assert.equal(times('const sl=sdsArenaAttachSlot(),o=sl?V_(sl.group,"bds-attach-menu-mount",".bds-attach-wrapper",sl.button):V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e);'), 1);
   assert.equal(times('V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e)'), 1, 'the original call survives only as the fallback');
 });
