@@ -86,6 +86,7 @@ try {
   assert.equal(skinLayout.settingsLabelDisplay, 'none', 'narrow composer fallback is icon-only');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
+  await shot(page, 'arena-responsive-320');
 
   /* The minimum-width case is the hardest, but the same original composer
      should stay contained at common 360px and 390px phone widths too. */
