@@ -460,24 +460,44 @@
     if (!html || !html.classList || typeof html.classList.add !== 'function') return;
     html.classList.add('sd-arena-native');
 
-    function markComposer() {
+    function markComposerInput(input) {
       try {
-        var input = document.querySelector('textarea[name="message"]');
         var form = input && typeof input.closest === 'function' ? input.closest('form') : null;
-        if (!form || !form.classList || typeof form.classList.add !== 'function') return false;
+        if (!form || !form.classList || typeof form.classList.add !== 'function') return;
         form.classList.add('sd-arena-composer');
-        return true;
-      } catch (_) { return false; }
+      } catch (_) {}
     }
 
-    if (markComposer() || typeof MutationObserver !== 'function') return;
-    var observer = new MutationObserver(function () {
-      if (markComposer()) observer.disconnect();
+    function markAddedNode(node) {
+      if (!node || node.nodeType !== 1) return;
+      try {
+        if (node.matches && node.matches('textarea[name="message"]')) markComposerInput(node);
+        /* A route transition may insert a wrapper that already contains it. */
+        if (node.querySelectorAll) {
+          var inputs = node.querySelectorAll('textarea[name="message"]');
+          for (var i = 0; i < inputs.length; i++) markComposerInput(inputs[i]);
+        }
+      } catch (_) {}
+    }
+
+    try {
+      var current = document.querySelector('textarea[name="message"]');
+      if (current) markComposerInput(current);
+    } catch (_) {}
+
+    /*
+     * Keep a narrow observer for SPA route changes (including login -> chat).
+     * It inspects only added element subtrees, not message text or attributes,
+     * and never disconnects after the first composer because React may replace it.
+     */
+    if (typeof MutationObserver !== 'function') return;
+    var observer = new MutationObserver(function (records) {
+      for (var r = 0; records && r < records.length; r++) {
+        var nodes = records[r].addedNodes;
+        for (var n = 0; nodes && n < nodes.length; n++) markAddedNode(nodes[n]);
+      }
     });
     observer.observe(html, { childList: true, subtree: true });
-    if (typeof setTimeout === 'function') {
-      setTimeout(function () { observer.disconnect(); }, 12000);
-    }
   }
   installArenaNativeSkin();
 
