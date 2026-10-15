@@ -680,7 +680,7 @@ export function acceptanceFailures(result) {
     errors.push('arena-original-plus-overlay-not-ready');
   }
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
-  if (result.originalPlusSheet && !sheetIsOpen(result.originalPlusSheet)) errors.push('arena-original-plus-does-not-open-sheet');
+  if (!sheetIsOpen(result.originalPlusSheet)) errors.push('arena-original-plus-does-not-open-sheet');
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
