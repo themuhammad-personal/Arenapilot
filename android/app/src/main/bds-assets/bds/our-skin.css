@@ -40,11 +40,44 @@ html.sd-arena-native main .prose {
   overflow-wrap: anywhere;
 }
 
-html.sd-arena-native main .prose pre,
-html.sd-arena-native main [data-code-block="true"] {
+html.sd-arena-native main .prose :not(pre) > code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Long tables, images and diagrams must stay inside the existing transcript. */
+html.sd-arena-native main .prose table {
+  display: block;
+  width: max-content;
   max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+html.sd-arena-native main .prose img,
+html.sd-arena-native main .prose video,
+html.sd-arena-native main .prose canvas,
+html.sd-arena-native main .prose svg {
+  max-width: 100%;
+}
+
+html.sd-arena-native main .prose img,
+html.sd-arena-native main .prose video {
+  height: auto;
+}
+
+html.sd-arena-native main .prose pre,
+html.sd-arena-native main [data-code-block="true"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.sd-arena-native main .prose pre,
+html.sd-arena-native main .prose pre code {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 /* ── Composer: the site's textarea and submit control stay usable on phones ── */
