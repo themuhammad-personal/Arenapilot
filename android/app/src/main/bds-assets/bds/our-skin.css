@@ -305,3 +305,95 @@ li[data-sd-bidi="rtl"] {
 .bds-message-overlay pre {
   text-align: left;
 }
+
+
+/* Compatibility fallback for WebViews without :has().
+   sd-site.js adds .sd-arena-composer to the original form on first mount. */
+html.sd-arena-native .sd-arena-composer {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: calc(100vw - 16px);
+  border-radius: 24px;
+}
+
+html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: 44px;
+  max-height: 36vh;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  line-height: 1.5;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  -webkit-appearance: none;
+}
+
+html.sd-arena-native .sd-arena-composer button[aria-label="Send message"] {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 54vw;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  html.sd-arena-native .sd-arena-composer [role="combobox"],
+  html.sd-arena-native .sd-arena-composer select {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 28vw;
+    min-height: 44px;
+    flex-shrink: 1;
+    touch-action: manipulation;
+  }
+
+  html.sd-arena-native .sd-arena-composer [role="combobox"] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html.sd-arena-native .sd-arena-composer > *,
+  html.sd-arena-native .sd-arena-composer > * > *,
+  html.sd-arena-native .sd-arena-composer > * > * > * {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  html.sd-arena-native .sd-arena-composer .model-picker,
+  html.sd-arena-native .sd-arena-composer button[aria-label*=", model "] {
+    box-sizing: border-box;
+    width: auto !important;
+    min-width: 0;
+    max-width: 20vw;
+    flex: 0 1 20vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  html.sd-arena-native .sd-arena-composer {
+    max-width: calc(100vw - 12px);
+  }
+
+  html.sd-arena-native .sd-arena-composer textarea[name="message"] {
+    max-height: 32vh;
+  }
+}
