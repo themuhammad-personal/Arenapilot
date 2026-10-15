@@ -235,6 +235,11 @@ async function startFakeCdp(opts = {}) {
           if (!opts.neverOpens) state.sheetOpen = true; // a script click opens it
           return value(true);
         }
+        if (marker === 'sidegeometry') {
+          return value(JSON.stringify(state.sidebarOpen
+            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'ASIDE' }
+            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, panelTag: null }));
+        }
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
@@ -454,6 +459,9 @@ test('the settings drawer is opened by a REAL click on the rail and closed by th
   const { result } = await runProbe();
   assert.equal(result.drawer.visible, true, 'opened');
   assert.equal(result.drawer.railDock, 'sidebar');
+  assert.equal(result.settingsSidebarBeforeClick.dock, 'sidebar');
+  assert.equal(result.settingsSidebarBeforeClick.visible, true);
+  assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
   const noRail = await runProbe({ noRail: true });
@@ -560,6 +568,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=yes "Advanced settings"/);
+  assert.match(lines[0], /settingsAnchor\(dock=sidebar visible=yes inside=yes rect=\[8,550,240,44\]\)/);
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
