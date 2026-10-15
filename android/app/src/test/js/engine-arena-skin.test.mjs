@@ -103,6 +103,8 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /display: none !important/);
   assert.match(SKIN, /\.bds-plus-btn/);
   assert.match(SKIN, /min-height: 44px/);
+  assert.match(SKIN, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="file"\]\)/);
+  assert.match(SKIN, /button\[type="submit"\]/);
   assert.match(SKIN, /main \.prose table/);
   assert.match(SKIN, /line-height: 1\.6/);
   assert.match(SKIN, /line-height: 1\.3/);
