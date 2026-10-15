@@ -158,7 +158,23 @@ export const FACTS = `/*sdp:facts*/(function () {
     return { tag: b.tagName.toLowerCase(), aria: b.getAttribute('aria-label'), title: b.getAttribute('title'), type: b.getAttribute('type'), cls: String(b.getAttribute('class') || '').slice(0, 70), rect: rect(b), svg: p ? String(p.getAttribute('d') || '').slice(0, 24) : null, hidden: !vis(b), engine: !!(b.closest && b.closest('#bds-root, .bds-attach-wrapper, .bds-composer-controls')) };
   }) : [];
   /* did the engine's "+" take arena's slot? one "+", in the left group, before the hidden "Add files" */
-  var add = q('form button[aria-label="Add files"]:not(.bds-plus-btn)') || q('form button[aria-label="Attach files"]:not(.bds-plus-btn)');
+  var add = (function () {
+    try {
+      var form = q('form');
+      var buttons = form ? form.querySelectorAll('button') : [];
+      for (var i = 0; i < buttons.length; i++) {
+        var candidate = buttons[i];
+        var label = candidate.getAttribute('aria-label');
+        var cls = String(candidate.getAttribute('class') || '');
+        if ((label === 'Add files' || label === 'Attach files') &&
+            cls.indexOf('bds-plus-btn') < 0 &&
+            !(candidate.closest && candidate.closest('.bds-attach-menu-mount, .bds-attach-wrapper'))) {
+          return candidate;
+        }
+      }
+    } catch (e) {}
+    return null;
+  })();
   var grp = add ? add.parentElement : null;
   /* the SITE's own file input (the engine's is inside its own mounts): the
      attach path's real contract — does it carry [multiple]? what accept? */
