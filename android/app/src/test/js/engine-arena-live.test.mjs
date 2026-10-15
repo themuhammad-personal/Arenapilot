@@ -151,6 +151,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sidebar' } };
   assert.deepEqual(acceptanceFailures(good), []);
+  assert.ok(acceptanceFailures({ ...good, originalPlusSheet: { dropdown: 0 } }).includes('arena-original-plus-does-not-open-sheet'));
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
