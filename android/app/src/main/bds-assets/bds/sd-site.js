@@ -589,8 +589,12 @@
               (node.closest && node.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop'))) continue;
         } catch (_) {}
         var r = rectOf(node);
+        /* The user reported a shortened drawer, so do not require it to
+         * already occupy 72% of the viewport before we can expand it. Keep a
+         * modest minimum to avoid treating a one-line header as the sidebar. */
         if (!r || r.left > vw * 0.12 || r.width < vw * 0.42 ||
-            r.width > vw * 0.96 || r.height < vh * 0.72 || r.right > vw * 0.97) continue;
+            r.width > vw * 0.96 || r.height < Math.min(220, vh * 0.32) ||
+            r.right > vw * 0.97) continue;
         if (!hasNavLandmarks(node)) continue;
         var area = r.width * r.height;
         if (area < bestArea) { best = node; bestArea = area; }
