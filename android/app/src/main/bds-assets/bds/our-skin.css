@@ -18,7 +18,7 @@ html.sd-arena-native {
 
 html.sd-arena-native,
 html.sd-arena-native body {
-  min-width: 320px;
+  min-width: 0;
   max-width: 100%;
   overscroll-behavior-y: contain;
 }
