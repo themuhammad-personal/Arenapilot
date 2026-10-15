@@ -54,9 +54,8 @@ try {
       JSON.stringify(initialComposerLayout),
   );
 
-  const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
   await wait(() => {
-    const native = document.querySelector(nativePlusSelector);
+    const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
     const trigger = document.querySelector('.bds-plus-btn');
     if (!native || !trigger) return false;
     const nr = native.getBoundingClientRect();
