@@ -108,6 +108,9 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /main \.prose table/);
   assert.match(SKIN, /line-height: 1\.6/);
   assert.match(SKIN, /line-height: 1\.3/);
+  assert.match(SKIN, /padding-inline-start: 1\.35em/);
+  assert.match(SKIN, /text-underline-offset: 0\.16em/);
+  assert.match(SKIN, /border-inline-start: 3px solid currentColor/);
   assert.match(SKIN, /main \.prose img/);
   assert.match(SKIN, /main \.prose pre code/);
   assert.doesNotMatch(SKIN, /html\.sd-arena-native button\[aria-label\],/,
