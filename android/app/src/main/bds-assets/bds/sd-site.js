@@ -696,9 +696,16 @@
        * Expand only the already-open navigation container, never the chat. */
       try {
         panel.setAttribute('data-bds-arena-sidebar', 'true');
+        var ratio = Number(panel.dataset && panel.dataset.bdsArenaSidebarWidthRatio);
+        if (!(ratio > 0 && ratio <= 1)) {
+          ratio = Math.min(0.96, Math.max(0.42, pr.width / vw));
+          if (panel.dataset) panel.dataset.bdsArenaSidebarWidthRatio = String(ratio);
+        }
+        var panelWidth = Math.max(1, Math.min(vw, Math.round(vw * ratio)));
         var desired = {
           position: 'fixed', left: Math.max(0, pr.left) + 'px', top: '0px',
-          bottom: '0px', height: vh + 'px', 'min-height': vh + 'px',
+          bottom: '0px', width: panelWidth + 'px', 'min-width': panelWidth + 'px',
+          'max-width': panelWidth + 'px', height: vh + 'px', 'min-height': vh + 'px',
           'max-height': vh + 'px', 'box-sizing': 'border-box'
         };
         Object.keys(desired).forEach(function (key) {
