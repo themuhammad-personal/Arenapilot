@@ -91,6 +91,10 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SKIN, /button\[aria-label="Send message"\]/);
   assert.match(SKIN, /button\[aria-label\*=", model "\]/);
   assert.match(SKIN, /max-width: 54vw/);
+  assert.match(SKIN, /\.bds-plus-btn/);
+  assert.match(SKIN, /min-height: 44px/);
+  assert.doesNotMatch(SKIN, /html\.sd-arena-native button\[aria-label\],/,
+    'touch sizing must not indiscriminately resize every official page button');
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the skin must not replace arena.ai palette colours');
 });
