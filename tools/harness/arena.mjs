@@ -32,7 +32,7 @@ try {
   await reinstallBridge(page);
   await installEngine(page);
   await wait(() => document.querySelector('.bds-plus-btn'));
-  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'composer');
+  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'pending');
   const initialComposerLayout = await page.evaluate(() => {
     const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
     const form = document.querySelector('form').getBoundingClientRect();
@@ -54,9 +54,15 @@ try {
       JSON.stringify(initialComposerLayout),
   );
 
-  // N0 responsive skin is exercised in the real Chromium fixture at 320px,
-  // not merely searched for in source. It must mark the original form and keep
-  // the send target tappable without creating a second chat surface.
+  await wait(() => {
+    const native = document.querySelector('button[aria-label="Add files"]');
+    const trigger = document.querySelector('.bds-plus-btn');
+    return native && trigger && getComputedStyle(native).display !== 'none' &&
+      getComputedStyle(trigger).display === 'none';
+  });
+  // N0 responsive skin is exercised in Chromium at 320px, not merely searched
+  // for in source. It preserves Arena's original visible attach button and
+  // routes its tap to the existing engine sheet without another visible plus.
   stage = 'n0-responsive-skin';
   const skinLayout = await page.evaluate(() => {
     const form = document.querySelector('form');
@@ -72,9 +78,14 @@ try {
       viewportWidth: innerWidth,
       formRight: form.getBoundingClientRect().right,
       settingsDock: document.querySelector('#bds-settings-rail')?.dataset.dock || null,
-      settingsLabelDisplay: (() => {
-        const label = document.querySelector('#bds-settings-rail .bds-arena-rail-label');
-        return label ? getComputedStyle(label).display : null;
+      originalPlusVisible: (() => {
+        const b = document.querySelector('button[aria-label="Add files"]');
+        return !!b && getComputedStyle(b).display !== 'none' &&
+          b.getBoundingClientRect().width >= 24 && b.getBoundingClientRect().height >= 24;
+      })(),
+      enginePlusHidden: (() => {
+        const b = document.querySelector('.bds-plus-btn');
+        return !!b && getComputedStyle(b).display === 'none';
       })(),
     };
   });
@@ -82,8 +93,9 @@ try {
   assert.equal(skinLayout.originalFormMarked, true, 'skin attaches to the official composer');
   assert.ok(skinLayout.sendMinWidth >= 44, 'send target remains at least 44 CSS pixels');
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
-  assert.equal(skinLayout.settingsDock, 'composer', 'mobile fallback remains reachable when the site sidebar is absent');
-  assert.equal(skinLayout.settingsLabelDisplay, 'none', 'narrow composer fallback is icon-only');
+  assert.equal(skinLayout.settingsDock, 'pending', 'Settings does not float beside the composer');
+  assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control');
+  assert.equal(skinLayout.enginePlusHidden, true, 'the internal trigger cannot create a second visible plus');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
   await shot(page, 'arena-responsive-320');
@@ -145,16 +157,18 @@ try {
     await wait(() => {
       const native = document.querySelector('button[aria-label="Add files"]');
       const mounts = document.querySelectorAll('.bds-attach-menu-mount');
-      return mounts.length === 1 && mounts[0].parentElement === native.parentElement && getComputedStyle(native).display === 'none';
+      return mounts.length === 1 && mounts[0].parentElement === native.parentElement &&
+        getComputedStyle(native).display !== 'none' &&
+        getComputedStyle(document.querySelector('.bds-plus-btn')).display === 'none';
     });
   }
   stage = 'attach-open-and-back';
-  await page.click('.bds-plus-btn');
+  await page.click('button[aria-label="Add files"]');
   await page.waitForSelector('.bds-attach-dropdown', { visible: true });
   await shot(page, 'arena-attach');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-attach-backdrop', { hidden: true });
-  console.log('PASS remount/style reset: one working +');
+  console.log('PASS remount/style reset: original Arena + remains visible and opens the one engine sheet');
 
   await page.evaluate(() => {
     const aside = document.createElement('aside');
