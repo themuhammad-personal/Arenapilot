@@ -206,6 +206,31 @@ export const FACTS = `/*sdp:facts*/(function () {
   });
 })()`;
 
+const sidebarToggleExpr = \`/*sdp:sidebar*/(function () {
+  var nodes = Array.prototype.slice.call(document.querySelectorAll('button,[role="button"]'));
+  var candidates = [];
+  for (var i = 0; i < nodes.length; i++) {
+    var el = nodes[i];
+    var r = el.getBoundingClientRect();
+    if (!(r.width >= 24 && r.height >= 24) || r.left < 0 || r.top < 0) continue;
+    var label = String(el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (/sidebar|navigation|open menu|toggle menu|drawer/i.test(label) &&
+        !/settings|advanced/i.test(label)) {
+      candidates.push({ el: el, r: r, score: 0 });
+      continue;
+    }
+    if (r.left <= window.innerWidth * 0.28 && r.top <= window.innerHeight * 0.2 &&
+        !/new chat|add files|send|stop|settings|model|leaderboard|search/i.test(label) &&
+        !el.closest('form')) {
+      candidates.push({ el: el, r: r, score: 1 });
+    }
+  }
+  if (!candidates.length) return JSON.stringify({ found: false });
+  candidates.sort(function (a, b) { return a.score - b.score || a.r.top - b.r.top || a.r.left - b.r.left; });
+  var r = candidates[0].r;
+  return JSON.stringify({ found: true, x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height });
+})()\`;
+
 const rectExpr = (selector) => `/*sdp:rect*/(function (sel) {
   var el = document.querySelector(sel);
   if (!el) { return JSON.stringify({ found: false }); }
@@ -440,11 +465,22 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     return 'clicked';
   });
 
-  // The engine's own Settings drawer — the rail is arena's replacement for DeepSeek's
-  // sidebar entry, and no capture had ever watched it open on the real page.
+  // Settings belongs in Arena's own sidebar, not beside the composer. Open the
+  // site's existing navigation drawer first when its gear is not currently visible.
   await step('settings-drawer', async () => {
-    const t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
-    if (!t.found) { result.drawer = { present: false, visible: false }; return 'no settings rail'; }
+    let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
+      const toggle = await evalJson(cdp, sidebarToggleExpr);
+      if (toggle.found && toggle.w >= 24 && toggle.h >= 24) {
+        await realClick(cdp, toggle.x, toggle.y);
+        await pause(900);
+        t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+      }
+    }
+    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
+      result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
+      return 'Settings entry not visible in the official sidebar';
+    }
     await realClick(cdp, t.x, t.y);
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
@@ -452,7 +488,7 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
-    return result.drawer.visible ? 'opened' : 'drawer did not open';
+    return result.drawer.visible ? 'opened from the official sidebar' : 'drawer did not open';
   });
 
   // The composer itself: fill through the engine's API (never send), read, clear.
