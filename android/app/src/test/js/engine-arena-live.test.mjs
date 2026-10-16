@@ -172,8 +172,15 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
-  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, overlayAligned: false } } }).includes('arena-original-plus-overlay-not-ready'));
-  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, enginePlusOverlayReady: false } } }).includes('arena-original-plus-overlay-not-ready'));
+  assert.deepEqual(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, overlayAligned: false } },
+  }), [], 'native tap forwarding tolerates a stale invisible target position');
+  assert.ok(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, nativePlusPointerIntact: false } },
+  }).includes('arena-original-plus-native-bridge-not-ready'));
+  assert.ok(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, enginePlusOverlayReady: false } },
+  }).includes('arena-original-plus-native-bridge-not-ready'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, composer: { named: 1, rect: [0, 0, 0, 0] } } }).includes('composer-not-visible'));
   // the composer-fill facts: React ignoring the engine's events is the one
   // failure mode that kills every feature at once, so the gate demands it
