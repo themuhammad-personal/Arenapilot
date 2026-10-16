@@ -211,3 +211,19 @@
 #bds-settings-rail svg{width:16px;height:16px;display:block}
 
 .bds-arena-privacy-note{font-size:12px;line-height:1.5;color:var(--bds-text-secondary);padding:12px;border:1px solid var(--bds-border);border-radius:12px;margin:0 0 12px}
+
+/* Arena native-preservation mode: the engine's transparent trigger must never
+   cover the site's Plus or nearby mode/model controls while the sheet is shut.
+   The native button is the physical tap target; sd-site.js forwards that tap.
+   When the actual sheet is open, re-enable only the engine-owned menu subtree. */
+#bds-root .bds-attach-menu-mount,
+#bds-root .bds-attach-menu-mount .bds-attach-wrapper,
+#bds-root .bds-attach-menu-mount .bds-plus-btn {
+  pointer-events: none !important;
+}
+#bds-root .bds-attach-menu-mount:has(.bds-attach-dropdown),
+#bds-root .bds-attach-menu-mount:has(.bds-attach-backdrop),
+#bds-root .bds-attach-menu-mount:has(.bds-attach-dropdown) .bds-attach-wrapper,
+#bds-root .bds-attach-menu-mount:has(.bds-attach-backdrop) .bds-attach-wrapper {
+  pointer-events: auto !important;
+}
