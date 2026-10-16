@@ -149,7 +149,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     composerRect[0] + composerRect[2] <= window.innerWidth + 1);
   var sendMinWidth = null;
   try { sendMinWidth = sendButton ? parseFloat(getComputedStyle(sendButton).minWidth) : null; } catch (e) {}
-  var settingsLabel = rail ? rail.querySelector('.bds-arena-rail-label') : null;
+  var settingsLabel = rail ? (rail.querySelector('[data-bds-settings-label="true"]') || rail.querySelector('.bds-arena-rail-label')) : null;
   var settingsLabelDisplay = null;
   try { settingsLabelDisplay = settingsLabel ? getComputedStyle(settingsLabel).display : null; } catch (e) {}
   var up = box;
