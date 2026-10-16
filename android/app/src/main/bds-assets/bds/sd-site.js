@@ -916,13 +916,15 @@
       try {
         var sourceIcon = sourceRail.querySelector('.bds-arena-rail-icon svg') ||
           sourceRail.querySelector('svg');
-        var nativeIcon = nativeRow.querySelector && nativeRow.querySelector('svg');
+        /* All visual replacements operate on the clone, never Arena's
+         * React-owned original row. */ 
+        var nativeIcon = entry.querySelector && entry.querySelector('svg');
         /* Some Arena navigation builds use an icon wrapper without an SVG in
-         * the fixture-like DOM shape. Reuse that native wrapper rather than
-         * leaving the cloned "+" glyph next to the Settings label. */
+         * the fixture-like DOM shape. Reuse that wrapper in the clone rather
+         * than leaving a copied "+" glyph next to the Settings label. */
         var nativeSlot = nativeIcon && nativeIcon.parentNode;
-        if (!nativeSlot && nativeRow.querySelector) {
-          nativeSlot = nativeRow.querySelector('.arena-row-icon,[data-icon],[class*="icon"]');
+        if (!nativeSlot && entry.querySelector) {
+          nativeSlot = entry.querySelector('.arena-row-icon,[data-icon],[class*="icon"]');
         }
         if (sourceIcon && nativeSlot) {
           var iconBox = rectOf(nativeIcon || nativeSlot);
