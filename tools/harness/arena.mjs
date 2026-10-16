@@ -396,12 +396,39 @@ try {
   assert.match(sidebarSettingsLayout.entryLabel, /Advanced Settings/,
     'the visible native row has the Settings label');
   stage = 'settings-open-and-back';
+  await shot(page, 'arena-settings-row');
   await page.click('[data-bds-arena-settings-entry="true"]');
   await page.waitForSelector('#bds-drawer', { visible: true });
+  const settingsWhileDrawerOpen = await page.evaluate(() => {
+    const entry = document.querySelector('[data-bds-arena-settings-entry="true"]');
+    const nativeRow = document.querySelector('#arena-sidebar-fixture [data-testid="arena-native-new-chat"]');
+    return {
+      count: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+      present: !!entry,
+      sameParent: !!entry && !!nativeRow && entry.parentElement === nativeRow.parentElement,
+      afterNative: !!entry && !!nativeRow && entry.previousElementSibling === nativeRow,
+      label: entry ? (entry.innerText || entry.textContent || '') : '',
+      drawerOpen: !!document.querySelector('#bds-drawer.bds-open')
+    };
+  });
+  assert.equal(settingsWhileDrawerOpen.count, 1,
+    'the native Settings item remains unique while the drawer backdrop covers the nav');
+  assert.equal(settingsWhileDrawerOpen.present, true,
+    'opening the drawer does not remove the native Settings item');
+  assert.equal(settingsWhileDrawerOpen.sameParent && settingsWhileDrawerOpen.afterNative, true,
+    'Settings stays in the original navigation list while the drawer is open');
+  assert.match(settingsWhileDrawerOpen.label, /Advanced Settings/);
+  assert.equal(settingsWhileDrawerOpen.drawerOpen, true);
   await shot(page, 'arena-settings');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-drawer-backdrop', { hidden: true });
-  console.log('PASS sidebar docking and drawer opens');
+  const settingsAfterBack = await page.evaluate(() => ({
+    count: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+    dock: document.querySelector('[data-bds-arena-settings-entry="true"]')?.dataset.dock,
+  }));
+  assert.deepEqual(settingsAfterBack, { count: 1, dock: 'native-sidebar' },
+    'Back closes only the engine drawer and does not lose or duplicate the native sidebar row');
+  console.log('PASS native sidebar row persists through drawer open/Back without duplicates');
 
   // Scripted assistant, not a real model. Assert actual widget rendering, not
   // the presence of a tag or selector in source code.
