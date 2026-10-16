@@ -415,8 +415,10 @@ Arena instructions are `ARENA_PROMPT` in `sd-site.js`, not the legacy DeepSeek
 prompt. The compatibility `<SuperDeepSeek>` envelope and `SDS:` tool grammar
 remain unchanged. Turning privacy off later cannot retract prior messages.
 
-The Settings entry docks into a recognized semantic sidebar when present and
-otherwise into the composer, not a permanent floating rail. The attach mount is
-reused across toolbar moves and reconciled after native button/style changes.
-Both flows have a Chromium integration gate (`test:harness:arena`), but sidebar
-and conversation fixtures still need authenticated live-site confirmation.
+The Settings entry docks only into a recognized, open, site-owned Arena
+sidebar. When no such sidebar is confirmed, the engine-owned entry stays hidden
+rather than falling back beside the composer; the account menu remains a separate
+entry point. The attach mount is reused across toolbar moves and reconciled after
+native button/style changes. Both flows have a Chromium integration gate
+(`test:harness:arena`), but sidebar and conversation fixtures still need
+authenticated live-site confirmation.
