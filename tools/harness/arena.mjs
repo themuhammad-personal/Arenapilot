@@ -32,7 +32,7 @@ try {
   await reinstallBridge(page);
   await installEngine(page);
   await wait(() => document.querySelector('.bds-plus-btn'));
-  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'pending');
+  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sheet');
   const initialComposerLayout = await page.evaluate(() => {
     const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
     const form = document.querySelector('form').getBoundingClientRect();
