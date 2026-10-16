@@ -214,7 +214,12 @@ try {
     const aside = document.createElement('aside');
     aside.setAttribute('aria-label', 'Arena navigation drawer');
     aside.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:80vw;height:76vh;background:white;color:#222;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto';
-    aside.innerHTML = '<nav><a href="/text/direct">New Chat</a><a href="/leaderboard">Leaderboard</a><a href="/search">Search</a></nav>' +
+    const navStyle = document.createElement('style');
+    navStyle.textContent = 'aside nav a{display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;box-sizing:border-box;font:500 20px system-ui;color:#222;background:transparent;border-radius:10px;text-decoration:none}aside .arena-row-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}';
+    document.head.appendChild(navStyle);
+    aside.innerHTML = '<nav><a href="/text/direct"><span class="arena-row-icon">+</span><span>New Chat</span></a>' +
+      '<a href="/leaderboard"><span class="arena-row-icon">▥</span><span>Leaderboard</span></a>' +
+      '<a href="/search"><span class="arena-row-icon">⌕</span><span>Search</span></a></nav>' +
       '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
       '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
     document.body.prepend(aside);
@@ -225,7 +230,11 @@ try {
     const r = rail.getBoundingClientRect();
     const panelEl = document.querySelector('aside');
     const panel = panelEl.getBoundingClientRect();
-    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\\s*chat/i.test(a.innerText || a.textContent || ''));
+    const nativeRect = nativeRow.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
+      nativeRowLeft: nativeRect.left, nativeRowRight: nativeRect.right,
+      nativeRowWidth: nativeRect.width, nativeRowHeight: nativeRect.height,
       panelLeft: panel.left, panelRight: panel.right, panelWidth: panel.width,
       panelHeight: panel.height, expectedPanelWidth: innerWidth * 0.8,
       expectedPanelHeight: innerHeight * 0.76, dock: rail.dataset.dock,
@@ -238,6 +247,12 @@ try {
     sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
     'settings row stays inside sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
   assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
+  assert.ok(Math.abs(sidebarSettingsLayout.width - sidebarSettingsLayout.nativeRowWidth) < 1 &&
+    Math.abs(sidebarSettingsLayout.height - sidebarSettingsLayout.nativeRowHeight) < 1,
+    'Settings exactly matches the dimensions of Arena’s original New Chat row');
+  assert.ok(Math.abs(sidebarSettingsLayout.left - sidebarSettingsLayout.nativeRowLeft) < 1 &&
+    Math.abs(sidebarSettingsLayout.right - sidebarSettingsLayout.nativeRowRight) < 1,
+    'Settings uses the same horizontal alignment as Arena’s native sidebar row');
   assert.ok(Math.abs(sidebarSettingsLayout.panelWidth - sidebarSettingsLayout.expectedPanelWidth) < 1,
     'the adapter preserves Arena’s original sidebar width instead of forcing a new width');
   assert.ok(Math.abs(sidebarSettingsLayout.panelHeight - sidebarSettingsLayout.expectedPanelHeight) < 1,
