@@ -305,23 +305,47 @@ try {
   stage = 'settings-sidebar-geometry';
   await page.evaluate(() => {
     const aside = document.createElement('aside');
+    aside.id = 'arena-sidebar-fixture';
     aside.setAttribute('aria-label', 'Arena navigation drawer');
     aside.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:80vw;height:76vh;background:white;color:#222;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto';
     const navStyle = document.createElement('style');
     navStyle.textContent = 'aside nav a{display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;box-sizing:border-box;font:500 20px system-ui;color:#222;background:transparent;border-radius:10px;text-decoration:none}aside .arena-row-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}';
     document.head.appendChild(navStyle);
-    aside.innerHTML = '<nav><a href="/text/direct"><span class="arena-row-icon">+</span><span>New Chat</span></a>' +
+    const content = document.createElement('div');
+    content.dataset.testid = 'arena-sidebar-content';
+    content.setAttribute('aria-hidden', 'true');
+    content.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;opacity:0';
+    content.innerHTML = '<nav><a href="/text/direct"><span class="arena-row-icon">+</span><span>New Chat</span></a>' +
       '<a href="/leaderboard"><span class="arena-row-icon">▥</span><span>Leaderboard</span></a>' +
       '<a href="/search"><span class="arena-row-icon">⌕</span><span>Search</span></a></nav>' +
       '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
       '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
+    aside.appendChild(content);
     document.body.prepend(aside);
+  });
+  await wait(() => {
+    const rail = document.querySelector('#bds-settings-rail');
+    return rail?.dataset.dock === 'pending' && getComputedStyle(rail).display === 'none';
+  });
+  const hiddenSidebarLayout = await page.evaluate(() => {
+    const rail = document.querySelector('#bds-settings-rail');
+    return { dock: rail && rail.dataset.dock, display: rail && getComputedStyle(rail).display,
+      rect: rail ? (() => { const r = rail.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })() : null };
+  });
+  assert.equal(hiddenSidebarLayout.dock, 'pending',
+    'landmarks inside aria-hidden navigation must not be treated as an open sidebar');
+  assert.equal(hiddenSidebarLayout.display, 'none',
+    'Settings remains hidden when the visible-sized sidebar container hides its navigation subtree');
+  await page.evaluate(() => {
+    const content = document.querySelector('#arena-sidebar-fixture [data-testid="arena-sidebar-content"]');
+    content.removeAttribute('aria-hidden');
+    content.style.opacity = '1';
   });
   await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sidebar');
   const sidebarSettingsLayout = await page.evaluate(() => {
     const rail = document.querySelector('#bds-settings-rail');
     const r = rail.getBoundingClientRect();
-    const panelEl = document.querySelector('aside');
+    const panelEl = document.querySelector('#arena-sidebar-fixture');
     const panel = panelEl.getBoundingClientRect();
     const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\s*chat/i.test(a.innerText || a.textContent || ''));
     const nativeRect = nativeRow.getBoundingClientRect();
