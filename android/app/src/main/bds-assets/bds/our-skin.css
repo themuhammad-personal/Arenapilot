@@ -63,3 +63,8 @@ li[data-sd-bidi="rtl"] {
 .bds-arena-rail[data-dock="composer"] {
   display: none !important;
 }
+
+/* ArenaPilot Settings lives in the native Add to chat sheet, not the sidebar. */
+#bds-settings-rail {
+  display: none !important;
+}
