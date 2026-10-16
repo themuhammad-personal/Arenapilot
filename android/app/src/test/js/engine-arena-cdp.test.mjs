@@ -133,7 +133,7 @@ const FACTS = {
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
   rail: { label: 'Advanced settings', rect: [0, 0, 256, 616], visible: true },
-  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPassThrough: true, enginePlusOverlayReady: true },
+  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
@@ -218,7 +218,7 @@ async function startFakeCdp(opts = {}) {
             facts.attach.siteButton = null;
             facts.attach.overlayAligned = false;
             facts.attach.nativePlusVisible = false;
-            facts.attach.nativePlusPassThrough = false;
+            facts.attach.nativePlusPointerIntact = false;
             facts.attach.enginePlusOverlayReady = false;
           }
           if (state.sheetOpen) facts.attach.dropdown = 1;
