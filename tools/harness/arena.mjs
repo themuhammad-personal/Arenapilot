@@ -366,6 +366,7 @@ try {
       entryLabel: (rail.getAttribute('aria-label') || '') + ' ' + (rail.innerText || rail.textContent || ''),
       hasSettingsSvg: !!rail.querySelector('svg'),
       stalePlusGlyph: !!Array.from(rail.querySelectorAll('.arena-row-icon')).find((node) => (node.textContent || '').trim() === '+'),
+      originalPlusGlyphPreserved: (nativeRow.querySelector('.arena-row-icon')?.textContent || '').trim() === '+',
       labelVisible: getComputedStyle(rail).display !== 'none'
     };
   });
@@ -378,6 +379,7 @@ try {
     'Settings inherits the native row classes instead of maintaining a visually separate widget');
   assert.equal(sidebarSettingsLayout.hasSettingsSvg, true, 'the cloned native icon slot receives the Settings gear');
   assert.equal(sidebarSettingsLayout.stalePlusGlyph, false, 'the original New Chat plus glyph is not left beside the Settings label');
+  assert.equal(sidebarSettingsLayout.originalPlusGlyphPreserved, true, 'the site-owned New Chat icon remains unchanged');
   assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
     sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
     'Settings stays inside native sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
