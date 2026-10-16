@@ -302,133 +302,75 @@ try {
   await page.waitForSelector('.bds-attach-backdrop', { hidden: true });
   console.log('PASS remount/style reset: original Arena + remains visible and opens the one engine sheet');
 
-  stage = 'settings-sidebar-geometry';
+  stage = 'settings-attach-card';
   await page.evaluate(() => {
-    const aside = document.createElement('aside');
-    aside.id = 'arena-sidebar-fixture';
-    aside.setAttribute('aria-label', 'Arena navigation drawer');
-    aside.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:80vw;height:76vh;background:white;color:#222;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto';
-    const navStyle = document.createElement('style');
-    navStyle.textContent = 'aside nav a{display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;box-sizing:border-box;font:500 20px system-ui;color:#222;background:transparent;border-radius:10px;text-decoration:none}aside .arena-row-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}';
-    document.head.appendChild(navStyle);
-    const content = document.createElement('div');
-    content.dataset.testid = 'arena-sidebar-content';
-    content.setAttribute('aria-hidden', 'true');
-    content.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;opacity:0';
-    content.innerHTML = '<nav><a href="/text/direct"><span class="arena-row-icon">+</span><span>New Chat</span></a>' +
-      '<a href="/leaderboard"><span class="arena-row-icon">▥</span><span>Leaderboard</span></a>' +
-      '<a href="/search"><span class="arena-row-icon">⌕</span><span>Search</span></a></nav>' +
-      '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
-      '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
-    content.querySelector('a[href="/text/direct"]').setAttribute('data-testid', 'arena-native-new-chat');
-    aside.appendChild(content);
-    document.body.prepend(aside);
+    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+    if (!trigger || trigger.disabled) throw new Error('engine Plus trigger missing before Settings-card test');
+    trigger.click();
   });
+  await page.waitForSelector('.bds-attach-dropdown', { visible: true });
+  await wait(() => !!document.querySelector('#sd-arena-settings-item'));
+  const settingsCardLayout = await page.evaluate(() => {
+    const sheet = document.querySelector('.bds-attach-dropdown');
+    const item = sheet && sheet.querySelector('#sd-arena-settings-item');
+    const all = sheet ? Array.from(sheet.querySelectorAll('.bds-attach-item')) : [];
+    const otherItems = all.filter((node) => node !== item);
+    const lastExisting = otherItems[otherItems.length - 1] || null;
+    const rail = document.querySelector('#bds-settings-rail');
+    return {
+      count: sheet ? sheet.querySelectorAll('#sd-arena-settings-item').length : 0,
+      totalItemCount: all.length,
+      lastCard: !!item && all[all.length - 1] === item,
+      sameList: !!item && !!lastExisting && item.parentElement === lastExisting.parentElement,
+      lastExistingTitle: lastExisting && lastExisting.querySelector('.bds-item-title')
+        ? lastExisting.querySelector('.bds-item-title').textContent : '',
+      title: item && item.querySelector('.bds-item-title') ? item.querySelector('.bds-item-title').textContent : '',
+      description: item && item.querySelector('.bds-item-desc') ? item.querySelector('.bds-item-desc').textContent : '',
+      hasGear: !!(item && item.querySelector('svg')),
+      railDisplay: rail ? getComputedStyle(rail).display : 'missing',
+      legacySidebarRows: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+      drawerOpen: !!document.querySelector('#bds-drawer.bds-open'),
+    };
+  });
+  assert.equal(settingsCardLayout.count, 1,
+    'Settings appears exactly once in the existing Add to chat sheet');
+  assert.equal(settingsCardLayout.lastCard, true,
+    'Settings is the bottom-most tool card: ' + JSON.stringify(settingsCardLayout));
+  assert.equal(settingsCardLayout.sameList, true,
+    'Settings reuses the More tools card list rather than a separate overlay');
+  assert.match(settingsCardLayout.title, /Settings|সেটিংস/);
+  assert.match(settingsCardLayout.description, /preferences|পছন্দ/);
+  assert.equal(settingsCardLayout.hasGear, true, 'Settings card has its own gear icon');
+  assert.equal(settingsCardLayout.railDisplay, 'none',
+    'the old engine source rail remains hidden and cannot disturb the sidebar');
+  assert.equal(settingsCardLayout.legacySidebarRows, 0,
+    'the old cloned Settings row is not rendered in Arena navigation');
+  await shot(page, 'arena-settings-card');
+
+  stage = 'settings-sheet-card-open';
+  await page.click('#sd-arena-settings-item');
+  await page.waitForSelector('#bds-drawer.bds-open', { visible: true, timeout: 8000 });
   await wait(() => {
-    const rail = document.querySelector('#bds-settings-rail');
-    return rail?.dataset.dock === 'pending' && getComputedStyle(rail).display === 'none';
+    const sheet = document.querySelector('.bds-attach-dropdown');
+    return !sheet || getComputedStyle(sheet).display === 'none';
   });
-  const hiddenSidebarLayout = await page.evaluate(() => {
-    const rail = document.querySelector('#bds-settings-rail');
-    return { dock: rail && rail.dataset.dock, display: rail && getComputedStyle(rail).display,
-      rect: rail ? (() => { const r = rail.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })() : null };
-  });
-  assert.equal(hiddenSidebarLayout.dock, 'pending',
-    'landmarks inside aria-hidden navigation must not be treated as an open sidebar');
-  assert.equal(hiddenSidebarLayout.display, 'none',
-    'Settings remains hidden when the visible-sized sidebar container hides its navigation subtree');
-  await page.evaluate(() => {
-    const content = document.querySelector('#arena-sidebar-fixture [data-testid="arena-sidebar-content"]');
-    content.removeAttribute('aria-hidden');
-    content.style.opacity = '1';
-  });
-  await wait(() => document.querySelector('[data-bds-arena-settings-entry="true"]')?.dataset.dock === 'native-sidebar');
-  const sidebarSettingsLayout = await page.evaluate(() => {
-    const rail = document.querySelector('[data-bds-arena-settings-entry="true"]');
-    const r = rail.getBoundingClientRect();
-    const panelEl = document.querySelector('#arena-sidebar-fixture');
-    const panel = panelEl.getBoundingClientRect();
-    const nativeRow = panelEl.querySelector('[data-testid="arena-native-new-chat"]');
-    const nativeRect = nativeRow.getBoundingClientRect();
-    return {
-      left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
-      nativeRowLeft: nativeRect.left, nativeRowRight: nativeRect.right,
-      nativeRowWidth: nativeRect.width, nativeRowHeight: nativeRect.height,
-      panelLeft: panel.left, panelRight: panel.right, panelWidth: panel.width,
-      panelHeight: panel.height, expectedPanelWidth: innerWidth * 0.8,
-      expectedPanelHeight: innerHeight * 0.76,
-      dock: rail.dataset.dock,
-      position: getComputedStyle(rail).position,
-      nativePosition: getComputedStyle(nativeRow).position,
-      sameParent: rail.parentElement === nativeRow.parentElement,
-      immediatelyAfterNative: rail.previousElementSibling === nativeRow,
-      copiedNativeClasses: Array.from(nativeRow.classList).every((name) => rail.classList.contains(name)),
-      entryLabel: (rail.getAttribute('aria-label') || '') + ' ' + (rail.innerText || rail.textContent || ''),
-      hasSettingsSvg: !!rail.querySelector('svg'),
-      stalePlusGlyph: !!Array.from(rail.querySelectorAll('.arena-row-icon')).find((node) => (node.textContent || '').trim() === '+'),
-      originalPlusGlyphPreserved: (nativeRow.querySelector('.arena-row-icon')?.textContent || '').trim() === '+',
-      labelVisible: getComputedStyle(rail).display !== 'none'
-    };
-  });
-  assert.equal(sidebarSettingsLayout.dock, 'native-sidebar', 'Settings uses the native-row dock state');
-  assert.ok(sidebarSettingsLayout.sameParent && sidebarSettingsLayout.immediatelyAfterNative,
-    'Settings is inserted as the next sibling in Arena’s original navigation list: ' + JSON.stringify(sidebarSettingsLayout));
-  assert.equal(sidebarSettingsLayout.position, sidebarSettingsLayout.nativePosition,
-    'Settings keeps the native row positioning mode; no fixed overlay is used');
-  assert.ok(sidebarSettingsLayout.copiedNativeClasses,
-    'Settings inherits the native row classes instead of maintaining a visually separate widget');
-  assert.equal(sidebarSettingsLayout.hasSettingsSvg, true, 'the cloned native icon slot receives the Settings gear');
-  assert.equal(sidebarSettingsLayout.stalePlusGlyph, false, 'the original New Chat plus glyph is not left beside the Settings label');
-  assert.equal(sidebarSettingsLayout.originalPlusGlyphPreserved, true, 'the site-owned New Chat icon remains unchanged');
-  assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
-    sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
-    'Settings stays inside native sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
-  assert.ok(Math.abs(sidebarSettingsLayout.width - sidebarSettingsLayout.nativeRowWidth) < 1 &&
-    Math.abs(sidebarSettingsLayout.height - sidebarSettingsLayout.nativeRowHeight) < 1,
-    'Settings uses the exact native row box geometry');
-  assert.ok(Math.abs(sidebarSettingsLayout.left - sidebarSettingsLayout.nativeRowLeft) < 1 &&
-    Math.abs(sidebarSettingsLayout.right - sidebarSettingsLayout.nativeRowRight) < 1,
-    'Settings uses the same horizontal alignment as the native row');
-  assert.ok(Math.abs(sidebarSettingsLayout.panelWidth - sidebarSettingsLayout.expectedPanelWidth) < 1,
-    'the adapter preserves Arena’s original sidebar width');
-  assert.ok(Math.abs(sidebarSettingsLayout.panelHeight - sidebarSettingsLayout.expectedPanelHeight) < 1,
-    'the adapter preserves Arena’s original sidebar height');
-  assert.match(sidebarSettingsLayout.entryLabel, /Advanced Settings/,
-    'the visible native row has the Settings label');
-  stage = 'settings-open-and-back';
-  await shot(page, 'arena-settings-row');
-  await page.click('[data-bds-arena-settings-entry="true"]');
-  await page.waitForSelector('#bds-drawer', { visible: true });
-  const settingsWhileDrawerOpen = await page.evaluate(() => {
-    const entry = document.querySelector('[data-bds-arena-settings-entry="true"]');
-    const nativeRow = document.querySelector('#arena-sidebar-fixture [data-testid="arena-native-new-chat"]');
-    return {
-      count: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
-      present: !!entry,
-      sameParent: !!entry && !!nativeRow && entry.parentElement === nativeRow.parentElement,
-      afterNative: !!entry && !!nativeRow && entry.previousElementSibling === nativeRow,
-      label: entry ? (entry.innerText || entry.textContent || '') : '',
-      drawerOpen: !!document.querySelector('#bds-drawer.bds-open')
-    };
-  });
-  assert.equal(settingsWhileDrawerOpen.count, 1,
-    'the native Settings item remains unique while the drawer backdrop covers the nav');
-  assert.equal(settingsWhileDrawerOpen.present, true,
-    'opening the drawer does not remove the native Settings item');
-  assert.equal(settingsWhileDrawerOpen.sameParent && settingsWhileDrawerOpen.afterNative, true,
-    'Settings stays in the original navigation list while the drawer is open');
-  assert.match(settingsWhileDrawerOpen.label, /Advanced Settings/);
-  assert.equal(settingsWhileDrawerOpen.drawerOpen, true);
-  await shot(page, 'arena-settings');
+  const openedFromSettingsCard = await page.evaluate(() => ({
+    drawerOpen: !!document.querySelector('#bds-drawer.bds-open'),
+    sheetVisible: (() => {
+      const sheet = document.querySelector('.bds-attach-dropdown');
+      return !!(sheet && getComputedStyle(sheet).display !== 'none' &&
+        getComputedStyle(sheet).visibility !== 'hidden');
+    })(),
+    sidebarRows: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+  }));
+  assert.equal(openedFromSettingsCard.drawerOpen, true, 'the existing Settings drawer opens from the card');
+  assert.equal(openedFromSettingsCard.sheetVisible, false, 'the Add to chat sheet closes before Settings opens');
+  assert.equal(openedFromSettingsCard.sidebarRows, 0, 'opening Settings never restores a sidebar row');
+  await shot(page, 'arena-settings-open');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-drawer-backdrop', { hidden: true });
-  const settingsAfterBack = await page.evaluate(() => ({
-    count: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
-    dock: document.querySelector('[data-bds-arena-settings-entry="true"]')?.dataset.dock,
-  }));
-  assert.deepEqual(settingsAfterBack, { count: 1, dock: 'native-sidebar' },
-    'Back closes only the engine drawer and does not lose or duplicate the native sidebar row');
-  console.log('PASS native sidebar row persists through drawer open/Back without duplicates');
+  console.log('PASS Settings card is last in Add to chat, opens the existing drawer, and leaves the sidebar untouched');
 
   // Scripted assistant, not a real model. Assert actual widget rendering, not
   // the presence of a tag or selector in source code.
