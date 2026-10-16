@@ -243,19 +243,22 @@ functions returns without touching a thing — asserted by
 `engine-arena-settings-entry.test.mjs`, which runs the shipped functions against a
 fake DOM.
 
-Because a MODELLED account-menu anchor can silently stop matching, arena keeps a
-hidden engine-owned source rail (`#bds-settings-rail`) inside `#bds-root`, so
-existing ownership and Back-gesture guards still recognize that engine element.
-It is not the visible sidebar option. When the actual Arena navigation is open
-and its native “New Chat” row is visible and hit-testable, the adapter clones
-that row into the same list immediately after it, retains its native element
-shape/classes, and substitutes only the Settings label and gear icon. The clone
-removes navigation behavior and dispatches the existing `bds:open-drawer` event.
-No fixed overlay or guessed sidebar geometry is used; if the native row cannot
-be verified, the clone is removed and the source rail stays hidden. The clone's
-class does **not** match the overlay pattern in the back-gesture code (`ROOT_RE`),
-so `sd-sheets.js` does not treat it as a sheet under the finger — a regression
-test pins that contract too.
+The account-menu entry and engine-owned source rail remain available to the
+existing engine contracts, but neither is used as the visible Settings shortcut.
+On Arena the rail (`#bds-settings-rail`) stays inside `#bds-root` and is hidden;
+the page adapter continues to preserve Arena's original Plus button hit target,
+and does not paint, resize or relocate the native sidebar.
+
+The visible Settings entry now lives at the very bottom of the existing
+`+ / Add to chat` sheet. `sd-agent.js` adds one card using the same
+`.bds-attach-item` structure and classes as the other tool cards, after the
+existing tools, and gives it a gear icon, a short description and an accessible
+label. Tapping the card closes the attachment sheet first, then dispatches the
+same `bds:open-drawer` event that opens the existing Settings drawer. There is
+no parallel settings screen, chat surface or composer, and no guessed layout
+dimensions. The regression harness pins the card's position at the end of the
+tool list, uniqueness, sheet-close/open-drawer sequence, Back behavior, hidden
+legacy sidebar row, and preservation of the real Plus tap.
 
 ## Linux sandbox and the agent
 
