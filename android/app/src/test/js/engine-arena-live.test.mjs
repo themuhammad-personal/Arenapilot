@@ -159,14 +159,26 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
       login: true,
       skin: { ...good.engine.skin, settingsRailVisible: false, settingsDock: 'pending' },
     },
-    settingsSidebarBeforeClick: null,
+    settingsSidebarBeforeClick: {
+      dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0],
+      panelRect: null, panelTag: null,
+    },
     drawer: { present: false, visible: false, reason: 'login-wall-no-native-sidebar' },
   };
   assert.deepEqual(acceptanceFailures(loginWall), [],
-    'a login wall with no site navigation leaves Settings hidden; signed-in sidebar acceptance remains unverified');
+    'a login wall with a live hidden Settings row is accepted; signed-in sidebar acceptance remains unverified');
+  assert.deepEqual(acceptanceFailures({
+    ...loginWall,
+    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: true } },
+  }), [], 'stale initial page facts cannot override fresh evidence that the Settings row is hidden');
   assert.ok(acceptanceFailures({
-    ...loginWall, engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: true } },
-  }).includes('settings-visible-without-original-sidebar'));
+    ...loginWall,
+    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: false } },
+    settingsSidebarBeforeClick: {
+      ...loginWall.settingsSidebarBeforeClick, visible: true, railRect: [8, 524, 240, 32],
+    },
+  }).includes('settings-visible-without-original-sidebar'),
+  'fresh live evidence of a leaked Settings row must fail even if the older snapshot says hidden');
   assert.ok(acceptanceFailures({ ...good, originalPlusSheet: { dropdown: 0 } }).includes('arena-original-plus-does-not-open-sheet'));
   assert.ok(acceptanceFailures({ ...good, settingsSidebarBeforeClick: { ...good.settingsSidebarBeforeClick, dock: 'pending', inside: false } }).includes('settings-not-inside-original-sidebar'));
   assert.ok(acceptanceFailures({}).length);
