@@ -15,7 +15,7 @@
 | ২ | লম্বা মডেল-নামে সেন্ড বাটন স্ক্রিনের বাইরে | ওয়েব composer-এ জায়গার দ্বন্দ্ব | N0 — স্কিন করা composer + arena-র নিজের মেনু, মোবাইল-স্টাইলে |
 | ৩ | কিছু মডেল একদমই কাজ করে না, অনেকে মাঝে/দীর্ঘে এরর | মডেল-ভেদে ট্যাগ-ফরম্যাট ভিন্নতা, রিয়েল-টাইম এরর সারফেস নেই | N1+N2 — ট্যাগ নরমালাইজার, প্রতি-মডেল রিলায়েবিলিটি ম্যাপ, নেটিভ এরর+রিট্রাই |
 | ৪ | **thinking-মডেলে থিংকিং+উত্তর একসাথে, raw কোড** | রিজনিং ট্রেস ও উত্তর আলাদা করে পার্স হয় না; কোড-ফেন্সে মোড়া ট্যাগ পার্সার এড়িয়ে যায় | N0 (রেন্ডার) + N1 (পার্সিং): রিজনিং আলাদা, কোড-ফেন্স স্ট্রিপ, SDS কার্ড |
-| ৫ | ফাইল আপলোড হয় না, শুধু ইমেজ যায় | arena-র নিজস্ব ইনপুট ইমেজ-অনলি (CI-তে ভেরিফায়েড); বাকি ফাইল = ইনলাইন-টেক্সট ডেলিভারি | N0 — নেটিভ অ্যাটাচ শিট: ইমেজ→সাইট, টেক্সট/ফোল্ডার/repo→ইনলাইন কার্ড (লেবেল-সহ) |
+| ৫ | Direct/Agent ছাড়া অন্য mode-এ PDF/ছবি ছাড়া ফাইল কাজে লাগানো যায় না; code/Office ফাইলও অনেক সময় rejected | Arena mode অনুযায়ী allowlist/`accept` + server-side validation চালায়; Android picker নিজে `*/*` নিতে পারে, কিন্তু তা server acceptance নিশ্চিত করে না। Native bridge text/blob পড়তে পারে; WebView-এ text-like ফাইলের `.txt` fallback আছে, তবে binary formats নয় | N1 — mode-aware capability matrix; অনুমোদিত attachment native পথে, বাকি text/code ও extract-করা documents দৃশ্যমান inline-context card-এ; unsupported binary-র স্পষ্ট fallback |
 | ৬ | মোড বদলালে টুল কাজ করে না | Direct-only নীতি (ব্যাটেল/সাইড-বাই-সাইডে দুই মডেল পরস্পর-বিরোধী ট্যাগ দেয়) — সচেতন সিদ্ধান্ত, N0-তে স্পষ্ট নেটিভ বার্তা | N0 — মোড নোটিশ নেটিভ, টুল-অফ ব্যাজ |
 | ৭ | স্যান্ডবক্স ঠিকমতো কল করতে পারে না (কমান্ড/আউটপুট/নেটওয়ার্ক সব) | টুল-লুপ স্ক্যানার+নির্দেশনার উপর নির্ভরশীল ছিল — ৪ নং কারণেই ভাঙা; CI-তে স্যান্ডবক্স নিজে ১২/১২ পাস | N1 — নেটিভ স্টেপ-কার্ড পাইপলাইন, লাইভ আউটপুট |
 | ৮ | ভিজ্যুয়ালাইজার কাজ করে না | ওয়েব DOM-এ উইজেট ইনজেকশন পথটাই ভঙ্গুর | N1 — নেটিভ কার্ড + স্যান্ডবক্সড WebView (srcdoc), ফুল-স্ক্রিন |
@@ -25,6 +25,15 @@
 **গুরুত্বপূর্ণ প্রমাণ (লাইভ প্রোব, run 38641243136):** অ্যাপের সম্পূর্ণ চুক্তি আসল সাইটে নিখুঁত — ইঞ্জিন বুট, স্ক্যানার, composer-driving, actionable সেন্ড, এক আসল ক্লিক; arena নিজস্ব anonymous সেশনে ToU-consent গেট দেখায়। মালিক সাইন-ইন করা — সুতরাং পাঠানোর পথ তাঁর ডিভাইসে খোলা। ভাঙার জায়গা মূলত **উপস্থাপন-স্তর ও পার্সিং-সহনশীলতা** — প্রথমটি মূল arena পেজে injected CSS/JS স্কিনে, দ্বিতীয়টি N1-এর parser/step-card pipeline-এ ঠিক হবে; চ্যাট পেজকে Compose দিয়ে পুনর্লিখন করা হবে না।
 
 ---
+
+### ফাইল-আপলোড গবেষণা (২০২৬-১০-১৬)
+
+- [Arena Help Center — file uploads](https://help.arena.ai/articles/5595418316-arena-how-to-file-upload) বর্তমানে Battle Mode-এর জন্য PNG/JPEG/WebP/PDF এবং Agent Mode-এর জন্য এগুলোর পাশাপাশি GIF/TXT/MD/CSV/HTML/XML/CSS/JS/JSON তালিকাভুক্ত করে।
+- [Arena Help Center — Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-mode) একই allowlist প্রকাশ করে এবং বলে file support ভবিষ্যতে বাড়বে। Help page Direct ও Side-by-Side-এর জন্য পূর্ণ type matrix দেয় না; বাস্তব device/live page-এ তাদের matrix আলাদাভাবে মাপতে হবে।
+- [FastChat issue #3888](https://github.com/lm-sys/FastChat/issues/3888) রিপোর্ট করে Agent Mode-এও `.py` প্রত্যাখ্যাত হয়, যদিও `text/plain` ও নির্দিষ্ট web/text MIME types accepted list-এ আছে। তাই শুধু picker filter বা input-এর `accept` পাল্টে arbitrary binary upload নিশ্চিত করা যায় না; server validation আলাদা বাধা।
+- এই repo-র `MainActivity.kt` generic document picker-এ `*/*` ব্যবহার করে এবং extension list-কে Android MIME filter বানায় না (কারণ provider code files-কে `application/octet-stream` বলতে পারে)। `WebViewBridge.kt` already has a broad source/text extension list, bounded file/blob reads and chunked delivery; `sd-native.js` has a narrow text-MIME-to-`.txt` fallback. এগুলো reusable plumbing, কিন্তু Arena mode/server-এর upload contract-কে replace করে না।
+
+**Design decision:** “যেকোনো file-কে upload হয়ে গেছে” বলে fake করা যাবে না। Arena যে ফাইল native attachment হিসেবে গ্রহণ করে, সেটি তার আসল upload path-এই যাবে। Mode-এ rejected কিন্তু text পড়া যায় এমন ফাইলের জন্য app user-visible, filename/type-সহ inline-context card বানাবে; Office-format extraction প্রথমে নিরাপদ, size-bounded text extraction হিসেবেই হবে, original binary attachment হিসেবে নয়। Unsupported/non-text binary-র জন্য কারণ ও বিকল্প (Direct/Agent-এ switch, export/convert, বা cancel) স্পষ্ট দেখাতে হবে।
 
 ## ১. টার্গেট আর্কিটেকচার
 
@@ -123,6 +132,17 @@
 5. **ট্যাগ-নরমালাইজার**: কোড-ফেন্স, আংশিক/বিভক্ত ট্যাগ, মডেল-ভিন্ন কোট (backtick মুক্ত) — পার্সিং-সহনশীলতা + ইউনিট-টেস্ট কর্পাস (প্রতি মডেলের আসল আউটপুট নমুনা)।
 6. **ডক্টর স্ক্রিন**: সেশন-স্বাস্থ্য, স্ক্যানার-সারি, শেষ পার্স-এরর, মডেল-সাপোর্ট ম্যাপ — মালিকের স্ক্রিনশটেই রিমোট-ডিবাগ।
 7. **মডেল রিলায়েবিলিটি ম্যাপ**: কোন মডেল টুল-প্রোটোকল মানে — ব্যাজ+সুপারিশ ("Agentic ✅")।
+
+8. **Mode-aware file attachments (সব chat mode):**
+   - [ ] Battle, Side-by-Side, Direct, Agent এবং উপলব্ধ Auto/Text/Image variant-এ live capability matrix সংগ্রহ: mode selector, native `input[type=file].accept`, MIME/extension, client rejection ও submit-এর পর server response। শুধু picker খোলা বা file pill দেখা success নয়; প্রতিটি type-এর final attach/submit outcome নথিভুক্ত।
+   - [ ] Capability table থেকে routing: (a) mode+server যে MIME/type নিশ্চিতভাবে নেয় → Arena native attachment, (b) পড়া যায় এমন text/code (যেমন .py/.ts/.yaml/.log/.sql) কিন্তু native allowlist-এ নেই → একই পাঠানোর আগে review করা যায় এমন inline-context card, filename + detected type + bounded content সহ, (c) DOCX/XLSX/PPTX/RTF-এর মতো supported document container → on-device/sandbox-এ সীমিত text/table extraction করে inline context; স্পষ্টভাবে “extracted text”, native upload নয়।
+   - [ ] Battle/Side-by-Side-এ দুই পাশকে একই exact inline context দিতে হবে—এক পাশের hidden attachment/অসম context চলবে না। Existing user text-এর সঙ্গে visible delimiter-এ ফাইলের নাম, format ও start/end marker রাখতে হবে; user preview/edit/remove করতে পারবে, submit-এর আগে consent/confirmation স্পষ্ট থাকবে।
+   - [ ] Archive/container support opt-in ও নিরাপদ: archive-bomb guard, entry-count/depth/uncompressed-size/time limits, path traversal block, binary skip; default-এ ZIP-এর সব content auto-inject নয়। প্রথম release-এ opaque binary (APK/EXE/audio/video/unknown) parse বা ভুয়া .txt rename করবে না।
+   - [ ] সব mode-এ multi-file, cancel, picker MIME ভুল/ `application/octet-stream`, UTF-8 fallback, empty/unreadable/oversize, truncation notice, duplicate name, malicious archive ও screen rotation tests। Size/context budget per-mode সীমিত, content silently truncate হবে না; truncation হলে user-visible notice এবং preview থাকবে।
+   - [ ] Native PDF/image behavior regress না করা; mode switch, back/restore, resend এবং prompt history-তে attachments/context স্থায়ীভাবে ও নির্ভুলভাবে দেখানো; telemetry-তে filename/content পাঠানো নয়। Unsupported type হলে honest error + supported alternative।
+
+**গ্রহণযোগ্যতা (file uploads):** type×mode test matrix-এ native upload সফল যেখানে server সমর্থন করে; unsupported text/code/document-এর ক্ষেত্রে user-visible inline content দুটো battle response-এ একইভাবে পৌঁছায়; original PDF/image path অক্ষত; unsupported binary কখনো silent “success” দেখায় না। Authenticated live Arena smoke test-এ evidence সংরক্ষণ করতে হবে, UI fixture একা যথেষ্ট নয়।
+
 
 **গ্রহণযোগ্যতা:** আসল সাইটে এন্ড-টু-এন্ড এজেন্ট টাস্ক — প্ল্যান → স্যান্ডবক্সে কোড রান → ফাইল আউটপুট → প্রিভিউ; লাইভ প্রোব-প্রমাণ।
 
