@@ -98,9 +98,11 @@
 - [x] Engine parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected attachment mount-এ preserve marker; native Plus দৃশ্যমান রেখে real pointer click-এ বিদ্যমান attachment sheet খোলে।
 - [x] [Run #201](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38851951620)-এর API-34 CDP evidence: 320 CSS px viewport-এ Plus `[25,551,32,32]`, Send `[263,551,32,32]`, attachment sheet real-pointer-click-এ open, `pageErrors=0`। একই capture-এ `loginWall=yes` ও Health-এ `sidebar:missing`; এটি authenticated Settings acceptance ছিল না।
 - [x] মালিকের Android ফোনের feedback অনুযায়ী sidebar Settings entry সরিয়ে নেওয়ার সিদ্ধান্ত; মূল আপত্তি ছিল row-এর অনিয়মিত visibility/loading এবং sidebar-এর সঙ্গে native integration না থাকা।
-- [x] নতুন পথের implementation: বিদ্যমান `+ / Add to chat` sheet-এর tool-card list-এর একেবারে শেষে Settings card; card একই row classes ব্যবহার করে এবং tap করলে sheet বন্ধ করে বিদ্যমান `bds:open-drawer` event-এর মাধ্যমে বর্তমান Settings drawer খোলে।
-- [x] পুরোনো engine source rail `#bds-settings-rail` engine root-এর ভেতরে রাখা হলেও hidden; Arena navigation-এ cloned Settings row আর দেখানো হয় না। Native Plus click-forwarding আলাদা করে অক্ষত রাখা হয়েছে।
-- [ ] এই Settings-card implementation-এর CI: Arena adapter integration, engine harness, lint, APK build ও API-34 CDP/emulator smoke সব সফল হওয়া; CDP gate-এ card exactly once, bottom-most, source rail hidden, sheet-to-drawer এবং Back যাচাই হবে।
+- [x] নতুন পথের implementation: বিদ্যমান `+ / Add to chat` sheet-এর tool-card list-এর একেবারে শেষে Settings card; tap করলে sheet বন্ধ করে বিদ্যমান `bds:open-drawer` event-এর মাধ্যমে বর্তমান Settings drawer খোলে।
+- [x] ফোনের screenshot-এ শেষ Settings card কেটে যাওয়ার follow-up: More tools list-এর available height sheet-এর বাস্তব bounds থেকে মেপে inner vertical scroll চালু; sheet header ও Camera/Photos/Files visible থাকে, Settings-এ scroll করে পৌঁছানো যায়।
+- [x] আগের malformed ছোট gear SVG-র বদলে standard gear outline; icon size এখন অন্যান্য tool card-এর সঙ্গে সামঞ্জস্যপূর্ণ।
+- [x] পুরোনো engine source rail `#bds-settings-rail` hidden; Arena navigation-এ cloned Settings row দেখানো হয় না। Native Plus click-forwarding অক্ষত।
+- [ ] এই Settings-card follow-up-এর CI: adapter integration, engine harness, lint, unit tests, APK build/signature/payload verify ও API-34 smoke; harness-এ scroll করে Settings card সম্পূর্ণ visible ও gear SVG যাচাই হবে।
 - [ ] CI-তে তৈরি APK মালিকের বাস্তব Android ফোনে পরীক্ষা: sign-in/login-wall behavior, Add to chat sheet-এর নীচে scroll করে Settings দেখা ও খোলা, sheet close/Settings drawer open/Back, model/mode picker, Thinking, Plus attachment sheet এবং Send।
 - [ ] authenticated session-এ screenshot ও live DOM geometry-সহ final phone acceptance; emulator fixture বা login-wall capture একা এই ধাপ পূরণ করবে না।
 
