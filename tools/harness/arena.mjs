@@ -124,10 +124,10 @@ try {
   assert.equal(skinLayout.sendInlineWidth, '32px', 'the native Send inline width is left untouched');
   assert.equal(skinLayout.sendRect.height, 36, 'the fixture’s native button height is preserved');
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
-  assert.ok(['pending', 'composer'].includes(skinLayout.settingsDock),
-    'with no original navigation sidebar, the settings fallback is not docked elsewhere');
+  assert.equal(skinLayout.settingsDock, 'sheet',
+    'the Settings source rail is marked for the Add to chat sheet, never the sidebar');
   assert.equal(skinLayout.settingsRailDisplay, 'none',
-    'the settings fallback is visually hidden until the original Arena sidebar is available');
+    'the legacy Settings source rail stays hidden while the visible card lives in Add to chat');
   assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control: ' + JSON.stringify(skinLayout.originalPlus));
   assert.equal(skinLayout.enginePlusOverlay, true, 'a transparent working target exactly overlays the original Arena icon');
   assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
