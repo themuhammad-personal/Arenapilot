@@ -1029,7 +1029,16 @@
         /* Let the existing sheet finish its close animation before raising Settings. */
         var close = sheet.querySelector('.bds-sheet-close');
         if (!close) {
-          try { close = document.querySelector('.bds-attach-backdrop'); } catch (_) {}
+          /* Match sd-sheets.js: find the backdrop belonging to this sheet,
+           * not the first backdrop for a different hidden sheet in the DOM. */
+          try {
+            var sibling = sheet.previousElementSibling;
+            while (sibling && !close) {
+              if (sibling.matches && sibling.matches('.bds-attach-backdrop')) close = sibling;
+              sibling = sibling.previousElementSibling;
+            }
+            if (!close) close = document.querySelector('.bds-attach-backdrop');
+          } catch (_) {}
         }
         var openSettings = function () {
           try {
