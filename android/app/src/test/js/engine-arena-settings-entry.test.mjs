@@ -53,6 +53,9 @@ const ICON = (() => {
 // ── a fake DOM, just big enough for the menu and the rail ───────────────────
 
 function matchesSel(node, sel) {
+  /* Native Element.matches/querySelector accept comma-separated selector lists.
+     The lightweight fake DOM must model that same behavior for the observer tests. */
+  if (sel.includes(',')) return sel.split(',').some((part) => matchesSel(node, part.trim()));
   if (sel.startsWith('#')) return node.id === sel.slice(1);
   if (sel === 'button') return node.tagName === 'BUTTON';
   if (sel === 'a') return node.tagName === 'A';
