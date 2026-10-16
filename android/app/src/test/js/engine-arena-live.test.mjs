@@ -148,9 +148,14 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     skin: { active: true, composerTarget: 'native', sendInsideComposer: true, sendRect: [250, 520, 44, 44], settingsRailVisible: true },
   },
     sheetOpenedBy: 'real-click', originalPlusSheet: { dropdown: 1 }, steps: [],
-    settingsSidebarBeforeClick: { dock: 'sidebar', visible: true, inside: true, railRect: [8, 500, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' },
+    settingsSidebarBeforeClick: {
+      dock: 'native-sidebar', visible: true, inside: true,
+      railRect: [8, 72, 240, 44], nativeRowRect: [8, 28, 240, 44],
+      nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true,
+      panelRect: [0, 0, 256, 616], panelTag: 'current-visible-native-sidebar',
+    },
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
-    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sidebar' } };
+    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'native-sidebar' } };
   assert.deepEqual(acceptanceFailures(good), []);
   const loginWall = {
     ...good,
@@ -161,6 +166,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     },
     settingsSidebarBeforeClick: {
       dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0],
+      nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false,
       panelRect: null, panelTag: null,
     },
     drawer: { present: false, visible: false, reason: 'login-wall-no-native-sidebar' },
