@@ -558,8 +558,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   // Settings belongs in Arena's own sidebar, not beside the composer. Open the
   // site's existing navigation drawer first when its gear is not currently visible.
   await step('settings-drawer', async () => {
-    const pageBeforeSettings = await evalJson(cdp, FACTS);
-    if (pageBeforeSettings && pageBeforeSettings.login === true) {
+    const pageBeforeSettings = result.engineAfter || result.engine || {};
+    if (pageBeforeSettings.login === true) {
       result.settingsSidebarBeforeClick = null;
       result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
       return 'unverified on login wall: no original chat navigation';
