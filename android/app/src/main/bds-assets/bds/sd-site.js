@@ -630,7 +630,7 @@
         if (!hit) return false;
         if (rail && (hit === rail || (rail.contains && rail.contains(hit)))) return true;
         return !!(panel.contains && panel.contains(hit) &&
-          (hit === row || (row.contains && row.contains(hit)));
+          (hit === row || (row.contains && row.contains(hit))));
       } catch (_) { return false; }
     }
 
