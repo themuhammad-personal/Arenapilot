@@ -672,7 +672,6 @@
     var positionedOriginal = null;
     var positionedParent = null;
     var savedOriginalPosition = null;
-    var savedParentPosition = null;
     var positionedMount = null;
     var savedMountStyles = null;
     var positionedWrapper = null;
@@ -710,7 +709,6 @@
           positionedOriginal.style.removeProperty('display');
         }
       } catch (_) {}
-      restoreInlineStyles(positionedParent, savedParentPosition);
       restoreInlineStyles(positionedMount, savedMountStyles);
       restoreInlineStyles(positionedWrapper, savedWrapperStyles);
       restoreInlineStyles(positionedPlus, savedPlusStyles);
@@ -727,7 +725,6 @@
       positionedOriginal = null;
       positionedParent = null;
       savedOriginalPosition = null;
-      savedParentPosition = null;
       positionedMount = null;
       savedMountStyles = null;
       positionedWrapper = null;
@@ -787,7 +784,6 @@
           positionedWrapper = wrapper;
           positionedPlus = enginePlus;
           savedOriginalPosition = saveInlineStyles(original, ['pointer-events']);
-          savedParentPosition = saveInlineStyles(positionedParent, ['position']);
           savedMountStyles = saveInlineStyles(mount, [
             'position','left','top','right','bottom','width','height','min-width','min-height',
             'max-width','max-height','z-index','margin','padding','flex','flex-basis',
@@ -830,18 +826,14 @@
           enginePlus.setAttribute('type', 'button');
         } catch (_) {}
 
-        var parent = original.parentElement;
-        if (parent && parent.style) {
-          var parentComputed = null;
-          try { parentComputed = window.getComputedStyle && window.getComputedStyle(parent); } catch (_) {}
-          if (!parentComputed || parentComputed.position === 'static') setImportantStyle(parent.style, 'position', 'relative');
-        }
-        var pr = rectOf(parent);
+        /* The sheet mount now lives in #bds-root, not in Arena's React-owned
+         * composer. Use viewport coordinates for a transparent hit target over
+         * the original icon; never change the site's control-group positioning. */
         var or = rectOf(original);
-        if (!pr || !or) return;
-        setImportantStyle(mount.style, 'position', 'absolute');
-        setImportantStyle(mount.style, 'left', (or.left - pr.left) + 'px');
-        setImportantStyle(mount.style, 'top', (or.top - pr.top) + 'px');
+        if (!or) return;
+        setImportantStyle(mount.style, 'position', 'fixed');
+        setImportantStyle(mount.style, 'left', or.left + 'px');
+        setImportantStyle(mount.style, 'top', or.top + 'px');
         setImportantStyle(mount.style, 'right', 'auto');
         setImportantStyle(mount.style, 'bottom', 'auto');
         setImportantStyle(mount.style, 'width', or.width + 'px');
