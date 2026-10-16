@@ -225,7 +225,7 @@ try {
   stage = 'attach-open-and-back';
   const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
   await wait(() => {
-    const native = document.querySelector(nativePlusSelector);
+    const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
     const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
       document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
     return !!(native && native.__sdArenaSheetBound === true && trigger &&
