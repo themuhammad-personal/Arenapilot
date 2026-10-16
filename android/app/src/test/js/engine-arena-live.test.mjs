@@ -187,7 +187,9 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   }).includes('settings-drawer-back-failed'),
   'Back must dismiss the Settings drawer');
   assert.ok(acceptanceFailures({ ...good, originalPlusSheet: { dropdown: 0 } }).includes('arena-original-plus-does-not-open-sheet'));
-  assert.ok(acceptanceFailures({ ...good, settingsSidebarBeforeClick: { ...good.settingsSidebarBeforeClick, dock: 'pending', inside: false } }).includes('settings-card-not-last-in-plus-sheet'));
+  assert.ok(acceptanceFailures({
+    ...good, drawer: { ...good.drawer, railDock: 'sidebar' },
+  }).includes('settings-drawer-opened-by-wrong-entry'));
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
