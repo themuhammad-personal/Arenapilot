@@ -197,7 +197,7 @@ export const FACTS = `/*sdp:facts*/(function () {
   var plusOverlay = {
     aligned: nearRects(nativeAddRect, enginePlusRect),
     nativeVisible: !!(nativeAddRect && nativeAddStyle && nativeAddStyle.display !== 'none' && nativeAddStyle.visibility !== 'hidden'),
-    nativePassThrough: !!(nativeAddStyle && nativeAddStyle.pointerEvents === 'none'),
+    nativePointerIntact: !!(nativeAddStyle && nativeAddStyle.pointerEvents !== 'none'),
     engineTargetReady: !!(enginePlusRect && enginePlusStyle && enginePlusStyle.display !== 'none' &&
       enginePlusStyle.visibility !== 'hidden' && enginePlusStyle.opacity === '0' && enginePlusStyle.pointerEvents !== 'none')
   };
@@ -223,7 +223,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     api: window.__sdApi || null,
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
-    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: nativeAddRect, overlayAligned: plusOverlay.aligned, nativePlusVisible: plusOverlay.nativeVisible, nativePlusPassThrough: plusOverlay.nativePassThrough, enginePlusOverlayReady: plusOverlay.engineTargetReady, fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
+    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: nativeAddRect, overlayAligned: plusOverlay.aligned, nativePlusVisible: plusOverlay.nativeVisible, nativePlusPointerIntact: plusOverlay.nativePointerIntact, enginePlusOverlayReady: plusOverlay.engineTargetReady, fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
@@ -759,7 +759,7 @@ export function acceptanceFailures(result) {
   }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
   if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24) ||
-      e.attach.nativePlusVisible !== true || e.attach.nativePlusPassThrough !== true ||
+      e.attach.nativePlusVisible !== true || e.attach.nativePlusPointerIntact !== true ||
       e.attach.overlayAligned !== true || e.attach.enginePlusOverlayReady !== true) {
     errors.push('arena-original-plus-overlay-not-ready');
   }
