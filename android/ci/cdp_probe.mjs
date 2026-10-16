@@ -337,13 +337,46 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
 const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  function textOf(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim(); } catch (e) { return ''; } }
   function visible(el, box) {
     if (!el || !box || box[2] < 1 || box[3] < 1) return false;
     try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
     catch (e) { return true; }
   }
+  function nativeSidebar(node) {
+    if (!node || node === document.body || node === document.documentElement) return false;
+    try { if (node.closest && node.closest('#bds-root,#bds-drawer,.bds-drawer-backdrop')) return false; } catch (e) {}
+    var box = r(node);
+    var vw = window.innerWidth || document.documentElement.clientWidth || 360;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 640;
+    if (!visible(node, box) || box[0] > vw * .12 || box[2] < vw * .42 || box[2] > vw * .96 ||
+        box[3] < Math.min(220, vh * .32) || box[0] + box[2] > vw * .97) return false;
+    var t = textOf(node);
+    return /new\\s*chat/i.test(t) && /leaderboard/i.test(t) && /\\bsearch\\b/i.test(t);
+  }
+  var candidates = [];
+  function add(node) { if (node && candidates.indexOf(node) < 0) candidates.push(node); }
+  try {
+    var controls = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+    for (var i = 0; i < controls.length; i++) {
+      var el = controls[i], txt = textOf(el), href = String(el.getAttribute('href') || '');
+      if (!/new\\s*chat/i.test(txt) && !/\\/text\\/direct(?:[/?#]|$)/i.test(href)) continue;
+      var parent = el;
+      for (var depth = 0; parent && parent !== document.body && depth < 9; depth++, parent = parent.parentElement) add(parent);
+    }
+  } catch (e) {}
+  try {
+    var semantic = document.querySelectorAll('aside,nav,[role="navigation"],[data-sidebar="sidebar"]');
+    for (var j = 0; j < semantic.length; j++) add(semantic[j]);
+  } catch (e) {}
+  var panel = null, bestArea = Infinity;
+  for (var k = 0; k < candidates.length; k++) {
+    var candidate = candidates[k];
+    if (!nativeSidebar(candidate)) continue;
+    var cr = r(candidate), area = cr[2] * cr[3];
+    if (area < bestArea) { panel = candidate; bestArea = area; }
+  }
   var rail = q('#bds-settings-rail');
-  var panel = q('[data-bds-arena-sidebar="true"]');
   var rr = r(rail);
   var pr = r(panel);
   var inside = !!(rr && pr &&
