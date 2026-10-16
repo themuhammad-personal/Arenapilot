@@ -80,6 +80,7 @@ try {
       originalFormMarked: form.classList.contains('sd-arena-composer'),
       sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
       sendRect: (() => { const r = send.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; })(),
+      sendInlineWidth: send.style.width,
       sendRight: send.getBoundingClientRect().right,
       inputMaxWidth: getComputedStyle(input).maxWidth,
       chatForms: document.querySelectorAll('textarea[name="message"]').length,
@@ -120,6 +121,7 @@ try {
   assert.ok(skinLayout.sendRect.width > 0 && skinLayout.sendRect.height > 0,
     'the native Send control remains visible without injected size overrides');
   assert.equal(skinLayout.sendRect.width, 32, 'the fixture’s original 32px Send width is preserved');
+  assert.equal(skinLayout.sendInlineWidth, '32px', 'the native Send inline width is left untouched');
   assert.equal(skinLayout.sendRect.height, 36, 'the fixture’s native button height is preserved');
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
   assert.ok(['pending', 'composer'].includes(skinLayout.settingsDock),
