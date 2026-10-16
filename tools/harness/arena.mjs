@@ -368,7 +368,7 @@ try {
   assert.equal(settingsCardLayout.hasGear, true, 'Settings card has its own gear icon');
   assert.equal(settingsCardLayout.list.overflowY, 'auto',
     'the existing More tools card list has its own vertical scroll');
-  assert.match(settingsCardLayout.list.maxHeight, /^\\d+px$/,
+  assert.match(settingsCardLayout.list.maxHeight, /^\d+px$/,
     'the list scroll height is measured from the available sheet viewport');
   assert.ok(settingsCardLayout.list.scrollHeight > settingsCardLayout.list.clientHeight,
     'the Settings card is reachable by scrolling the list rather than being lost below the sheet');
