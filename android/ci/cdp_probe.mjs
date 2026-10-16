@@ -558,14 +558,16 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   // Settings belongs in Arena's own sidebar, not beside the composer. Open the
   // site's existing navigation drawer first when its gear is not currently visible.
   await step('settings-drawer', async () => {
+    /* Always take a fresh live measurement first. Authentication can change
+     * during startup: an earlier engine snapshot may say "chat" while the
+     * current document has already changed to the login wall (or vice versa).
+     * Assign the live facts even when the rail cannot be opened, so the runtime
+     * gate never falls back to stale Settings visibility from the first probe. */
+    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
     const pageBeforeSettings = result.engineAfter || result.engine || {};
     if (pageBeforeSettings.login === true) {
-      /* Capture the rail's CURRENT visibility even when the login wall has no
-       * chat sidebar. The runtime gate must distinguish hidden from leaked UI
-       * and must not rely on the earlier, potentially stale engine snapshot. */
-      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
       result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
-      return 'login wall: verified Settings hidden unless a native sidebar is present';
+      return 'login wall: current Settings visibility captured; native sidebar unverified';
     }
     let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
@@ -577,6 +579,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       }
     }
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
+      /* Refresh even if opening the native sidebar was impossible. */
+      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
       result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
       return 'Settings entry not visible in the official sidebar';
     }
