@@ -842,8 +842,13 @@
       if (!rail || !rail.style) return;
       var panel = sidebar();
       if (!panel) {
-        /* The engine's own SPA scan may try to dock this rail beside the
-         * composer again. Reassert the sidebar-only policy every time. */
+        /* No site-owned navigation is open. Do not leave a stale Settings
+         * row visible over the composer/login page after a route transition. */
+        try {
+          rail.removeAttribute('data-sidebar-confirmed');
+          ['data-sidebar-left','data-sidebar-top','data-sidebar-width','data-sidebar-height']
+            .forEach(function (key) { rail.removeAttribute(key); });
+        } catch (_) {}
         if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
         clearInlineDock(rail);
         lastSignature = 'pending';
@@ -859,6 +864,16 @@
        * the site's panel: its own stylesheet remains the source of truth. */
       /* Do not add a marker attribute to the React-owned Arena sidebar. */
 
+      /* Store the site's measured bounds on the engine-owned Settings row,
+       * not on the React-owned Arena sidebar. CDP can verify containment without
+       * mutating the original navigation DOM. */
+      try {
+        rail.setAttribute('data-sidebar-confirmed', 'true');
+        rail.setAttribute('data-sidebar-left', String(pr.left));
+        rail.setAttribute('data-sidebar-top', String(pr.top));
+        rail.setAttribute('data-sidebar-width', String(pr.width));
+        rail.setAttribute('data-sidebar-height', String(pr.height));
+      } catch (_) {}
       var account = accountRow(panel);
       var navRow = nativeSidebarRow(panel);
       var navRect = rectOf(navRow);
