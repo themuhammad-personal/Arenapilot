@@ -1,6 +1,6 @@
 # ArenaPilot — পরিকল্পনা ৪: আসল Arena পেজ-ভিত্তিক এজেন্টিক Android অ্যাপ
 
-তারিখ: ২০২৬-১০-১৫ · শাখা: `arena/0e0268d7-super-deepseek`
+তারিখ: ২০২৬-১০-১৬ · বেসলাইন: `main` (`ec3f3ee088b4442effea8a859fab3921ccde4e93`)
 মালিকের বর্তমান সিদ্ধান্ত (২০২৬-১০-১৫): **চ্যাটের একমাত্র surface হলো arena.ai-র আসল পেজ—আলাদা Compose chat shell নয়। N0-তে ওই পেজের DOM-এই CSS/JS দিয়ে mobile-first Material-3 skin হবে; arena-র নিজস্ব রং, লগইন ও CAPTCHA অক্ষত থাকবে। UI ইংরেজি-প্রথম (বাংলা অপশন), ডিফল্ট ধাপ-কার্ড + চাইলে লাইভ Computer ভিউ, নিজের MCP সার্ভার (URL দিয়ে), ফোরগ্রাউন্ড সার্ভিস+নোটিফিকেশন এবং Manus-লেভেল ডেলিভারেবল; ফোনের অন্য অ্যাপ নিয়ন্ত্রণ এখন নয়।**
 
 এই পরিকল্পনা [ROADMAP-3-BN.md](ROADMAP-3-BN.md)-এর উত্তরসূরি। রেফারেন্স গবেষণা: Manus AI Android অ্যাপ (Google Play/App Store বিবরণ, ২০২৬), ২০২৬-এর agentic অ্যাপ জরিপ (ChatGPT agent mode, Perplexity Assistant, Claude connectors), ওপেন-সোর্স on-device এজেন্ট (Mobile Agent, DSHBox)।
@@ -90,20 +90,21 @@
    টেক্সট-ফাইল/ফোল্ডার/লিংক→ইনলাইন ডেলিভারি-কার্ড।
 6. **ট্যাগ-নরমালাইজার** (N1-এর সাথে মিলিয়ে): raw ট্যাগ কখনোই স্ক্রিনে নয়।
 
-### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৬; native-preservation follow-up)
+### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৬; native-preservation + sidebar follow-up)
 
-- [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell যোগ করা হয়নি।
-- [x] Arena-only skin hook; DeepSeek/অজানা host-এ skin সক্রিয় নয়।
-- [x] `our-skin.css` থেকে Arena-র native composer, textarea, Send, model/mode controls, Plus ও message typography-র width/height/flex/font/border override সরানো হয়েছে।
-- [x] ইঞ্জিনের parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected mount-এ preserve marker; অন্য host-এর আগের আচরণ আলাদা থাকে।
-- [x] মূল Arena Plus আইকন/বাটন দৃশ্যমান; injected attachment target একই মাপা slot-এ overlay হয়। Run #200 CDP-তে real pointer click-এর পর attachment dropdown খোলা দেখা গেছে।
-- [x] Settings entry শুধুমাত্র আসল, খোলা Arena sidebar শনাক্ত হলে তার native “New Chat” row-এর geometry/style mirror করে; sidebar-এর নিজস্ব width/height আর পরিবর্তন করা হয় না।
-- [x] Run #200 (২০২৬-১০-১৬)-এ APK/unit tests, Arena adapter integration, engine harness, Lint ও emulator/CDP job সব সফল; CDP pageErrors=0, Send/Plus-এর native মাপ রেকর্ড হয়েছে।
-- [ ] মালিকের বাস্তব Android ফোনে সর্বশেষ native-preservation build যাচাই—সাইন-ইন, account menu/Settings, model/mode picker, Thinking ও attachment sheet।
-- [ ] authenticated session-এ sidebar খোলা/বন্ধ, native dimensions ও Settings drawer-এর স্ক্রিনশট/DOM প্রমাণ। Run #200-এর emulator সেশনে login wall থাকায় Settings drawer খোলা যাচাই হয়নি।
-- [ ] বাস্তব ফোনের ফিডব্যাক অনুযায়ী সূক্ষ্ম spacing ও state polish; অরিজিনাল Arena control-এর appearance override না যোগ করে।
+- [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell বা দ্বিতীয় composer যোগ করা হয়নি।
+- [x] Arena-only skin hook; DeepSeek/অজানা host-এ Arena skin সক্রিয় নয়।
+- [x] `our-skin.css` থেকে Arena-র native composer, textarea, Send, model/mode controls, Plus ও message typography-র forced width/height/flex/font/border override সরানো হয়েছে।
+- [x] Engine parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected attachment mount-এ preserve marker; native Plus দৃশ্যমান রেখে real pointer click-এ বিদ্যমান attachment sheet খোলে।
+- [x] [Run #201](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38851951620)-এর API-34 CDP evidence: 320 CSS px viewport-এ Plus `[25,551,32,32]`, Send `[263,551,32,32]`, attachment sheet real-pointer-click-এ open, `pageErrors=0`। একই capture-এ `loginWall=yes` ও Health-এ `sidebar:missing`; এটি authenticated sidebar acceptance নয়।
+- [x] মালিক নিজে Android ফোনে অ্যাপ ইনস্টল করে পরীক্ষা করেছেন; সাধারণ flow মোটামুটি ঠিক, কিন্তু Settings option sidebar-এর অন্য items-এর মতো native মনে হয় না এবং sidebar loading/interaction-এ বাধা দেয়—এটাই সর্বশেষ device feedback।
+- [ ] Settings follow-up: fixed overlay বাদ দিয়ে site-এর visible, hit-testable “New Chat” row clone করে একই native list-এ adjacent sibling হিসেবে বসানো; original native classes/DOM wrapper বজায় রেখে শুধু Settings label/icon বদলানো। PR #3-তে implementation ও regression tests আছে; Run #213-তে label বদলের পর harness-এর পুরোনো test selector ভেঙেছিল, stable fixture selector ও icon-wrapper handling যোগ করা হয়েছে; নতুন head-এর CI ফল এখনও pending।
+- [ ] নতুন native-row implementation-এর নিজস্ব CI: Arena adapter integration, Engine harness, Lint, APK build ও API-34 emulator smoke সব সফল হওয়া।
+- [ ] corrected build মালিকের বাস্তব Android ফোনে পুনরায় পরীক্ষা: sign-in, sidebar open/close, Settings row order/spacing, drawer open/Back, duplicate-prevention, model/mode picker, Thinking, Plus attachment sheet এবং Send।
+- [ ] authenticated live session-এ screenshot ও computed DOM geometry সংগ্রহ করে original Arena baseline-এর সঙ্গে তুলনা; Settings-কে sidebar-এর sibling হিসাবে যাচাই করতে হবে, adapter-authored bounds দিয়ে নয়।
 
-**অবস্থা: স্বয়ংক্রিয় CI green, N0 এখনও সম্পূর্ণ নয়।** [Run #200](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38844646136)-এর সব job সফল এবং CDP-তে pageErrors=0; তবে emulator সেশন login wall-এ ছিল, তাই authenticated Settings drawer-এর গ্রহণযোগ্যতা প্রমাণিত নয়। সর্বশেষ build-টি বাস্তব ফোনে যাচাই ও স্ক্রিনশট/DOM প্রমাণ না পাওয়া পর্যন্ত N0 শেষ বলে চিহ্নিত হবে না।
+**অবস্থা: N0 এখনও সম্পূর্ণ নয়।** Run #201-এর original CI green ছিল, কিন্তু login wall-এ চলায় sidebar/Settings যাচাই হয়নি। মালিকের ফোনের feedback-এ Settings visual integration-ই অবশিষ্ট মূল সমস্যা। Native-row follow-up-এ Run #212/Run #213-এর fixture failures থেকে selector/regex সমস্যা শনাক্ত ও সংশোধন হয়েছে; নতুন head-এর validation এবং real-device re-acceptance শেষ না হওয়া পর্যন্ত N0 complete বলা যাবে না।
+
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
 1. **প্ল্যান-কার্ড**: টাস্ক দিলে মডেলের to-do প্ল্যান নেটিভ চেকলিস্টে (Manus-স্টাইল), স্টেপ সম্পন্ন হলে টিক।
