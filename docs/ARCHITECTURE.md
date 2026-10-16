@@ -243,12 +243,19 @@ functions returns without touching a thing — asserted by
 `engine-arena-settings-entry.test.mjs`, which runs the shipped functions against a
 fake DOM.
 
-Because a MODELLED menu anchor can silently stop matching, arena also gets a
-permanent engine-owned rail (`#bds-settings-rail`). It lives inside `#bds-root`,
-so every guard that asks `el.closest('#bds-root')` already treats it as ours, and
-it needs no arena selector at all. Its class deliberately does **not** match the
-overlay pattern in the back-gesture code (`ROOT_RE`), otherwise `sd-sheets.js`
-would read it as a sheet under the finger — a test pins that too.
+Because a MODELLED account-menu anchor can silently stop matching, arena keeps a
+hidden engine-owned source rail (`#bds-settings-rail`) inside `#bds-root`, so
+existing ownership and Back-gesture guards still recognize that engine element.
+It is not the visible sidebar option. When the actual Arena navigation is open
+and its native “New Chat” row is visible and hit-testable, the adapter clones
+that row into the same list immediately after it, retains its native element
+shape/classes, and substitutes only the Settings label and gear icon. The clone
+removes navigation behavior and dispatches the existing `bds:open-drawer` event.
+No fixed overlay or guessed sidebar geometry is used; if the native row cannot
+be verified, the clone is removed and the source rail stays hidden. The clone's
+class does **not** match the overlay pattern in the back-gesture code (`ROOT_RE`),
+so `sd-sheets.js` does not treat it as a sheet under the finger — a regression
+test pins that contract too.
 
 ## Linux sandbox and the agent
 
@@ -415,8 +422,10 @@ Arena instructions are `ARENA_PROMPT` in `sd-site.js`, not the legacy DeepSeek
 prompt. The compatibility `<SuperDeepSeek>` envelope and `SDS:` tool grammar
 remain unchanged. Turning privacy off later cannot retract prior messages.
 
-The Settings entry docks into a recognized semantic sidebar when present and
-otherwise into the composer, not a permanent floating rail. The attach mount is
-reused across toolbar moves and reconciled after native button/style changes.
-Both flows have a Chromium integration gate (`test:harness:arena`), but sidebar
-and conversation fixtures still need authenticated live-site confirmation.
+The visible Settings option is a sibling in Arena's own navigation list, not a
+fixed-position copy laid over the drawer. If the native row cannot be
+independently verified, no visible clone remains; the account-menu entry stays
+available. The attach mount is reused across toolbar moves and reconciled after
+native button/style changes. Chromium fixtures cover hidden-navigation
+detection, sibling placement, icon replacement and click dispatch, but sidebar
+and conversation still need authenticated live-site and real-device confirmation.
