@@ -341,42 +341,55 @@ try {
     content.removeAttribute('aria-hidden');
     content.style.opacity = '1';
   });
-  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sidebar');
+  await wait(() => document.querySelector('[data-bds-arena-settings-entry="true"]')?.dataset.dock === 'native-sidebar');
   const sidebarSettingsLayout = await page.evaluate(() => {
-    const rail = document.querySelector('#bds-settings-rail');
+    const rail = document.querySelector('[data-bds-arena-settings-entry="true"]');
     const r = rail.getBoundingClientRect();
     const panelEl = document.querySelector('#arena-sidebar-fixture');
     const panel = panelEl.getBoundingClientRect();
-    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\s*chat/i.test(a.innerText || a.textContent || ''));
+    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\\s*chat/i.test(a.innerText || a.textContent || ''));
     const nativeRect = nativeRow.getBoundingClientRect();
-    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
+    return {
+      left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
       nativeRowLeft: nativeRect.left, nativeRowRight: nativeRect.right,
       nativeRowWidth: nativeRect.width, nativeRowHeight: nativeRect.height,
       panelLeft: panel.left, panelRight: panel.right, panelWidth: panel.width,
       panelHeight: panel.height, expectedPanelWidth: innerWidth * 0.8,
-      expectedPanelHeight: innerHeight * 0.76, dock: rail.dataset.dock,
+      expectedPanelHeight: innerHeight * 0.76,
+      dock: rail.dataset.dock,
       position: getComputedStyle(rail).position,
-      labelVisible: getComputedStyle(rail.querySelector('.bds-arena-rail-label')).display !== 'none' };
+      nativePosition: getComputedStyle(nativeRow).position,
+      sameParent: rail.parentElement === nativeRow.parentElement,
+      immediatelyAfterNative: rail.previousElementSibling === nativeRow,
+      copiedNativeClasses: Array.from(nativeRow.classList).every((name) => rail.classList.contains(name)),
+      entryLabel: (rail.getAttribute('aria-label') || '') + ' ' + (rail.innerText || rail.textContent || ''),
+      labelVisible: getComputedStyle(rail).display !== 'none'
+    };
   });
-  assert.equal(sidebarSettingsLayout.dock, 'sidebar', 'settings fallback moves into the existing sidebar');
-  assert.equal(sidebarSettingsLayout.position, 'fixed', 'settings row anchors to the visible drawer rather than composer');
+  assert.equal(sidebarSettingsLayout.dock, 'native-sidebar', 'Settings uses the native-row dock state');
+  assert.ok(sidebarSettingsLayout.sameParent && sidebarSettingsLayout.immediatelyAfterNative,
+    'Settings is inserted as the next sibling in Arena’s original navigation list: ' + JSON.stringify(sidebarSettingsLayout));
+  assert.equal(sidebarSettingsLayout.position, sidebarSettingsLayout.nativePosition,
+    'Settings keeps the native row positioning mode; no fixed overlay is used');
+  assert.ok(sidebarSettingsLayout.copiedNativeClasses,
+    'Settings inherits the native row classes instead of maintaining a visually separate widget');
   assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
     sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
-    'settings row stays inside sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
-  assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
+    'Settings stays inside native sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
   assert.ok(Math.abs(sidebarSettingsLayout.width - sidebarSettingsLayout.nativeRowWidth) < 1 &&
     Math.abs(sidebarSettingsLayout.height - sidebarSettingsLayout.nativeRowHeight) < 1,
-    'Settings exactly matches the dimensions of Arena’s original New Chat row');
+    'Settings uses the exact native row box geometry');
   assert.ok(Math.abs(sidebarSettingsLayout.left - sidebarSettingsLayout.nativeRowLeft) < 1 &&
     Math.abs(sidebarSettingsLayout.right - sidebarSettingsLayout.nativeRowRight) < 1,
-    'Settings uses the same horizontal alignment as Arena’s native sidebar row');
+    'Settings uses the same horizontal alignment as the native row');
   assert.ok(Math.abs(sidebarSettingsLayout.panelWidth - sidebarSettingsLayout.expectedPanelWidth) < 1,
-    'the adapter preserves Arena’s original sidebar width instead of forcing a new width');
+    'the adapter preserves Arena’s original sidebar width');
   assert.ok(Math.abs(sidebarSettingsLayout.panelHeight - sidebarSettingsLayout.expectedPanelHeight) < 1,
-    'the adapter preserves Arena’s original sidebar height instead of stretching the drawer');
-  assert.equal(sidebarSettingsLayout.labelVisible, true, 'sidebar entry keeps its label');
+    'the adapter preserves Arena’s original sidebar height');
+  assert.match(sidebarSettingsLayout.entryLabel, /Advanced Settings/,
+    'the visible native row has the Settings label');
   stage = 'settings-open-and-back';
-  await page.click('#bds-settings-rail');
+  await page.click('[data-bds-arena-settings-entry="true"]');
   await page.waitForSelector('#bds-drawer', { visible: true });
   await shot(page, 'arena-settings');
   await page.evaluate(() => window.__sdHandleBack());
