@@ -1021,6 +1021,14 @@
         return;
       }
 
+      /* The Svelte list is a flex column; default flex-shrink would squash
+       * the cards to fit and leave nothing to scroll. Keep their authored row
+       * heights and let the list, rather than the cards, absorb overflow. */
+      var rows = list.querySelectorAll('.bds-attach-item');
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].style) rows[i].style.setProperty('flex-shrink', '0');
+      }
+
       /* Keep the sheet header/actions in view. The existing More tools card
        * list owns its own scroll when seven cards exceed the available height. */
       list.style.setProperty('max-height', available + 'px');
