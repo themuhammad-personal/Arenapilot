@@ -224,13 +224,39 @@ try {
   }
   stage = 'attach-open-and-back';
   const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
-  await wait(() => {
-    const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
-    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-    return !!(native && trigger &&
-      document.querySelectorAll('.bds-attach-menu-mount').length === 1);
-  });
+  try {
+    await wait(() => {
+      const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      return !!(native && trigger &&
+        document.querySelectorAll('.bds-attach-menu-mount').length === 1);
+    });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => {
+      const form = document.querySelector('textarea[name="message"]')?.closest('form');
+      const rect = (el) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect(); const c = getComputedStyle(el);
+        return { x:r.x, y:r.y, w:r.width, h:r.height, display:c.display,
+          visibility:c.visibility, opacity:c.opacity, pointerEvents:c.pointerEvents };
+      };
+      const controls = form ? Array.from(form.querySelectorAll('button')).map((b) => ({
+        aria:b.getAttribute('aria-label'), title:b.title, className:String(b.className || ''),
+        rect:rect(b), engine:!!b.closest('#bds-root')
+      })) : [];
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      return { site:window.__sdSite && window.__sdSite.id, form:rect(form),
+        nativeCount:form ? form.querySelectorAll('button[aria-label="Add files"],button[aria-label="Attach files"]').length : 0,
+        native:rect(form && form.querySelector('button[aria-label="Add files"],button[aria-label="Attach files"]')),
+        trigger:rect(trigger), mountCount:document.querySelectorAll('.bds-attach-menu-mount').length,
+        wrapperCount:document.querySelectorAll('.bds-attach-wrapper').length,
+        root:!!document.querySelector('#bds-root'), controls };
+    });
+    throw new Error('native Plus target never became ready: ' +
+      String(error && error.message || error) + ' diagnostic=' + JSON.stringify(diagnostic));
+  }
   const attachLayout = await page.evaluate((selector) => {
     const native = document.querySelector(selector);
     const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
