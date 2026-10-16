@@ -138,8 +138,9 @@ export const FACTS = `/*sdp:facts*/(function () {
   try {
     if (box && box.matches && box.matches('form:has(textarea[name="message"])')) composerTarget = 'has';
   } catch (e) { /* :has() is not available in older Android WebViews */ }
-  if (composerTarget === 'none' && box && box.classList && box.classList.contains('sd-arena-composer')) {
-    composerTarget = 'class';
+  if (composerTarget === 'none' && box && ta && box.tagName &&
+      String(box.tagName).toLowerCase() === 'form' && box.contains && box.contains(ta)) {
+    composerTarget = 'native';
   }
   var composerRect = rect(box);
   var sendRect = rect(sendButton);
@@ -227,7 +228,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
     skin: {
-      active: !!(document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('sd-arena-native')),
+      active: !!(window.__sdSite && window.__sdSite.id === 'arena'),
       composerTarget: composerTarget,
       sendInsideComposer: sendButton && composerRect && sendRect ? sendInsideComposer : null,
       sendMinWidth: sendMinWidth,
@@ -716,7 +717,7 @@ export function acceptanceFailures(result) {
   if (['arena.ai', 'www.arena.ai'].includes(e.host) && (!e.skin || e.skin.active !== true)) errors.push('arena-skin-inactive');
   if (e.composer?.named !== 1 || !(e.composer?.rect?.[2] > 0 && e.composer?.rect?.[3] > 0)) errors.push('composer-not-visible');
   if (e.composer?.named === 1) {
-    if (!e.skin || !['has', 'class'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
+    if (!e.skin || !['has', 'native'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
     if (!e.skin || e.skin.sendInsideComposer !== true) errors.push('send-outside-composer');
     const sendRect = e.skin?.sendRect;
     if (!Array.isArray(sendRect) || !(Number(sendRect[2]) > 0 && Number(sendRect[3]) > 0)) {
