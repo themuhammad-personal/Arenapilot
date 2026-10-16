@@ -224,13 +224,12 @@ set and the sidebar *Advanced settings* entry are owner-pinned surfaces.
 
 ### The settings entry on arena (`Phase 4`)
 
-The settings drawer has exactly one door everywhere in the app: a row the engine
-inserts into the **account menu** (`WQ()`, reachable only through the
-`bds:open-drawer` event it dispatches — there is no native menu item and no other
-dispatcher in the bundle). DeepSeek's menu is `.ds-dropdown-menu`, and the
-installer (`Y2t()`) only ever scans for that class, so on arena — whose menu is
-role-based — the row was never injected and the drawer would have been
-unreachable.
+The Settings drawer is an existing engine-owned screen. Its shared open action is
+the `bds:open-drawer` event; entry points should dispatch that event rather than
+create a parallel preferences page. The engine's shipped account-menu row uses
+that event. DeepSeek's menu is `.ds-dropdown-menu`, so the engine's original
+installer (`Y2t()`) only scans that class; Arena's role-based account menu needs
+the Arena-only installer described below.
 
 `content.js` therefore carries a second, **arena-only** installer beside it
 (`sdsArenaInstall()`, called from boot as `Y2t(),sdsArenaInstall(),gge()`). It
@@ -243,11 +242,12 @@ functions returns without touching a thing — asserted by
 `engine-arena-settings-entry.test.mjs`, which runs the shipped functions against a
 fake DOM.
 
-The account-menu entry and engine-owned source rail remain available to the
-existing engine contracts, but neither is used as the visible Settings shortcut.
-On Arena the rail (`#bds-settings-rail`) stays inside `#bds-root` and is hidden;
-the page adapter continues to preserve Arena's original Plus button hit target,
-and does not paint, resize or relocate the native sidebar.
+The account-menu entry remains an existing fallback, and the engine-owned
+source rail stays inside `#bds-root` for engine ownership and Back-gesture guards;
+neither is added to Arena's navigation sidebar. The source rail
+(`#bds-settings-rail`) is hidden. The page adapter continues to preserve Arena's
+original Plus button hit target and does not paint, resize or relocate the
+native sidebar.
 
 The visible Settings entry now lives at the very bottom of the existing
 `+ / Add to chat` sheet. `sd-agent.js` adds one card using the same
