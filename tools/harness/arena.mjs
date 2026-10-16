@@ -326,7 +326,26 @@ try {
         ? lastExisting.querySelector('.bds-item-title').textContent : '',
       title: item && item.querySelector('.bds-item-title') ? item.querySelector('.bds-item-title').textContent : '',
       description: item && item.querySelector('.bds-item-desc') ? item.querySelector('.bds-item-desc').textContent : '',
-      hasGear: !!(item && item.querySelector('svg')),
+      list: (() => {
+        const list = item && item.parentElement;
+        if (!list) return null;
+        const icon = item.querySelector('.bds-item-icon-box svg');
+        const center = icon && icon.querySelector('circle');
+        const outer = icon && icon.querySelector('path');
+        return {
+          overflowY: getComputedStyle(list).overflowY,
+          maxHeight: list.style.maxHeight,
+          clientHeight: list.clientHeight,
+          scrollHeight: list.scrollHeight,
+          scrollTop: list.scrollTop,
+          settingsHeight: item.getBoundingClientRect().height,
+          iconWidth: icon && icon.getAttribute('width'),
+          iconHeight: icon && icon.getAttribute('height'),
+          iconHasCenter: !!center && center.getAttribute('r') === '3',
+          iconHasGearOutline: !!outer && /M12\.22 2h-.44/.test(outer.getAttribute('d') || ''),
+        };
+      })(),
+      hasGear: !!(item && item.querySelector('.bds-item-icon-box svg')),
       railDisplay: rail ? getComputedStyle(rail).display : 'missing',
       legacySidebarRows: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
       drawerOpen: !!document.querySelector('#bds-drawer.bds-open'),
@@ -341,11 +360,45 @@ try {
   assert.match(settingsCardLayout.title, /Settings|সেটিংস/);
   assert.match(settingsCardLayout.description, /preferences|পছন্দ/);
   assert.equal(settingsCardLayout.hasGear, true, 'Settings card has its own gear icon');
+  assert.equal(settingsCardLayout.list.overflowY, 'auto',
+    'the existing More tools card list has its own vertical scroll');
+  assert.match(settingsCardLayout.list.maxHeight, /^\\d+px$/,
+    'the list scroll height is measured from the available sheet viewport');
+  assert.ok(settingsCardLayout.list.scrollHeight > settingsCardLayout.list.clientHeight,
+    'the Settings card is reachable by scrolling the list rather than being lost below the sheet');
+  assert.equal(settingsCardLayout.list.iconWidth, '18');
+  assert.equal(settingsCardLayout.list.iconHeight, '18');
+  assert.equal(settingsCardLayout.list.iconHasCenter, true, 'gear icon has a clean center ring');
+  assert.equal(settingsCardLayout.list.iconHasGearOutline, true, 'gear icon uses the standard settings outline');
   assert.equal(settingsCardLayout.railDisplay, 'none',
     'the old engine source rail remains hidden and cannot disturb the sidebar');
   assert.equal(settingsCardLayout.legacySidebarRows, 0,
     'the old cloned Settings row is not rendered in Arena navigation');
   await shot(page, 'arena-settings-card');
+
+  stage = 'settings-card-scroll-reachability';
+  const scrolledSettingsCard = await page.evaluate(() => {
+    const item = document.querySelector('#sd-arena-settings-item');
+    const list = item && item.parentElement;
+    if (!list || !item) return { hasList: !!list, fullyVisible: false };
+    list.scrollTop = list.scrollHeight;
+    const lr = list.getBoundingClientRect();
+    const ir = item.getBoundingClientRect();
+    return {
+      hasList: true,
+      scrollTop: list.scrollTop,
+      scrollHeight: list.scrollHeight,
+      clientHeight: list.clientHeight,
+      fullyVisible: ir.top >= lr.top - 1 && ir.bottom <= lr.bottom + 1,
+      itemRect: [ir.left, ir.top, ir.right, ir.bottom],
+      listRect: [lr.left, lr.top, lr.right, lr.bottom],
+    };
+  });
+  assert.ok(scrolledSettingsCard.scrollTop > 0,
+    'scrolling the list reaches Settings: ' + JSON.stringify(scrolledSettingsCard));
+  assert.equal(scrolledSettingsCard.fullyVisible, true,
+    'the entire Settings card, including its description and gear, fits inside the list viewport');
+  await shot(page, 'arena-settings-card-scrolled');
 
   stage = 'settings-sheet-card-open';
   await page.click('#sd-arena-settings-item');
