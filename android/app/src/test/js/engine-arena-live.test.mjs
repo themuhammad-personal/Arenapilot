@@ -144,7 +144,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     host: 'arena.ai', site: { id: 'arena' },
     engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' },
     composer: { named: 1, rect: [0, 0, 320, 50] },
-    attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPassThrough: true, enginePlusOverlayReady: true },
+    attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
     skin: { active: true, composerTarget: 'native', sendInsideComposer: true, sendRect: [250, 520, 44, 44] },
   },
     sheetOpenedBy: 'real-click', originalPlusSheet: { dropdown: 1 }, steps: [],
