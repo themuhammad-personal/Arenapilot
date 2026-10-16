@@ -137,7 +137,7 @@ const FACTS = {
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
-    sendMinWidth: 44, viewportWidth: 320, formRect: [17, 469, 286, 100],
+    sendMinWidth: 0, viewportWidth: 320, formRect: [17, 469, 286, 100],
     sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline',
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
@@ -553,8 +553,8 @@ test('N0 acceptance gate rejects a missing skin target or Send overflow without 
   assert.ok(acceptanceFailures(overflow).includes('send-outside-composer'));
 
   const undersizedSend = { engine: JSON.parse(JSON.stringify(FACTS)) };
-  undersizedSend.engine.skin.sendMinWidth = 32;
-  assert.ok(acceptanceFailures(undersizedSend).includes('send-target-too-small'));
+  undersizedSend.engine.skin.sendRect = [250, 520, 0, 0];
+  assert.ok(acceptanceFailures(undersizedSend).includes('send-target-not-visible'));
 
   const consentGate = { engine: JSON.parse(JSON.stringify(FACTS)) };
   consentGate.engine.composer.named = 0;
@@ -573,7 +573,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendMin=44 viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=sidebar backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
