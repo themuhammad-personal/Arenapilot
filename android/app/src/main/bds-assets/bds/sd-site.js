@@ -771,7 +771,7 @@
         setImportantStyle(mount.style, 'align-items', 'center');
         setImportantStyle(mount.style, 'justify-content', 'center');
         setImportantStyle(mount.style, 'overflow', 'visible');
-        setImportantStyle(mount.style, 'pointer-events', 'auto');
+        mount.style.removeProperty('pointer-events');
         setImportantStyle(mount.style, 'z-index', '2147483646');
 
         if (wrapper && wrapper.style) {
@@ -793,7 +793,7 @@
           setImportantStyle(wrapper.style, 'align-items', 'center');
           setImportantStyle(wrapper.style, 'justify-content', 'center');
           setImportantStyle(wrapper.style, 'overflow', 'visible');
-          setImportantStyle(wrapper.style, 'pointer-events', 'auto');
+          wrapper.style.removeProperty('pointer-events');
         }
 
         setImportantStyle(enginePlus.style, 'display', 'inline-flex');
@@ -813,7 +813,7 @@
         setImportantStyle(enginePlus.style, 'transform', 'none');
         setImportantStyle(enginePlus.style, 'opacity', '0');
         setImportantStyle(enginePlus.style, 'visibility', 'visible');
-        setImportantStyle(enginePlus.style, 'pointer-events', 'auto');
+        enginePlus.style.removeProperty('pointer-events');
         setImportantStyle(enginePlus.style, 'z-index', '2147483647');
         setImportantStyle(enginePlus.style, 'background', 'transparent');
         setImportantStyle(enginePlus.style, 'border', '0');
