@@ -115,8 +115,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'Arena Settings no longer depends on a sidebar being present or visible');
   assert.match(SITE, /rail\.style\.setProperty\('display', 'none', 'important'\)/,
     'the old source rail is explicitly hidden instead of falling back beside native controls');
-  assert.match(SITE, /document\.querySelectorAll\('\[data-bds-arena-settings-entry="true"\]'\)/,
-    'a stale cloned Settings row is removed during SPA or reinjection changes');
+  assert.match(SITE, /removeNativeSettingsEntry\(\)/,
+    'any stale cloned Settings row is removed during SPA or reinjection changes');
   assert.match(SITE, /installArenaSettingsSidebarCleanup\(\);/,
     'the Arena-only sidebar cleanup runs at profile initialization');
   assert.match(AGENT, /function addSettingsItem\(\)/,
