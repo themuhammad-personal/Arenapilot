@@ -132,7 +132,7 @@ const FACTS = {
   host: 'arena.ai', path: '/text/direct', title: 'Arena', readyState: 'complete',
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
-  rail: { label: 'Advanced settings', rect: [0, 0, 256, 616], visible: true },
+  rail: { label: 'Advanced settings', rect: [8, 72, 240, 44], visible: true },
   attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
@@ -197,7 +197,7 @@ async function startFakeCdp(opts = {}) {
         if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
           state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
         }
-        if (msg.params.type === 'mousePressed' && msg.params.x === 140 && msg.params.y === 550) {
+        if (msg.params.type === 'mousePressed' && msg.params.x === 8 && msg.params.y === 72) {
           state.drawerOpen = true; // the rail in the sidebar really opens settings
         }
         return ok();
@@ -210,8 +210,8 @@ async function startFakeCdp(opts = {}) {
           if (opts.factsThrow) return fail('facts exploded');
           const facts = JSON.parse(JSON.stringify(FACTS));
           facts.rail.visible = !!state.sidebarOpen;
-          facts.rail.rect = state.sidebarOpen ? [0, 0, 256, 616] : [0, 0, 0, 0];
-          facts.skin.settingsDock = state.sidebarOpen ? 'sidebar' : 'pending';
+          facts.rail.rect = state.sidebarOpen ? [8, 72, 240, 44] : [0, 0, 0, 0];
+          facts.skin.settingsDock = state.sidebarOpen ? 'native-sidebar' : 'pending';
           facts.skin.settingsLabelDisplay = state.sidebarOpen ? 'inline' : 'none';
           if (state.sidebarOpen && opts.siteButton !== false) facts.attach.siteButton = [60, 700, 44, 44];
           if (opts.siteButton === false) {
@@ -236,7 +236,7 @@ async function startFakeCdp(opts = {}) {
           return value(true);
         }
         if (marker === 'sidegeometry') {
-          return value(JSON.stringify(state.sidebarOpen
+          return value(JSON.stringify(state.sidebarOpen && !opts.noRail
             ? { dock: 'native-sidebar', visible: true, inside: true, railRect: [8, 72, 240, 44], nativeRowRect: [8, 28, 240, 44], panelRect: [0, 0, 256, 616], nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true, panelTag: 'current-visible-native-sidebar' }
             : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false, panelTag: null }));
         }
@@ -324,7 +324,7 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
-    'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550',
+    'mouseMoved@8,72', 'mousePressed@8,72', 'mouseReleased@8,72',
   ], 'tap Arena’s original Plus, verify it again, then open the official sidebar and Settings row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
@@ -458,7 +458,7 @@ test('without capture.js the engine facts still come back', async () => {
 test('the settings drawer is opened by a REAL click on the rail and closed by the engine’s own Back', async () => {
   const { result } = await runProbe();
   assert.equal(result.drawer.visible, true, 'opened');
-  assert.equal(result.drawer.railDock, 'sidebar');
+  assert.equal(result.drawer.railDock, 'native-sidebar');
   assert.equal(result.settingsSidebarBeforeClick.dock, 'native-sidebar');
   assert.equal(result.settingsSidebarBeforeClick.visible, true);
   assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
@@ -480,7 +480,7 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the plus toggle and the settings rail — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '140,550'],
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '8,72'],
     'only Arena’s original Plus, original sidebar button and visible Settings row are clicked');
 });
 
@@ -573,7 +573,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=native-sidebar settingsLabel=inline\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=native-sidebar backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
