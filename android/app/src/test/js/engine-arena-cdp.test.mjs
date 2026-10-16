@@ -335,9 +335,9 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
   assert.deepEqual(mouse, [
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
-    'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
-    'mouseMoved@8,72', 'mousePressed@8,72', 'mouseReleased@8,72',
-  ], 'tap Arena’s original Plus, verify it again, then open the official sidebar and Settings row');
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+    'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
+  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, then tap its Settings card');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
