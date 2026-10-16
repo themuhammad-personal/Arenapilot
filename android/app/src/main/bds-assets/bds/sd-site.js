@@ -577,13 +577,13 @@
         ['data-sidebar-left','data-sidebar-top','data-sidebar-width','data-sidebar-height']
           .forEach(function (key) { rail.removeAttribute(key); });
       } catch (_) {}
-      if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
+      if (rail.dataset.dock !== 'sheet') rail.dataset.dock = 'sheet';
       clearInlineDock(rail);
       if (rail.style.getPropertyValue('display') !== 'none' ||
           rail.style.getPropertyPriority('display') !== 'important') {
         rail.style.setProperty('display', 'none', 'important');
       }
-      lastSignature = 'pending';
+      lastSignature = 'sheet';
     }
     function nativeSidebarRow(panel) {
       var best = null;
@@ -982,7 +982,6 @@
       try { sourceRail = document.querySelector(railSelector); } catch (_) {}
       if (sourceRail && sourceRail.style) {
         hideSettingsRail(sourceRail);
-        try { if (sourceRail.dataset) sourceRail.dataset.dock = 'sheet'; } catch (_) {}
       }
       removeNativeSettingsEntry();
       lastSignature = 'sheet';
