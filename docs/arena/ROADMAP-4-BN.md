@@ -99,11 +99,11 @@
 - [x] Arena-র আসল Add files/+ বাটন ও icon দৃশ্যমান রাখা; তার tap বিদ্যমান attachment sheet খোলে। ইঞ্জিনের অভ্যন্তরীণ trigger দৃশ্যমান নয়—দ্বিতীয় + নেই।
 - [x] মূল Arena model/mode/Send আইকনের রং/আকৃতি নতুন করে আঁকা নয়; কেবল মোবাইল লেআউট ও টাচ-টার্গেটের ন্যূনতম সীমা।
 - [x] দীর্ঘ reply-এর table/image/video/SVG/code block-কে transcript viewport-এর মধ্যে রাখা।
-- [ ] এই follow-up-এর পূর্ণ CI: engine tests, 320px sidebar/Plus harness ও emulator/CDP evidence সফল হওয়া।
+- [x] এই follow-up-এর পূর্ণ CI: Run #122-এ engine tests, 320px sidebar/Plus harness, APK/unit tests ও emulator/CDP gate সফল (২০২৬-১০-১৫)।
 - [ ] মালিকের বাস্তব Android ফোনে যাচাই—লগইন, account menu/Settings, model picker, Thinking এবং attachment sheet।
 - [ ] বাস্তব authenticated সেশনের স্ক্রিনশট/DOM-প্রমাণ দেখে অবশিষ্ট spacing ও typography polish।
 
-**অবস্থা: N0 চলছে, সম্পূর্ণ নয়।** Fixture/CI যাচাই এখনো বাস্তব ফোনে গ্রহণযোগ্যতার বিকল্প নয়; উপরের শেষের তিনটি যাচাই সফল না হওয়া পর্যন্ত N0-কে সম্পন্ন ধরা হবে না।
+**অবস্থা: N0 এখনও চলছে, সম্পূর্ণ নয়।** Run #122-এর CI সব job-এ green। তবে CDP লগে page console-এ React hydration error #418 রেকর্ড হয়েছে এবং Settings drawer খোলার পর `railDock=composer` এসেছে; native-device গ্রহণযোগ্যতা ও এই runtime signal যাচাই বাকি। বাস্তব ফোনের login/account, model picker, Thinking ও attachment-sheet পরীক্ষা এবং authenticated-session প্রমাণ ছাড়া N0 সম্পন্ন ধরা হবে না।
 
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
