@@ -422,3 +422,15 @@ entry point. The attach mount is reused across toolbar moves and reconciled afte
 native button/style changes. Both flows have a Chromium integration gate
 (`test:harness:arena`), but sidebar and conversation fixtures still need
 authenticated live-site confirmation.
+
+### Arena Settings entry — current N0 implementation (2026-10-16)
+
+The visible Settings shortcut is now a card at the bottom of Arena's existing
+`+ / Add to chat` sheet, not a row in the navigation sidebar. The old engine
+source rail remains inside `#bds-root` for engine ownership and Back guards but
+is hidden. The card reuses the sheet's existing `.bds-attach-item` structure,
+opens the existing drawer through `bds:open-drawer`, and closes the Add to chat
+sheet first. The measured tool-list viewport scrolls independently on short
+screens; each existing card retains its authored row height. No Arena-owned
+composer or sidebar geometry is overridden. The fixture and CI checks pass, but
+authenticated real-phone acceptance remains required before N0 is complete.

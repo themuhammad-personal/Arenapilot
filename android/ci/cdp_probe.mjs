@@ -149,7 +149,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     composerRect[0] + composerRect[2] <= window.innerWidth + 1);
   var sendMinWidth = null;
   try { sendMinWidth = sendButton ? parseFloat(getComputedStyle(sendButton).minWidth) : null; } catch (e) {}
-  var settingsLabel = rail ? rail.querySelector('.bds-arena-rail-label') : null;
+  var settingsLabel = rail ? (rail.querySelector('[data-bds-settings-label="true"]') || rail.querySelector('.bds-arena-rail-label')) : null;
   var settingsLabelDisplay = null;
   try { settingsLabelDisplay = settingsLabel ? getComputedStyle(settingsLabel).display : null; } catch (e) {}
   var up = box;
@@ -340,37 +340,56 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
   var d = q('#bds-drawer');
   var rail = q('#bds-settings-rail');
-  return JSON.stringify({ present: !!d, visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0), rect: d ? r(d) : null, backdrop: !!q('.bds-drawer-backdrop'), railDock: rail && rail.dataset ? rail.dataset.dock : null });
+  var sheet = q('.bds-attach-dropdown');
+  return JSON.stringify({
+    present: !!d,
+    visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0),
+    rect: d ? r(d) : null,
+    backdrop: !!q('.bds-drawer-backdrop'),
+    railDock: rail && rail.dataset ? rail.dataset.dock : null,
+    sheetVisible: !!(sheet && r(sheet) && r(sheet)[2] > 0 && r(sheet)[3] > 0)
+  });
 })()`;
 
-const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
+export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  function visible(el, box) {
-    if (!el || !box || box[2] < 1 || box[3] < 1) return false;
-    try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
-    catch (e) { return true; }
+  function shown(el) {
+    if (!el || !r(el) || r(el)[2] < 1 || r(el)[3] < 1) return false;
+    try {
+      var n = el, depth = 0;
+      while (n && depth++ < 64) {
+        if (n.hasAttribute && (n.hasAttribute('hidden') || n.hasAttribute('inert') ||
+            String(n.getAttribute('aria-hidden') || '').toLowerCase() === 'true')) return false;
+        var cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' ||
+            parseFloat(cs.opacity) <= 0.01) return false;
+        if (n === document.documentElement) return true;
+        n = n.parentElement;
+      }
+    } catch (e) { return false; }
+    return false;
   }
+  var sheet = q('.bds-attach-dropdown');
+  var card = q('#sd-arena-settings-item');
   var rail = q('#bds-settings-rail');
-  var rr = r(rail);
-  var confirmed = !!(rail && rail.getAttribute('data-sidebar-confirmed') === 'true');
-  var pr = confirmed ? [
-    Math.round(Number(rail.getAttribute('data-sidebar-left')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-top')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-width')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-height')) || 0)
-  ] : null;
-  var inside = !!(confirmed && rr && pr &&
-    rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
-    rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
-    rr[1] + rr[3] <= pr[1] + pr[3] + 1);
+  var items = sheet ? Array.prototype.slice.call(sheet.querySelectorAll('.bds-attach-item')) : [];
+  var title = card && card.querySelector('.bds-item-title');
+  var desc = card && card.querySelector('.bds-item-desc');
   return JSON.stringify({
-    dock: rail && rail.dataset ? rail.dataset.dock : null,
-    visible: visible(rail, rr),
-    inside: inside,
-    railRect: rr,
-    panelRect: pr,
-    panelTag: confirmed ? 'native-sidebar-measured' : null
+    sheetPresent: !!sheet,
+    sheetVisible: shown(sheet),
+    present: !!card,
+    count: sheet ? sheet.querySelectorAll('#sd-arena-settings-item').length : 0,
+    visible: shown(card),
+    insideSheet: !!(sheet && card && sheet.contains(card)),
+    lastCard: !!card && items[items.length - 1] === card,
+    title: title ? String(title.textContent || '').trim() : '',
+    description: desc ? String(desc.textContent || '').trim() : '',
+    rect: r(card),
+    legacySidebarRows: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+    sourceRailVisible: shown(rail),
+    sourceDock: rail && rail.dataset ? rail.dataset.dock : null
   });
 })()`;
 
@@ -557,35 +576,42 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
 
   // Settings belongs in Arena's own sidebar, not beside the composer. Open the
   // site's existing navigation drawer first when its gear is not currently visible.
+  // Settings is a card at the bottom of the existing Add to chat sheet.
+  // It closes that sheet and opens the existing engine drawer; it is not a second UI.
   await step('settings-drawer', async () => {
-    /* Always take a fresh live measurement first. Authentication can change
-     * during startup: an earlier engine snapshot may say "chat" while the
-     * current document has already changed to the login wall (or vice versa).
-     * Assign the live facts even when the rail cannot be opened, so the runtime
-     * gate never falls back to stale Settings visibility from the first probe. */
-    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
-    const pageBeforeSettings = result.engineAfter || result.engine || {};
-    if (pageBeforeSettings.login === true) {
-      result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
-      return 'login wall: current Settings visibility captured; native sidebar unverified';
+    const plus = await evalJson(cdp, rectExpr('form button[aria-label="Add files"]:not(.bds-plus-btn)'));
+    let trigger = plus;
+    if (!trigger.found || !(trigger.w >= 24 && trigger.h >= 24)) {
+      trigger = await evalJson(cdp, rectExpr('.bds-plus-btn'));
     }
-    let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+    if (!trigger.found || !(trigger.w >= 24 && trigger.h >= 24)) {
+      result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
+      result.drawer = { present: false, visible: false, reason: 'plus-trigger-not-visible' };
+      return 'Add to chat trigger not visible';
+    }
+
+    await realClick(cdp, trigger.x, trigger.y);
+    await pause(900);
+    result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
+    if (!result.settingsCardBeforeClick || result.settingsCardBeforeClick.present !== true ||
+        result.settingsCardBeforeClick.count !== 1 || result.settingsCardBeforeClick.insideSheet !== true ||
+        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.sourceRailVisible === true ||
+        result.settingsCardBeforeClick.legacySidebarRows !== 0) {
+      result.drawer = { present: false, visible: false, reason: 'settings-card-not-last-in-plus-sheet' };
+      return 'Settings card not present at the bottom of Add to chat';
+    }
+
+    await evalValue(cdp, `(function () {
+      var card = document.querySelector('#sd-arena-settings-item');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'end', behavior: 'instant' });
+      return !!card;
+    })()`);
+    await pause(150);
+    const t = await evalJson(cdp, rectExpr('#sd-arena-settings-item'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
-      const toggle = await evalJson(cdp, sidebarToggleExpr);
-      if (toggle.found && toggle.w >= 24 && toggle.h >= 24) {
-        await realClick(cdp, toggle.x, toggle.y);
-        await pause(900);
-        t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
-      }
+      result.drawer = { present: false, visible: false, reason: 'settings-card-not-visible' };
+      return 'Settings card could not be brought into the visible sheet area';
     }
-    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
-      /* Refresh even if opening the native sidebar was impossible. */
-      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
-      result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
-      return 'Settings entry not visible in the official sidebar';
-    }
-    /* Capture placement BEFORE opening Settings can close the site navigation. */
-    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
     await realClick(cdp, t.x, t.y);
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
@@ -593,7 +619,9 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
-    return result.drawer.visible ? 'opened from the official sidebar' : 'drawer did not open';
+    return result.drawer.visible && result.drawer.sheetVisible === false
+      ? 'Settings card opened the existing drawer; Add to chat closed'
+      : 'Settings drawer did not open cleanly from the sheet';
   });
 
   // The composer itself: fill through the engine's API (never send), read, clear.
@@ -661,7 +689,7 @@ export function summarize(result) {
     `site=${e.site ? `${e.site.id}@v${e.site.version}` : 'none'}`,
     `engine(css=${yn(eng.css)} root=${yn(eng.root)} handleBack=${eng.handleBack || '?'})`,
     `rail=${rail ? `${yn(rail.visible)} "${rail.label}" at ${JSON.stringify(rail.rect)}` : 'absent'}`,
-    `settingsAnchor(dock=${(result.settingsSidebarBeforeClick || {}).dock || '?'} visible=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.visible) : '?'} inside=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.inside) : '?'} rect=${JSON.stringify((result.settingsSidebarBeforeClick || {}).railRect || null)})`,
+    `settingsCard(present=${yn((result.settingsCardBeforeClick || {}).present)} last=${yn((result.settingsCardBeforeClick || {}).lastCard)} inSheet=${yn((result.settingsCardBeforeClick || {}).insideSheet)} sourceRail=${yn((result.settingsCardBeforeClick || {}).sourceRailVisible)} title="${(result.settingsCardBeforeClick || {}).title || ''}")`,
     `plusSheet(toggle=${att.toggle ?? '?'} mount=${att.mount ?? '?'} wrapper=${att.wrapper ?? '?'} dropdownAfterClick=${(result.engineSheet || {}).dropdown ?? '?'} openedBy=${result.sheetOpenedBy ?? 'n/a'} hit=${JSON.stringify((result.engineHit || {}).chain)} mobileCss=${(result.engineHit || {}).mobileCss ?? '?'})`,
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
@@ -762,25 +790,22 @@ export function acceptanceFailures(result) {
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
-  const sidebar = result.settingsSidebarBeforeClick;
-  const sidebarOk = !!(sidebar && sidebar.dock === 'sidebar' && sidebar.visible === true && sidebar.inside === true &&
-      Number(sidebar.railRect?.[2]) >= 24 && Number(sidebar.railRect?.[3]) >= 24 &&
-      sidebar.panelRect && sidebar.panelTag === 'native-sidebar-measured');
-  if (!sidebarOk) {
-    if (e.login === true) {
-      /* Use the fresh live sidebar measurement when available. The engine facts
-       * can predate the login/SPA transition, so e.skin.settingsRailVisible
-       * alone can be stale and falsely fail a hidden Settings rail. */
-      const liveRowVisible = sidebar
-        ? sidebar.visible === true && Number(sidebar.railRect?.[2]) > 0 && Number(sidebar.railRect?.[3]) > 0
-        : e.skin?.settingsRailVisible === true;
-      if (liveRowVisible) errors.push('settings-visible-without-original-sidebar');
-    } else {
-      errors.push('settings-not-inside-original-sidebar');
-    }
+  const settingsCard = result.settingsCardBeforeClick;
+  const cardOk = !!(settingsCard && settingsCard.present === true &&
+      settingsCard.count === 1 && settingsCard.visible === true && settingsCard.insideSheet === true &&
+      settingsCard.lastCard === true && settingsCard.legacySidebarRows === 0 &&
+      settingsCard.sourceRailVisible !== true && settingsCard.sourceDock === 'sheet');
+  if (!cardOk) errors.push('settings-card-not-last-in-plus-sheet');
+  if (settingsCard && (settingsCard.sourceRailVisible === true || settingsCard.legacySidebarRows !== 0)) {
+    errors.push('settings-sidebar-row-still-visible');
   }
   const drawer = result.drawer;
-  if ((!drawer || drawer.visible !== true) && e.login !== true) errors.push('settings-drawer-not-openable');
+  if (!drawer || drawer.visible !== true) errors.push('settings-drawer-not-openable-from-sheet-card');
+  else {
+    if (drawer.railDock !== 'sheet') errors.push('settings-drawer-opened-by-wrong-entry');
+    if (drawer.sheetVisible === true) errors.push('settings-sheet-not-closed-before-drawer');
+  }
+  if (!result.drawerAfterBack || result.drawerAfterBack.visible !== false) errors.push('settings-drawer-back-failed');
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }

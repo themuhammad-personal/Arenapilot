@@ -105,6 +105,15 @@
 
 **অবস্থা: CI green, N0 এখনও সম্পূর্ণ নয়।** Run #201-এর CDP-তে `pageErrors=0`, native Plus থেকে attachment sheet open এবং 320px viewport-এ Send reachable থাকার প্রমাণ আছে। কিন্তু ওই session-এ `loginWall=yes`; authenticated Settings/sidebar open-close acceptance এবং real-device screenshot/geometry diff এখনও বাকি। বাস্তব ফোনে যাচাই ও প্রমাণ না পাওয়া পর্যন্ত N0 complete বলা যাবে না।
 
+### N0 follow-up — Settings card clipping and icon
+
+- [x] সাইডবারের অনিয়মিত Settings shortcut সরিয়ে বিদ্যমান `+ / Add to chat` tool list-এর একেবারে শেষে Settings card রাখা হয়েছে; card tap করলে একই Settings drawer খোলে এবং শিট আগে বন্ধ হয়।
+- [x] ছোট viewport-এ tool-list container-এর বাস্তব available height মেপে scroll area করা হয়েছে; `overflow-y:auto` দিয়ে তালিকা নিজে scroll করে, আর row-গুলোর `flex-shrink:0` থাকার কারণে শেষ card আর সংকুচিত/কাটা পড়ে না। header ও Camera/Photos/Files quick actions অক্ষত থাকে।
+- [x] Gear icon standard outline path ও 18×18 viewBox-size-এ আপডেট; fixture test-এ center ring, outline ও Settings-এর সম্পূর্ণ দৃশ্যমানতা এবং scroll করে শেষ card-এ পৌঁছানো যাচাই করা হয়েছে।
+- [x] [Settings-card CI run](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38889266715) সফল; authenticated বাস্তব ফোনে পুনরায় পরীক্ষা এখনও দরকার।
+
+**N0 অবস্থা:** code/CI check সম্পন্ন, কিন্তু signed-in ফোনে Settings card পুরো দেখা ও খোলা এবং model/mode, Thinking, attachment ও Send পরীক্ষা না হওয়া পর্যন্ত N0 সম্পূর্ণ নয়।
+
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
 1. **প্ল্যান-কার্ড**: টাস্ক দিলে মডেলের to-do প্ল্যান নেটিভ চেকলিস্টে (Manus-স্টাইল), স্টেপ সম্পন্ন হলে টিক।
