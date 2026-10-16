@@ -346,31 +346,74 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
 const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  function visible(el, box) {
-    if (!el || !box || box[2] < 1 || box[3] < 1) return false;
-    try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
-    catch (e) { return true; }
+  function txt(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\s+/g, ' ').trim(); } catch (e) { return ''; } }
+  function visible(el) {
+    var box = r(el);
+    if (!el || !box || box[2] < 1 || box[3] < 1 ||
+        box[0] + box[2] <= 0 || box[1] + box[3] <= 0 ||
+        box[0] >= innerWidth || box[1] >= innerHeight) return false;
+    var node = el, depth = 0;
+    try {
+      while (node && depth++ < 64) {
+        if (node.hasAttribute && (node.hasAttribute('hidden') || node.hasAttribute('inert') ||
+            String(node.getAttribute('aria-hidden') || '').toLowerCase() === 'true')) return false;
+        var cs = getComputedStyle(node), opacity = parseFloat(cs.opacity);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' ||
+            (isFinite(opacity) && opacity <= 0.01)) return false;
+        if (node === document.documentElement) return true;
+        node = node.parentElement;
+      }
+    } catch (e) { return false; }
+    return false;
+  }
+  function landmarks(el) {
+    var text = txt(el);
+    return /new\s*chat/i.test(text) && /leaderboard/i.test(text) && /\bsearch\b/i.test(text);
   }
   var rail = q('#bds-settings-rail');
   var rr = r(rail);
-  var confirmed = !!(rail && rail.getAttribute('data-sidebar-confirmed') === 'true');
-  var pr = confirmed ? [
-    Math.round(Number(rail.getAttribute('data-sidebar-left')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-top')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-width')) || 0),
-    Math.round(Number(rail.getAttribute('data-sidebar-height')) || 0)
-  ] : null;
-  var inside = !!(confirmed && rr && pr &&
+  var row = null, rowArea = 0;
+  var rows = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+  for (var i = 0; i < rows.length; i++) {
+    var item = rows[i], text = txt(item), box = r(item);
+    if (!/new\s*chat/i.test(text) || !visible(item) || !box ||
+        box[2] < innerWidth * 0.42 || box[3] < 24 || box[3] > 120) continue;
+    var area = box[2] * box[3];
+    if (area > rowArea) { row = item; rowArea = area; }
+  }
+  var panel = null, panelArea = Infinity;
+  for (var parent = row && row.parentElement, depth = 0;
+       parent && parent !== document.body && depth++ < 9; parent = parent.parentElement) {
+    var pr0 = r(parent);
+    if (!visible(parent) || !pr0 || pr0[0] > innerWidth * 0.12 ||
+        pr0[2] < innerWidth * 0.42 || pr0[2] > innerWidth * 0.96 ||
+        pr0[3] < Math.min(220, innerHeight * 0.32) || pr0[0] + pr0[2] > innerWidth * 0.97 ||
+        !landmarks(parent) || (parent.closest && parent.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop'))) continue;
+    var panelSize = pr0[2] * pr0[3];
+    if (panelSize < panelArea) { panel = parent; panelArea = panelSize; }
+  }
+  var pr = r(panel), rowRect = r(row), hitTest = false;
+  if (panel && row && rowRect && document.elementFromPoint) {
+    var x = Math.max(rowRect[0] + 1, Math.min(rowRect[0] + rowRect[2] - 1, rowRect[0] + rowRect[2] / 2));
+    var y = Math.max(rowRect[1] + 1, Math.min(rowRect[1] + rowRect[3] - 1, rowRect[1] + rowRect[3] / 2));
+    var hit = document.elementFromPoint(x, y);
+    hitTest = !!(hit && ((hit === row || (row.contains && row.contains(hit))) ||
+      (rail && (hit === rail || (rail.contains && rail.contains(hit)))));
+  }
+  var inside = !!(visible(rail) && panel && row && hitTest && rr && pr &&
     rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
     rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
     rr[1] + rr[3] <= pr[1] + pr[3] + 1);
   return JSON.stringify({
     dock: rail && rail.dataset ? rail.dataset.dock : null,
-    visible: visible(rail, rr),
+    visible: visible(rail),
     inside: inside,
     railRect: rr,
     panelRect: pr,
-    panelTag: confirmed ? 'native-sidebar-measured' : null
+    nativeRowFound: !!row,
+    nativeRowRect: rowRect,
+    hitTest: hitTest,
+    panelTag: panel ? 'current-visible-native-sidebar' : null
   });
 })()`;
 
