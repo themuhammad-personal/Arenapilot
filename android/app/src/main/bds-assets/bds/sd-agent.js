@@ -1093,10 +1093,17 @@
       });
     }
 
-    if (btn.parentNode !== parent || parent.lastElementChild !== btn) {
-      parent.appendChild(btn);
-    }
+    var cardWasMoved = btn.parentNode !== parent || parent.lastElementChild !== btn;
+    if (cardWasMoved) parent.appendChild(btn);
     fitSettingsList(sheet, parent);
+    if (cardWasMoved && typeof window.setTimeout === 'function') {
+      /* The Add to chat sheet slides up for 280ms. Re-measure after that
+       * animation so the list gets the final visible viewport, not its
+       * translated off-screen position during the entrance frame. */
+      window.setTimeout(function () {
+        if (sheet.isConnected && parent.isConnected) fitSettingsList(sheet, parent);
+      }, 320);
+    }
   }
 
   function watchSheet() {
