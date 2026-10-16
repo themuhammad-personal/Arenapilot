@@ -681,7 +681,7 @@
         wrapper = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-wrapper') : null;
       } catch (_) {}
 
-      if (!enginePlus || !enginePlus.style || !original || !original.style || !mount || !mount.style) {
+      if (!enginePlus || !enginePlus.style || !original || !mount || !mount.style) {
         clearOverlay();
         /* If Arena has no source button on this page state, retain the engine's
          * ordinary trigger as a functional fallback rather than hiding it. */
@@ -720,22 +720,12 @@
             'max-width','max-height','z-index','margin','padding','transform','display',
             'pointer-events','opacity','visibility','background','border','box-shadow'
           ]);
-          if (!original.__sdArenaOverlayA11y) {
-            original.__sdArenaOverlayA11y = {
-              ariaHidden: original.getAttribute('aria-hidden'),
-              tabindex: original.getAttribute('tabindex')
-            };
-          }
+
         }
 
-        /* Keep Arena's original button/SVG in the layout exactly as designed.
-         * Put the engine's real, working trigger over the same 32px slot with
-         * zero opacity: what the user sees is still Arena's native icon, but
-         * the touch lands on the engine button and opens our attachment sheet.
-         * No cloned icon, second visible button, or scripted click forwarding. */
-        /* The original Arena Plus remains completely untouched: no style,
-         * aria, tabindex, label or event handlers are changed. The engine-owned
-         * transparent target sits above it and receives the physical tap. */
+        /* Keep Arena's original button/SVG and DOM state untouched. The
+         * engine-owned transparent trigger sits over the same measured box and
+         * receives the physical tap; no original attributes/styles are changed. */
         try {
           enginePlus.setAttribute('aria-label', 'Arena attachment options');
           enginePlus.setAttribute('title', 'Add files and attachment modes');
