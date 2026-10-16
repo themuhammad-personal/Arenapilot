@@ -252,13 +252,18 @@ native sidebar.
 The visible Settings entry now lives at the very bottom of the existing
 `+ / Add to chat` sheet. `sd-agent.js` adds one card using the same
 `.bds-attach-item` structure and classes as the other tool cards, after the
-existing tools, and gives it a gear icon, a short description and an accessible
-label. Tapping the card closes the attachment sheet first, then dispatches the
-same `bds:open-drawer` event that opens the existing Settings drawer. There is
-no parallel settings screen, chat surface or composer, and no guessed layout
-dimensions. The regression harness pins the card's position at the end of the
-tool list, uniqueness, sheet-close/open-drawer sequence, Back behavior, hidden
-legacy sidebar row, and preservation of the real Plus tap.
+existing tools, and gives it a standard gear icon, a short description and an accessible
+label. On short screens, the existing More tools list receives a measured
+vertical scroll viewport that leaves the sheet header and Camera/Photos/Files
+actions visible; list height is calculated from its actual remaining viewport
+after the sheet animation rather than from a guessed CSS dimension. Tapping the
+card closes the attachment sheet first, then dispatches the same
+`bds:open-drawer` event that opens the existing Settings drawer. There is no
+parallel settings screen, chat surface or composer. The regression harness
+checks the list is scrollable and that the full Settings card (including its
+description and gear) fits inside the list after scrolling, along with
+uniqueness, sheet-close/open-drawer sequence, Back behavior, hidden legacy
+sidebar row, and preservation of the real Plus tap.
 
 ## Linux sandbox and the agent
 
