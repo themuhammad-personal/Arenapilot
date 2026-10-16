@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
 const SKIN = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/our-skin.css'), 'utf8');
+const ENGINE_CSS = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/content.css'), 'utf8');
 
 function runSite(host, initiallyHasComposer = true) {
   const htmlClasses = new Set();
@@ -116,6 +117,12 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.match(SKIN, /\.bds-arena-rail-label/);
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the stylesheet does not replace Arena palette colours');
+  assert.match(ENGINE_CSS,
+    /html:not\(\.sd-arena-native\) div:has\(>\.bds-attach-menu-mount\)\{/,
+    'the engine may style its own mount on other sites, not Arena\'s original controls');
+  assert.doesNotMatch(ENGINE_CSS,
+    /(?<!html:not\(\.sd-arena-native\) )div:has\(>\.bds-attach-menu-mount\)\{/,
+    'no unscoped mount-parent rule can change Arena\'s mode/model/composer widths');
 
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
   assert.match(SITE, /leaderboard/i);
