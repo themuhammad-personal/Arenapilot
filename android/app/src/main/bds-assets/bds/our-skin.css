@@ -44,7 +44,10 @@ li[data-sd-bidi="rtl"] {
   z-index: 2147483647;
 }
 
-.bds-arena-rail[data-dock="sidebar"]:not([data-sidebar-confirmed="true"]) {
+/* Fail closed: the engine creates this row globally, but it is only allowed
+   to appear after our adapter has measured a real, open Arena sidebar. This
+   also covers route changes where data-dock is momentarily absent. */
+.bds-arena-rail:not([data-sidebar-confirmed="true"]) {
   display: none !important;
 }
 
