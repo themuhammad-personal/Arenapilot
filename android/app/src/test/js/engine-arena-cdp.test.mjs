@@ -225,7 +225,7 @@ async function startFakeCdp(opts = {}) {
           return value(JSON.stringify(facts));
         }
         if (marker === 'hit') {
-          return value(JSON.stringify({ chain: ['button.bds-plus-btn.svelte-1y27tjy', 'div.bds-attach-wrapper.svelte-1y27tjy', 'div.bds-attach-menu-mount'], viewport: [320, 616], mobileCss: true }));
+          return value(JSON.stringify({ chain: ['button[aria-label=Add files]', 'div.flex.items-center', 'form'], viewport: [320, 616], mobileCss: true }));
         }
         if (marker === 'sheet') {
           const o = state.sheetOpen ? 1 : 0;
@@ -389,7 +389,7 @@ test('a real pointer click that opens the sheet is the end of it: no script clic
   assert.equal(result.sheetAfterRealClick.dropdown, 1);
   assert.equal(result.sheetAfterJsClick, undefined);
   assert.ok(!fake.calls.some((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:jsclick*/')));
-  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button.bds-plus-btn.svelte-1y27tjy'], 'the transparent engine hit target is layered over Arena’s original visible Plus');
+  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button[aria-label=Add files]'], 'Arena’s original Plus remains the real physical hit target');
   assert.equal(result.engineHit.mobileCss, true);
 });
 
@@ -569,7 +569,7 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=yes "Advanced settings"/);
   assert.match(lines[0], /settingsAnchor\(dock=sidebar visible=yes inside=yes rect=\[8,550,240,44\]\)/);
-  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
+  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\\[aria-label=Add files\\]","div\\.flex\\.items-center","form"\] mobileCss=true\)/);
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
