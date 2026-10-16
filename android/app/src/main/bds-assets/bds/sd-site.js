@@ -917,15 +917,28 @@
         var sourceIcon = sourceRail.querySelector('.bds-arena-rail-icon svg') ||
           sourceRail.querySelector('svg');
         var nativeIcon = nativeRow.querySelector && nativeRow.querySelector('svg');
-        if (sourceIcon && nativeIcon && nativeIcon.parentNode) {
-          var iconBox = rectOf(nativeIcon);
+        /* Some Arena navigation builds use an icon wrapper without an SVG in
+         * the fixture-like DOM shape. Reuse that native wrapper rather than
+         * leaving the cloned "+" glyph next to the Settings label. */
+        var nativeSlot = nativeIcon && nativeIcon.parentNode;
+        if (!nativeSlot && nativeRow.querySelector) {
+          nativeSlot = nativeRow.querySelector('.arena-row-icon,[data-icon],[class*="icon"]');
+        }
+        if (sourceIcon && nativeSlot) {
+          var iconBox = rectOf(nativeIcon || nativeSlot);
           var icon = sourceIcon.cloneNode(true);
           if (icon.style && iconBox && iconBox.width > 0 && iconBox.height > 0) {
             icon.style.setProperty('width', iconBox.width + 'px');
             icon.style.setProperty('height', iconBox.height + 'px');
             icon.style.setProperty('display', 'block');
+            icon.style.setProperty('flex', '0 0 auto');
           }
-          nativeIcon.parentNode.replaceChild(icon, nativeIcon);
+          if (nativeIcon && nativeIcon.parentNode === nativeSlot) {
+            nativeSlot.replaceChild(icon, nativeIcon);
+          } else if (!nativeIcon) {
+            nativeSlot.textContent = '';
+            nativeSlot.appendChild(icon);
+          }
         }
       } catch (_) {}
 
@@ -941,7 +954,7 @@
       entry.addEventListener('click', openSettings);
       if (String(entry.tagName || '').toLowerCase() !== 'button') {
         entry.addEventListener('keydown', function (event) {
-          if (event && (event.key === ' ' || event.code === 'Space')) openSettings(event);
+          if (event && (event.key === 'Enter' || event.key === ' ' || event.code === 'Space')) openSettings(event);
         });
       }
       return entry;
