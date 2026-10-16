@@ -199,7 +199,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     nativeVisible: !!(nativeAddRect && nativeAddStyle && nativeAddStyle.display !== 'none' && nativeAddStyle.visibility !== 'hidden'),
     nativePointerIntact: !!(nativeAddStyle && nativeAddStyle.pointerEvents !== 'none'),
     engineTargetReady: !!(enginePlusRect && enginePlusStyle && enginePlusStyle.display !== 'none' &&
-      enginePlusStyle.visibility !== 'hidden' && enginePlusStyle.opacity === '0' && enginePlusStyle.pointerEvents !== 'none')
+      enginePlusStyle.visibility !== 'hidden' && enginePlusStyle.opacity === '0' && enginePlusStyle.pointerEvents === 'none')
   };
   var slot = {
     plus: enginePlusRect,
@@ -747,8 +747,8 @@ export function acceptanceFailures(result) {
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
   if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24) ||
       e.attach.nativePlusVisible !== true || e.attach.nativePlusPointerIntact !== true ||
-      e.attach.overlayAligned !== true || e.attach.enginePlusOverlayReady !== true) {
-    errors.push('arena-original-plus-overlay-not-ready');
+      e.attach.enginePlusOverlayReady !== true) {
+    errors.push('arena-original-plus-native-bridge-not-ready');
   }
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
   if (!sheetIsOpen(result.originalPlusSheet)) errors.push('arena-original-plus-does-not-open-sheet');
