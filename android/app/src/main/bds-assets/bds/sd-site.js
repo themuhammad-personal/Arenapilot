@@ -948,7 +948,17 @@
                 (record.addedNodes && Array.prototype.some.call(record.addedNodes, function (added) {
                   return added && (added.id === 'bds-root' || added.id === 'bds-settings-rail' ||
                     (added.matches && added.matches('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
-                    (added.querySelector && added.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')));
+                    (added.querySelector && added.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    hasNavLandmarks(added));
+                })) ||
+                /* SPA login/route transitions often remove the native sidebar
+                 * without adding anything. Observe removed nodes too, otherwise
+                 * a stale Settings rail can remain visible beside the composer. */
+                (record.removedNodes && Array.prototype.some.call(record.removedNodes, function (removed) {
+                  return removed && (removed.id === 'bds-root' || removed.id === 'bds-settings-rail' ||
+                    (removed.matches && removed.matches('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    (removed.querySelector && removed.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    hasNavLandmarks(removed));
                 }))
               );
             } catch (_) { relevant = false; }
