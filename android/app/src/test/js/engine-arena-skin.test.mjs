@@ -1,6 +1,6 @@
 // ArenaPilot N0 page-skin regression tests.
-// The official arena.ai document remains the only chat surface; this hook only
-// marks nodes which already exist so CSS can make them work better on phones.
+// The official arena.ai document remains the only chat surface. The native-preservation
+// adapter must not stamp classes/attributes onto Arena-owned nodes to change their layout.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -57,30 +57,31 @@ function runSite(host, initiallyHasComposer = true) {
   };
 }
 
-test('Arena skin tags the existing page and composer only', () => {
+test('Arena native-preservation hook never marks React-owned page/composer nodes', () => {
   const result = runSite('arena.ai');
   const { context, htmlClasses, formClasses } = result;
   assert.equal(context.__sdSite.id, 'arena');
-  assert.ok(htmlClasses.has('sd-arena-native'));
-  assert.ok(formClasses.has('sd-arena-composer'));
-  assert.doesNotMatch(SKIN, /form:has\(textarea\[name="message"\]\)/,
-    'the injected stylesheet does not take over Arena composer layout');
-  assert.doesNotMatch(SKIN, /html\.sd-arena-native \.sd-arena-composer/,
-    'older WebViews also keep the original composer styling');
+  assert.equal(htmlClasses.has('sd-arena-native'), false,
+    'the html element is not mutated during Arena hydration');
+  assert.equal(formClasses.has('sd-arena-composer'), false,
+    'the original form remains free of engine-owned marker classes');
+  assert.equal(result.observers.length, 0,
+    'native-preservation mode does not install an observer just to tag the composer');
+  assert.doesNotMatch(SKIN, /sd-arena-native|sd-arena-composer/,
+    'no CSS depends on markers added to native page elements');
   assert.equal(result.createdNodes, 0,
-    'the skin hook must not create a parallel chat surface');
+    'the hook must not create a parallel chat surface');
 });
 
 
-test('Arena skin waits for the existing composer when the SPA mounts it late', () => {
+test('Arena route transition does not need to mutate a late-mounted native composer', () => {
   const result = runSite('arena.ai', false);
-  assert.ok(result.htmlClasses.has('sd-arena-native'));
+  assert.equal(result.htmlClasses.has('sd-arena-native'), false);
   assert.equal(result.formClasses.has('sd-arena-composer'), false);
-  assert.equal(result.observers.length, 1);
+  assert.equal(result.observers.length, 0,
+    'there is no class-tagging observer even before the composer mounts');
   result.enableComposer();
-  assert.ok(result.formClasses.has('sd-arena-composer'));
-  assert.equal(result.observers[0].disconnected, true,
-    'stop observing after the original composer is found to avoid transcript overhead');
+  assert.equal(result.formClasses.has('sd-arena-composer'), false);
   assert.equal(result.createdNodes, 0);
 });
 
@@ -109,17 +110,17 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.doesNotMatch(SKIN, /(?:min-width|max-width|width|height):\s*(?:calc\(100vw|\d+vw|\d+vh)/,
     'no viewport-derived sizes are imposed on the page or composer');
 
-  assert.ok(SKIN.includes('#bds-settings-rail[data-dock="sidebar"]'),
+  assert.ok(SKIN.includes('.bds-arena-rail[data-dock="sidebar"]'),
     'only the engine-owned Settings entry gets a sidebar placement rule');
-  assert.match(SKIN, /#bds-settings-rail\[data-dock="pending"\]/,
+  assert.match(SKIN, /\.bds-arena-rail\[data-dock="pending"\]/,
     'Settings remains hidden until an original sidebar is detected');
-  assert.match(SKIN, /#bds-settings-rail\[data-dock="composer"\]/,
+  assert.match(SKIN, /\.bds-arena-rail\[data-dock="composer"\]/,
     'Settings never falls back beside the native composer');
   assert.match(SKIN, /\.bds-arena-rail-label/);
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the stylesheet does not replace Arena palette colours');
   assert.match(ENGINE_CSS,
-    /html:not\(\.sd-arena-native\) div:not\(#bds-root\):has\(>\.bds-attach-menu-mount\)\{/,
+    /div:not\(#bds-root\):has\(>\.bds-attach-menu-mount\)\{/,
     'the engine may style its own mount on other sites, not Arena\'s original controls');
   assert.doesNotMatch(ENGINE_CSS,
     /(?<!html:not\(\.sd-arena-native\) )div:has\(>\.bds-attach-menu-mount\)\{/,
@@ -129,6 +130,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.match(SITE, /leaderboard/i);
   assert.match(SITE, /search/i);
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
+  assert.doesNotMatch(SITE, /classList\.add\('sd-arena-native'\)|classList\.add\('sd-arena-composer'\)/,
+    'Arena hydration must not see classes injected onto the document or native composer');
   assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
   assert.match(SITE, /form button\[aria-label="Add files"\]/);
   assert.match(SITE, /enginePlus\.setAttribute\('aria-label', 'Arena attachment options'\)/,
