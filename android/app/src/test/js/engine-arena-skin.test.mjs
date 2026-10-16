@@ -162,10 +162,18 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the attachment sheet mount is isolated under the engine root');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
   assert.doesNotMatch(attachSync, /createElement\(/, 'the native icon is not cloned');
-  assert.match(attachSync, /original\.addEventListener\('click'/,
-    'the native Arena button handles taps when geometry shifts between observer passes');
-  assert.match(attachSync, /syncOriginalAttachTrigger\(\)[\s\S]*trigger\.click\(\)/,
-    'a real native-button tap refreshes engine geometry and opens the existing sheet');
-  assert.doesNotMatch(attachSync, /original\.style\.setProperty\(|setImportantStyle\(original\.style/,
+  assert.doesNotMatch(attachSync, /original\.addEventListener\('click'/,
+    'forwarding is delegated so React can replace the native button without losing it');
+  const forwardingStart = SITE.indexOf('function forwardNativeAttachClick(event)');
+  const forwardingEnd = SITE.indexOf('function sync()', forwardingStart);
+  assert.ok(forwardingStart >= 0 && forwardingEnd > forwardingStart, 'delegated native Plus forwarder is present');
+  const forwarding = SITE.slice(forwardingStart, forwardingEnd);
+  assert.match(forwarding, /target\.closest\('form button\[aria-label="Add files"\], form button\[aria-label="Attach files"\]'\)/,
+    'only Arena’s actual native attachment button triggers the bridge');
+  assert.match(forwarding, /syncOriginalAttachTrigger\(\)[\s\S]*trigger\.click\(\)/,
+    'a real native-button tap refreshes the engine overlay and opens the existing sheet');
+  assert.doesNotMatch(forwarding, /original\.style\.setProperty\(|setImportantStyle\(original\.style/,
     'the forwarding bridge never changes Arena’s native button CSS');
+  assert.doesNotMatch(attachSync, /original\.style\.setProperty\(|setImportantStyle\(original\.style/,
+    'the overlay sync never changes Arena’s native button CSS');
 });
