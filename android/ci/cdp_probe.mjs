@@ -638,7 +638,7 @@ export function summarize(result) {
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
     `composer(named=${(e.composer || {}).named ?? '?'} textareas=${(e.composer || {}).textareas ?? '?'})`,
-    `skin(active=${yn((e.skin || {}).active)} composer=${(e.skin || {}).composerTarget || '?'} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendMin=${(e.skin || {}).sendMinWidth ?? '?'} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
+    `skin(active=${yn((e.skin || {}).active)} composer=${(e.skin || {}).composerTarget || '?'} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendRect=${JSON.stringify((e.skin || {}).sendRect || null)} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
     `health(site=${h.site || '?'} ok=${h.ok} visible=${h.visible} notice=${yn(h.notice)} ${(h.states || []).join(',')})`,
     `loginWall=${yn(e.login)}`,
     `fill(set=${result.composerFill ? yn(result.composerFill.set) : '?'} value=${result.composerFill ? yn(result.composerFill.valueMatches) : '?'} sendBtn=${result.composerFill ? yn(result.composerFill.sendButton) : '?'} sendEnabled=${result.composerFill && result.composerFill.sendButton ? yn(!result.composerFill.sendDisabledWhileFilled) : '?'} cleared=${result.composerFill ? yn(result.composerFill.cleared) : '?'})`,
@@ -718,7 +718,10 @@ export function acceptanceFailures(result) {
   if (e.composer?.named === 1) {
     if (!e.skin || !['has', 'class'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
     if (!e.skin || e.skin.sendInsideComposer !== true) errors.push('send-outside-composer');
-    if (!e.skin || !(Number(e.skin.sendMinWidth) >= 44)) errors.push('send-target-too-small');
+    const sendRect = e.skin?.sendRect;
+    if (!Array.isArray(sendRect) || !(Number(sendRect[2]) > 0 && Number(sendRect[3]) > 0)) {
+      errors.push('send-target-not-visible');
+    }
   }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
   if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24) ||
