@@ -3835,30 +3835,11 @@ function sdsArenaMenus(){if(!sdsIsArena())return;var l;try{l=document.querySelec
    arena selector at all. Docked into arena's real sidebar in Phase 0. */
 function sdsArenaRail(){
   if(!sdsIsArena())return;
-  /* Keep the engine-owned node inside the engine root. Only its fixed visual
-     position follows Arena's open sidebar; never append React-owned site nodes
-     or this control into Arena's own sidebar/composer DOM. */
-  var b=document.getElementById("bds-settings-rail");
-  var host=document.getElementById("bds-root")||document.body;
-  var sidebar=false;
-  try{
-    var candidates=document.querySelectorAll('aside,[data-sidebar="sidebar"],[role="navigation"]');
-    for(var i=0;i<candidates.length;i++){
-      var n=candidates[i];
-      if(n.closest&&n.closest("#bds-root"))continue;
-      var visible=false;
-      try{
-        var r=n.getBoundingClientRect();
-        var cs=window.getComputedStyle?window.getComputedStyle(n):null;
-        visible=!!(r&&r.width>0&&r.height>=Math.min(220,(window.innerHeight||640)*.32)&&
-          r.left<=(window.innerWidth||360)*.12&&r.right>0&&
-          (!cs||(cs.display!=="none"&&cs.visibility!=="hidden"&&Number(cs.opacity||1)>0));
-      }catch(_){}
-      if(!visible)continue;
-      if(n.querySelector('a[href*="/c/"],a[href="/text/direct"],button[aria-label="Settings"]')){sidebar=true;break;}
-    }
-  }catch(_){}
+  /* All injected controls belong to #bds-root. If it does not exist yet, wait
+     for the filtered SPA observer instead of appending anything to Arena's body. */
+  var host=document.getElementById("bds-root");
   if(!host)return;
+  var b=document.getElementById("bds-settings-rail");
   if(!b){
     b=document.createElement("button");b.id="bds-settings-rail";b.type="button";
     b.className="bds-arena-rail";b.tabIndex=0;
@@ -3867,8 +3848,10 @@ function sdsArenaRail(){
     b.setAttribute("aria-label",sdsArenaLabel());b.setAttribute("title",sdsArenaLabel());
     b.addEventListener("click",function(v){v.stopPropagation();v.preventDefault();sdsArenaCloseMenu();window.dispatchEvent(new CustomEvent("bds:open-drawer"));});
   }
-  var dock=sidebar?"sidebar":"pending";
-  if(b.getAttribute("data-dock")!==dock)b.setAttribute("data-dock",dock);
+  /* sd-site.js alone determines whether Arena's own navigation drawer is open.
+     Never overwrite its dock with a second, narrower semantic-sidebar guess. */
+  var dock=b.getAttribute("data-dock");
+  if(dock!=="sidebar"&&dock!=="pending")b.setAttribute("data-dock","pending");
   if(b.parentNode!==host)host.appendChild(b);
 }
 function sdsArenaInstall(){
