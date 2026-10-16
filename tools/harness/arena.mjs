@@ -79,6 +79,7 @@ try {
       pageMarked: document.documentElement.classList.contains('sd-arena-native'),
       originalFormMarked: form.classList.contains('sd-arena-composer'),
       sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
+      sendRect: (() => { const r = send.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; })(),
       sendRight: send.getBoundingClientRect().right,
       inputMaxWidth: getComputedStyle(input).maxWidth,
       chatForms: document.querySelectorAll('textarea[name="message"]').length,
@@ -116,7 +117,10 @@ try {
   });
   assert.equal(skinLayout.pageMarked, true, 'Arena profile opts into the skin');
   assert.equal(skinLayout.originalFormMarked, true, 'skin attaches to the official composer');
-  assert.ok(skinLayout.sendMinWidth >= 44, 'send target remains at least 44 CSS pixels');
+  assert.ok(skinLayout.sendRect.width > 0 && skinLayout.sendRect.height > 0,
+    'the native Send control remains visible without injected size overrides');
+  assert.equal(skinLayout.sendRect.width, 32, 'the fixture’s original 32px Send width is preserved');
+  assert.equal(skinLayout.sendRect.height, 36, 'the fixture’s native button height is preserved');
   assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
   assert.ok(['pending', 'composer'].includes(skinLayout.settingsDock),
     'with no original navigation sidebar, the settings fallback is not docked elsewhere');
