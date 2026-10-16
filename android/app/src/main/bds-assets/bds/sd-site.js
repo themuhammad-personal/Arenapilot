@@ -862,6 +862,12 @@
         } catch (_) {}
         if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
         clearInlineDock(rail);
+        /* Fail closed in the live WebView too; do not rely only on a CSS
+         * stylesheet that might arrive later during a login/SPA transition. */
+        if (rail.style.getPropertyValue('display') !== 'none' ||
+            rail.style.getPropertyPriority('display') !== 'important') {
+          rail.style.setProperty('display', 'none', 'important');
+        }
         lastSignature = 'pending';
         return;
       }
@@ -880,6 +886,9 @@
        * mutating the original navigation DOM. */
       try {
         rail.setAttribute('data-sidebar-confirmed', 'true');
+        /* Clear the no-sidebar guard only after a real site-owned sidebar
+         * and its current bounds were measured successfully. */
+        if (rail.style.getPropertyValue('display') === 'none') rail.style.removeProperty('display');
         rail.setAttribute('data-sidebar-left', String(pr.left));
         rail.setAttribute('data-sidebar-top', String(pr.top));
         rail.setAttribute('data-sidebar-width', String(pr.width));
