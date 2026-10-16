@@ -20,7 +20,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
+import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '../../../../..');
@@ -154,7 +154,7 @@ const FACTS = {
 async function startFakeCdp(opts = {}) {
   const calls = [];
   const sockets = new Set(); // upgraded sockets are not tracked by server.close(): destroy them ourselves
-  const state = { clickedToggle: false, sheetOpen: false, drawerOpen: false };
+  const state = { clickedToggle: false, sheetOpen: false, drawerOpen: false, clickedSettingsCard: false };
   const page = pageContext();
   let port = 0;
   const server = http.createServer((req, res) => {
@@ -194,11 +194,10 @@ async function startFakeCdp(opts = {}) {
           state.internalClicked = true;
           if (!opts.neverOpens) state.sheetOpen = true; // internal fallback for hosts without Arena's button
         }
-        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
-          state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
-        }
-        if (msg.params.type === 'mousePressed' && msg.params.x === 8 && msg.params.y === 72) {
-          state.drawerOpen = true; // the rail in the sidebar really opens settings
+        if (msg.params.type === 'mousePressed' && msg.params.x === 160 && msg.params.y === 560) {
+          state.clickedSettingsCard = true;
+          state.sheetOpen = false; // tapping Settings first closes the Add to chat sheet
+          if (!opts.drawerNeverOpens && !opts.cardNeverOpens) state.drawerOpen = true;
         }
         return ok();
       case 'Runtime.evaluate': {
@@ -235,16 +234,21 @@ async function startFakeCdp(opts = {}) {
           if (!opts.neverOpens) state.sheetOpen = true; // a script click opens it
           return value(true);
         }
-        if (marker === 'sidegeometry') {
-          return value(JSON.stringify(state.sidebarOpen && !opts.noRail
-            ? { dock: 'native-sidebar', visible: true, inside: true, railRect: [8, 72, 240, 44], nativeRowRect: [8, 28, 240, 44], panelRect: [0, 0, 256, 616], nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true, panelTag: 'current-visible-native-sidebar' }
-            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false, panelTag: null }));
+        if (marker === 'settingscard') {
+          const exists = state.sheetOpen && !opts.noCard && !opts.cardNeverOpens;
+          return value(JSON.stringify({
+            sheetPresent: state.sheetOpen, sheetVisible: state.sheetOpen,
+            present: exists, count: exists ? 1 : 0, visible: exists, insideSheet: exists,
+            lastCard: exists, title: exists ? 'Settings' : '', description: exists ? 'Manage app preferences, tools and integrations' : '',
+            rect: exists ? [20, 530, 280, 52] : null, legacySidebarRows: 0,
+            sourceRailVisible: false, sourceDock: 'sheet'
+          }));
         }
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
-            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'native-sidebar' }
-            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'pending' }));
+            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
+            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
         if (marker === 'back') { state.drawerOpen = false; return value(true); }
         if (marker === 'fillset') {
@@ -262,9 +266,12 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
+          if (expr.includes('sd-arena-settings-item')) {
+            return state.sheetOpen && !opts.noCard && !opts.cardNeverOpens
+              ? found(160, 560, 280, 52) : value(JSON.stringify({ found: false }));
+          }
           if (expr.includes('data-bds-arena-settings-entry') || expr.includes('bds-settings-rail')) {
-            if (opts.noRail) return value(JSON.stringify({ found: false }));
-            return state.sidebarOpen ? found(8, 72, 240, 44) : found(0, 0, 0, 0);
+            return value(JSON.stringify({ found: false }));
           }
           return value(JSON.stringify({ found: false }));
         }
@@ -455,18 +462,24 @@ test('without capture.js the engine facts still come back', async () => {
 
 // ── 3b. the two new steps: the drawer, and the composer the engine must drive ─
 
-test('the settings drawer is opened by a REAL click on the rail and closed by the engine’s own Back', async () => {
-  const { result } = await runProbe();
-  assert.equal(result.drawer.visible, true, 'opened');
-  assert.equal(result.drawer.railDock, 'native-sidebar');
-  assert.equal(result.settingsSidebarBeforeClick.dock, 'native-sidebar');
-  assert.equal(result.settingsSidebarBeforeClick.visible, true);
-  assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
-  assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
+test('Settings is clicked as the last card in Add to chat, closes that sheet, and opens the existing drawer', async () => {
+  const { fake, result } = await runProbe();
+  assert.equal(result.settingsCardBeforeClick.present, true);
+  assert.equal(result.settingsCardBeforeClick.count, 1);
+  assert.equal(result.settingsCardBeforeClick.insideSheet, true);
+  assert.equal(result.settingsCardBeforeClick.lastCard, true);
+  assert.equal(result.settingsCardBeforeClick.sourceRailVisible, false);
+  assert.equal(result.drawer.visible, true, 'opened from the Settings card');
+  assert.equal(result.drawer.railDock, 'sheet');
+  assert.equal(result.drawer.sheetVisible, false, 'Add to chat closes before Settings opens');
+  assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes Settings');
+  assert.equal(result.drawerAfterBack.railDock, 'sheet');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
-  const noRail = await runProbe({ noRail: true });
-  assert.equal(noRail.result.drawer.present, false);
-  assert.ok(noRail.result.steps.find((s) => s.name === 'settings-drawer').ok, 'reported, not thrown');
+  assert.ok(fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed' && c.params.x === 160 && c.params.y === 560),
+    'the Settings card receives a physical click');
+  const noCard = await runProbe({ noCard: true });
+  assert.equal(noCard.result.drawer.present, false);
+  assert.ok(noCard.result.steps.find((s) => s.name === 'settings-drawer').ok, 'missing card is reported rather than throwing');
 });
 
 test('the composer fill is captured without ever sending: fill, settle, read, clear', async () => {
@@ -480,15 +493,15 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the plus toggle and the settings rail — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '8,72'],
-    'only Arena’s original Plus, original sidebar button and visible Settings row are clicked');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560'],
+    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then click its Settings card');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
   const fill = await runProbe({ fillBroken: true });
   assert.ok(acceptanceFailures(fill.result).includes('composer-not-drivable'));
   const drawer = await runProbe({ drawerNeverOpens: true });
-  assert.ok(acceptanceFailures(drawer.result).includes('settings-drawer-not-openable'));
+  assert.ok(acceptanceFailures(drawer.result).includes('settings-drawer-not-openable-from-sheet-card'));
   const good = await runProbe();
   assert.deepEqual(acceptanceFailures(good.result), []);
 });
