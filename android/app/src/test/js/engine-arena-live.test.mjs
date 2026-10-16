@@ -140,14 +140,59 @@ test('a site-side gate after the click is classified, evidenced and PASSES the a
 });
 
 test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden composer, script-only click, an undrivable composer or a dead drawer', () => {
-  const good = { engine: { host: 'arena.ai', site: { id: 'arena' }, engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' }, composer: { named: 1, rect: [0, 0, 320, 50] }, attach: { toggle: 1 } },
-    sheetOpenedBy: 'real-click', steps: [],
+  const good = { engine: {
+    host: 'arena.ai', site: { id: 'arena' },
+    engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' },
+    composer: { named: 1, rect: [0, 0, 320, 50] },
+    attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
+    skin: { active: true, composerTarget: 'native', sendInsideComposer: true, sendRect: [250, 520, 44, 44], settingsRailVisible: true },
+  },
+    sheetOpenedBy: 'real-click', originalPlusSheet: { dropdown: 1 }, steps: [],
+    settingsSidebarBeforeClick: { dock: 'sidebar', visible: true, inside: true, railRect: [8, 500, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' },
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
-    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'composer' } };
+    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sidebar' } };
   assert.deepEqual(acceptanceFailures(good), []);
+  const loginWall = {
+    ...good,
+    engine: {
+      ...good.engine,
+      login: true,
+      skin: { ...good.engine.skin, settingsRailVisible: false, settingsDock: 'pending' },
+    },
+    settingsSidebarBeforeClick: {
+      dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0],
+      panelRect: null, panelTag: null,
+    },
+    drawer: { present: false, visible: false, reason: 'login-wall-no-native-sidebar' },
+  };
+  assert.deepEqual(acceptanceFailures(loginWall), [],
+    'a login wall with a live hidden Settings row is accepted; signed-in sidebar acceptance remains unverified');
+  assert.deepEqual(acceptanceFailures({
+    ...loginWall,
+    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: true } },
+  }), [], 'stale initial page facts cannot override fresh evidence that the Settings row is hidden');
+  assert.ok(acceptanceFailures({
+    ...loginWall,
+    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: false } },
+    settingsSidebarBeforeClick: {
+      ...loginWall.settingsSidebarBeforeClick, visible: true, railRect: [8, 524, 240, 32],
+    },
+  }).includes('settings-visible-without-original-sidebar'),
+  'fresh live evidence of a leaked Settings row must fail even if the older snapshot says hidden');
+  assert.ok(acceptanceFailures({ ...good, originalPlusSheet: { dropdown: 0 } }).includes('arena-original-plus-does-not-open-sheet'));
+  assert.ok(acceptanceFailures({ ...good, settingsSidebarBeforeClick: { ...good.settingsSidebarBeforeClick, dock: 'pending', inside: false } }).includes('settings-not-inside-original-sidebar'));
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
-  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { toggle: 2 } } }).includes('plus-count-not-one'));
+  assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
+  assert.deepEqual(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, overlayAligned: false } },
+  }), [], 'native tap forwarding tolerates a stale invisible target position');
+  assert.ok(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, nativePlusPointerIntact: false } },
+  }).includes('arena-original-plus-native-bridge-not-ready'));
+  assert.ok(acceptanceFailures({
+    ...good, engine: { ...good.engine, attach: { ...good.engine.attach, enginePlusOverlayReady: false } },
+  }).includes('arena-original-plus-native-bridge-not-ready'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, composer: { named: 1, rect: [0, 0, 0, 0] } } }).includes('composer-not-visible'));
   // the composer-fill facts: React ignoring the engine's events is the one
   // failure mode that kills every feature at once, so the gate demands it

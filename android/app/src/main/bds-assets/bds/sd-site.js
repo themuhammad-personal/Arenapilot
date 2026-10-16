@@ -447,5 +447,541 @@
     OFF: OFF,
     OFF_TEXT: OFF_TEXT,
   };
+  /*
+   * Native-preservation mode:
+   * Do not stamp classes onto <html> or the Arena-owned composer. Both are
+   * React/Next-owned nodes and changing them during hydration can cause a
+   * mismatch. Arena styling is intentionally absent; only the engine-owned
+   * .bds-arena-rail entry is styled/positioned below.
+   */
+
+  /*
+   * Arena's own mobile navigation is not consistently exposed as an <aside>.
+   * Keep our existing Settings control, but anchor it visually to the open
+   * official sidebar using its navigation landmarks. When the sidebar closes,
+   * hide the fallback: the account menu remains the other entry point. This
+   * does not create a new button or re-style Arena's composer controls.
+   */
+  function installArenaSidebarSettingsDock() {
+    if (site.id !== 'arena' || typeof document === 'undefined' ||
+        !document.documentElement || !document.body) return;
+
+    var railSelector = '#bds-settings-rail';
+    var scheduled = false;
+    var lastSignature = '';
+
+    function textOf(node) {
+      try { return String(node && (node.innerText || node.textContent) || '').replace(/\s+/g, ' ').trim(); }
+      catch (_) { return ''; }
+    }
+    function rectOf(node) {
+      try {
+        var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+        if (!r || r.width <= 0 || r.height <= 0) return null;
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+      } catch (_) { return null; }
+    }
+    function isVisible(node) {
+      var r = rectOf(node);
+      if (!r) return false;
+      try {
+        var cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
+        return !cs || (cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0);
+      } catch (_) { return true; }
+    }
+    function hasNavLandmarks(node) {
+      var t = textOf(node);
+      return /new\s*chat/i.test(t) &&
+        /leaderboard/i.test(t) &&
+        /\bsearch\b/i.test(t);
+    }
+    function sidebar() {
+      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
+      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+      var roots = [];
+      try {
+        var navItems = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+        for (var i = 0; i < navItems.length; i++) {
+          var item = navItems[i];
+          var t = textOf(item);
+          var href = '';
+          try { href = String(item.getAttribute('href') || ''); } catch (_) {}
+          if (!/new\s*chat/i.test(t) && !/\/text\/direct(?:[/?#]|$)/i.test(href)) continue;
+          var parent = item;
+          for (var depth = 0; parent && parent !== document.body && depth < 9; depth++, parent = parent.parentElement) {
+            if (roots.indexOf(parent) < 0) roots.push(parent);
+          }
+        }
+      } catch (_) {}
+      /* Some Arena builds render the drawer as a generic div, not an aside. */
+      try {
+        var semantic = document.querySelectorAll('aside,nav,[role="dialog"],[data-state="open"]');
+        for (var k = 0; k < semantic.length; k++) if (roots.indexOf(semantic[k]) < 0) roots.push(semantic[k]);
+      } catch (_) {}
+
+      var best = null;
+      var bestArea = Infinity;
+      for (var n = 0; n < roots.length; n++) {
+        var node = roots[n];
+        if (!node || node === document.documentElement || node === document.body || !isVisible(node)) continue;
+        /* Never mistake ArenaPilot's injected drawer for Arena's navigation.
+         * Settings must dock only to the original site-owned sidebar. */
+        try {
+          if (node.id === 'bds-root' || node.id === 'bds-drawer' ||
+              (node.closest && node.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop'))) continue;
+        } catch (_) {}
+        var r = rectOf(node);
+        /* The user reported a shortened drawer, so do not require it to
+         * already occupy 72% of the viewport before we can expand it. Keep a
+         * modest minimum to avoid treating a one-line header as the sidebar. */
+        if (!r || r.left > vw * 0.12 || r.width < vw * 0.42 ||
+            r.width > vw * 0.96 || r.height < Math.min(220, vh * 0.32) ||
+            r.right > vw * 0.97) continue;
+        if (!hasNavLandmarks(node)) continue;
+        var area = r.width * r.height;
+        if (area < bestArea) { best = node; bestArea = area; }
+      }
+      return best;
+    }
+    function accountRow(panel) {
+      var found = null;
+      var foundWidth = 0;
+      try {
+        var nodes = panel.querySelectorAll('button,a,[role="button"],footer,div');
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          if (!/@/.test(textOf(node)) || textOf(node).length > 180 || !isVisible(node)) continue;
+          var r = rectOf(node);
+          if (!r || r.width < panel.getBoundingClientRect().width * 0.55 ||
+              r.height < 30 || r.height > 110) continue;
+          if (r.width > foundWidth) { found = r; foundWidth = r.width; }
+        }
+      } catch (_) {}
+      return found;
+    }
+    function clearInlineDock(rail) {
+      try {
+        ['position','left','top','right','bottom','width','height','max-width','min-width','z-index','margin','transform']
+          .forEach(function (key) { rail.style.removeProperty(key); });
+      } catch (_) {}
+    }
+    function nativeSidebarRow(panel) {
+      var best = null;
+      var bestArea = 0;
+      try {
+        var nodes = panel.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+        var panelWidth = panel.getBoundingClientRect().width;
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          if (!/new\s*chat/i.test(textOf(node)) || !isVisible(node)) continue;
+          var r = rectOf(node);
+          if (!r || r.width < panelWidth * 0.55 || r.height < 24 || r.height > 120) continue;
+          var area = r.width * r.height;
+          if (area > bestArea) { best = node; bestArea = area; }
+        }
+      } catch (_) {}
+      return best;
+    }
+    function mirrorNativeSidebarStyle(rail, row) {
+      if (!rail || !rail.style || !row || !window.getComputedStyle) return;
+      try {
+        var cs = window.getComputedStyle(row);
+        [
+          'font-family','font-size','font-weight','font-style','line-height',
+          'letter-spacing','color','background-color','border-radius','border-width',
+          'border-style','border-color','padding-top','padding-right','padding-bottom',
+          'padding-left','text-align','text-transform','direction'
+        ].forEach(function (key) {
+          var value = cs.getPropertyValue(key);
+          if (value) setImportantStyle(rail.style, key, value);
+        });
+        var nativeIcon = row.querySelector && row.querySelector('svg');
+        var iconBox = rail.querySelector && rail.querySelector('.bds-arena-rail-icon');
+        var nativeRect = rectOf(nativeIcon);
+        if (nativeRect && nativeRect.width > 0 && nativeRect.height > 0 && iconBox && iconBox.style) {
+          setImportantStyle(iconBox.style, 'width', nativeRect.width + 'px');
+          setImportantStyle(iconBox.style, 'height', nativeRect.height + 'px');
+          setImportantStyle(iconBox.style, 'flex', '0 0 ' + nativeRect.width + 'px');
+          var ownSvg = iconBox.querySelector && iconBox.querySelector('svg');
+          if (ownSvg && ownSvg.style) {
+            setImportantStyle(ownSvg.style, 'width', nativeRect.width + 'px');
+            setImportantStyle(ownSvg.style, 'height', nativeRect.height + 'px');
+          }
+        }
+      } catch (_) {}
+    }
+
+    var positionedOriginal = null;
+    var positionedParent = null;
+    var positionedMount = null;
+    var savedMountStyles = null;
+    var positionedWrapper = null;
+    var savedWrapperStyles = null;
+    var positionedPlus = null;
+    var savedPlusStyles = null;
+
+    function saveInlineStyles(node, keys) {
+      var saved = {};
+      if (!node || !node.style) return saved;
+      keys.forEach(function (key) {
+        saved[key] = {
+          value: node.style.getPropertyValue(key),
+          priority: node.style.getPropertyPriority(key)
+        };
+      });
+      return saved;
+    }
+    function restoreInlineStyles(node, saved) {
+      if (!node || !node.style || !saved) return;
+      Object.keys(saved).forEach(function (key) {
+        var item = saved[key];
+        if (item.value) node.style.setProperty(key, item.value, item.priority);
+        else node.style.removeProperty(key);
+      });
+    }
+    function clearOverlay() {
+      /* Arena-owned nodes are immutable from the adapter's perspective.
+       * Only restore styles on our own engine mount/wrapper/trigger. */
+      restoreInlineStyles(positionedMount, savedMountStyles);
+      restoreInlineStyles(positionedWrapper, savedWrapperStyles);
+      restoreInlineStyles(positionedPlus, savedPlusStyles);
+      positionedOriginal = null;
+      positionedParent = null;
+      positionedMount = null;
+      savedMountStyles = null;
+      positionedWrapper = null;
+      savedWrapperStyles = null;
+      positionedPlus = null;
+      savedPlusStyles = null;
+    }
+
+    function setImportantStyle(style, key, value) {
+      if (!style) return;
+      if (style.getPropertyValue(key) !== value || style.getPropertyPriority(key) !== 'important') {
+        style.setProperty(key, value, 'important');
+      }
+    }
+
+    function syncOriginalAttachTrigger() {
+      var original = null;
+      var enginePlus = null;
+      var mount = null;
+      var wrapper = null;
+      try {
+        enginePlus = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        var buttons = document.querySelectorAll('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
+        for (var i = 0; i < buttons.length; i++) {
+          var candidate = buttons[i];
+          if (candidate === enginePlus || (candidate.closest && candidate.closest('.bds-attach-menu-mount, .bds-attach-wrapper'))) continue;
+          original = candidate;
+          break;
+        }
+        mount = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
+        wrapper = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-wrapper') : null;
+        /* This attribute belongs to our injected mount only. It lets the
+         * engine's generic parent-flex rule opt out of Arena's original
+         * Plus/mode/model group without touching Arena-owned DOM. */
+        if (mount && mount.setAttribute) mount.setAttribute('data-bds-preserve-native-layout', 'true');
+      } catch (_) {}
+
+      if (!enginePlus || !enginePlus.style || !original || !mount || !mount.style) {
+        clearOverlay();
+        /* If Arena has no source button on this page state, retain the engine's
+         * ordinary trigger as a functional fallback rather than hiding it. */
+        if (enginePlus && enginePlus.style) {
+          try {
+            if (enginePlus.style.getPropertyValue('display') === 'none') enginePlus.style.removeProperty('display');
+            enginePlus.style.removeProperty('opacity');
+            enginePlus.style.removeProperty('position');
+            enginePlus.style.removeProperty('pointer-events');
+          } catch (_) {}
+        }
+        return;
+      }
+
+      try {
+        if (positionedOriginal !== original || positionedMount !== mount ||
+            positionedPlus !== enginePlus || positionedParent !== original.parentElement) {
+          clearOverlay();
+          positionedOriginal = original;
+          positionedParent = original.parentElement;
+          positionedMount = mount;
+          positionedWrapper = wrapper;
+          positionedPlus = enginePlus;
+          savedMountStyles = saveInlineStyles(mount, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','flex','flex-basis',
+            'transform','display','pointer-events','overflow'
+          ]);
+          savedWrapperStyles = saveInlineStyles(wrapper, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','transform','display',
+            'pointer-events','overflow','align-items','justify-content'
+          ]);
+          savedPlusStyles = saveInlineStyles(enginePlus, [
+            'position','left','top','right','bottom','width','height','min-width','min-height',
+            'max-width','max-height','z-index','margin','padding','transform','display',
+            'pointer-events','opacity','visibility','background','border','box-shadow'
+          ]);
+
+        }
+
+        /* Keep Arena's original button/SVG and DOM state untouched. The
+         * engine-owned transparent trigger sits over the same measured box and
+         * receives the physical tap; no original attributes/styles are changed. */
+        try {
+          enginePlus.setAttribute('aria-label', 'Arena attachment options');
+          enginePlus.setAttribute('title', 'Add files and attachment modes');
+          enginePlus.setAttribute('type', 'button');
+        } catch (_) {}
+
+        /* A normal tap on Arena's native button must still work if the page
+         * moves the composer after our previous geometry measurement. The
+         * transparent engine button handles taps when it is already aligned;
+         * if a tap lands on the visible Arena button, remeasure first and
+         * forward that same interaction to the engine button. The native
+         * control's styles, icon, dimensions and DOM position remain untouched. */
+        /* This marker tells the harness that native-button forwarding is ready.
+         * The actual forwarding listener is delegated from document, so it survives
+         * React replacing the native button after composer state changes. */
+        try { original.__sdArenaSheetBound = true; } catch (_) {}
+
+        /* The sheet mount is isolated under #bds-root. Its overlay is only a
+         * transparent hit target; native-button click forwarding above covers
+         * layout shifts between observer passes. */
+        var or = rectOf(original);
+        if (!or) return;
+        setImportantStyle(mount.style, 'position', 'fixed');
+        setImportantStyle(mount.style, 'left', or.left + 'px');
+        setImportantStyle(mount.style, 'top', or.top + 'px');
+        setImportantStyle(mount.style, 'right', 'auto');
+        setImportantStyle(mount.style, 'bottom', 'auto');
+        setImportantStyle(mount.style, 'width', or.width + 'px');
+        setImportantStyle(mount.style, 'height', or.height + 'px');
+        setImportantStyle(mount.style, 'min-width', or.width + 'px');
+        setImportantStyle(mount.style, 'min-height', or.height + 'px');
+        setImportantStyle(mount.style, 'max-width', or.width + 'px');
+        setImportantStyle(mount.style, 'max-height', or.height + 'px');
+        setImportantStyle(mount.style, 'margin', '0');
+        setImportantStyle(mount.style, 'padding', '0');
+        setImportantStyle(mount.style, 'flex', '0 0 auto');
+        setImportantStyle(mount.style, 'transform', 'none');
+        setImportantStyle(mount.style, 'display', 'inline-flex');
+        setImportantStyle(mount.style, 'align-items', 'center');
+        setImportantStyle(mount.style, 'justify-content', 'center');
+        setImportantStyle(mount.style, 'overflow', 'visible');
+        mount.style.removeProperty('pointer-events');
+        setImportantStyle(mount.style, 'z-index', '2147483646');
+
+        if (wrapper && wrapper.style) {
+          setImportantStyle(wrapper.style, 'position', 'absolute');
+          setImportantStyle(wrapper.style, 'left', '0px');
+          setImportantStyle(wrapper.style, 'top', '0px');
+          setImportantStyle(wrapper.style, 'right', '0px');
+          setImportantStyle(wrapper.style, 'bottom', '0px');
+          setImportantStyle(wrapper.style, 'width', '100%');
+          setImportantStyle(wrapper.style, 'height', '100%');
+          setImportantStyle(wrapper.style, 'min-width', '0');
+          setImportantStyle(wrapper.style, 'min-height', '0');
+          setImportantStyle(wrapper.style, 'max-width', '100%');
+          setImportantStyle(wrapper.style, 'max-height', '100%');
+          setImportantStyle(wrapper.style, 'margin', '0');
+          setImportantStyle(wrapper.style, 'padding', '0');
+          setImportantStyle(wrapper.style, 'transform', 'none');
+          setImportantStyle(wrapper.style, 'display', 'flex');
+          setImportantStyle(wrapper.style, 'align-items', 'center');
+          setImportantStyle(wrapper.style, 'justify-content', 'center');
+          setImportantStyle(wrapper.style, 'overflow', 'visible');
+          wrapper.style.removeProperty('pointer-events');
+        }
+
+        setImportantStyle(enginePlus.style, 'display', 'inline-flex');
+        setImportantStyle(enginePlus.style, 'position', 'absolute');
+        setImportantStyle(enginePlus.style, 'left', '0px');
+        setImportantStyle(enginePlus.style, 'top', '0px');
+        setImportantStyle(enginePlus.style, 'right', '0px');
+        setImportantStyle(enginePlus.style, 'bottom', '0px');
+        setImportantStyle(enginePlus.style, 'width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'min-width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'min-height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'max-width', or.width + 'px');
+        setImportantStyle(enginePlus.style, 'max-height', or.height + 'px');
+        setImportantStyle(enginePlus.style, 'margin', '0');
+        setImportantStyle(enginePlus.style, 'padding', '0');
+        setImportantStyle(enginePlus.style, 'transform', 'none');
+        setImportantStyle(enginePlus.style, 'opacity', '0');
+        setImportantStyle(enginePlus.style, 'visibility', 'visible');
+        enginePlus.style.removeProperty('pointer-events');
+        setImportantStyle(enginePlus.style, 'z-index', '2147483647');
+        setImportantStyle(enginePlus.style, 'background', 'transparent');
+        setImportantStyle(enginePlus.style, 'border', '0');
+        setImportantStyle(enginePlus.style, 'box-shadow', 'none');
+      } catch (_) {}
+    }
+
+    function forwardNativeAttachClick(event) {
+      var target = event && event.target;
+      var original = null;
+      var trigger = null;
+      try {
+        if (!target || !target.closest) return;
+        original = target.closest('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
+        if (!original || (original.closest && original.closest('#bds-root, .bds-attach-menu-mount, .bds-attach-wrapper'))) return;
+        trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        if (!trigger || trigger.disabled) return;
+        event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        /* Re-measure after any React re-render, then forward only this user's
+         * native-button tap to the one existing engine attachment trigger. */
+        syncOriginalAttachTrigger();
+        trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        if (trigger && !trigger.disabled) trigger.click();
+      } catch (_) {}
+    }
+
+    function sync() {
+      scheduled = false;
+      if (site.id !== 'arena') return;
+      syncOriginalAttachTrigger();
+      var rail = null;
+      try { rail = document.querySelector(railSelector); } catch (_) {}
+      if (!rail || !rail.style) return;
+      var panel = sidebar();
+      if (!panel) {
+        /* No site-owned navigation is open. Do not leave a stale Settings
+         * row visible over the composer/login page after a route transition. */
+        try {
+          rail.removeAttribute('data-sidebar-confirmed');
+          ['data-sidebar-left','data-sidebar-top','data-sidebar-width','data-sidebar-height']
+            .forEach(function (key) { rail.removeAttribute(key); });
+        } catch (_) {}
+        if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
+        clearInlineDock(rail);
+        /* Fail closed in the live WebView too; do not rely only on a CSS
+         * stylesheet that might arrive later during a login/SPA transition. */
+        if (rail.style.getPropertyValue('display') !== 'none' ||
+            rail.style.getPropertyPriority('display') !== 'important') {
+          rail.style.setProperty('display', 'none', 'important');
+        }
+        lastSignature = 'pending';
+        return;
+      }
+      var pr = rectOf(panel);
+      if (!pr) return;
+      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
+      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+
+      /* Mark the original, currently open Arena navigation container for
+       * evidence only. Never write dimensions, position, flex or width onto
+       * the site's panel: its own stylesheet remains the source of truth. */
+      /* Do not add a marker attribute to the React-owned Arena sidebar. */
+
+      /* Store the site's measured bounds on the engine-owned Settings row,
+       * not on the React-owned Arena sidebar. CDP can verify containment without
+       * mutating the original navigation DOM. */
+      try {
+        rail.setAttribute('data-sidebar-confirmed', 'true');
+        /* Clear the no-sidebar guard only after a real site-owned sidebar
+         * and its current bounds were measured successfully. */
+        if (rail.style.getPropertyValue('display') === 'none') rail.style.removeProperty('display');
+        rail.setAttribute('data-sidebar-left', String(pr.left));
+        rail.setAttribute('data-sidebar-top', String(pr.top));
+        rail.setAttribute('data-sidebar-width', String(pr.width));
+        rail.setAttribute('data-sidebar-height', String(pr.height));
+      } catch (_) {}
+      var account = accountRow(panel);
+      var navRow = nativeSidebarRow(panel);
+      var navRect = rectOf(navRow);
+      var rowHeight = navRect ? navRect.height : 44;
+      var top = account ? account.top - rowHeight : pr.bottom - rowHeight - 60;
+      top = Math.max(pr.top, Math.min(top, pr.bottom - rowHeight));
+      var left = navRect ? navRect.left : Math.max(4, pr.left + 8);
+      var width = navRect ? navRect.width : Math.max(44, Math.min(pr.width - 16, vw - left - 4));
+      top = Math.max(4, Math.min(top, vh - rowHeight));
+      mirrorNativeSidebarStyle(rail, navRow);
+      var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width), Math.round(rowHeight)].join(':');
+      if (lastSignature === signature2 && rail.dataset.dock === 'sidebar' &&
+          rail.style.position === 'fixed' && rail.style.left === left + 'px' && rail.style.top === top + 'px') return;
+      rail.dataset.dock = 'sidebar';
+      rail.style.setProperty('position', 'fixed', 'important');
+      rail.style.setProperty('left', left + 'px', 'important');
+      rail.style.setProperty('top', top + 'px', 'important');
+      rail.style.setProperty('right', 'auto', 'important');
+      rail.style.setProperty('bottom', 'auto', 'important');
+      rail.style.setProperty('width', width + 'px', 'important');
+      rail.style.setProperty('min-width', '0', 'important');
+      rail.style.setProperty('max-width', width + 'px', 'important');
+      rail.style.setProperty('height', rowHeight + 'px', 'important');
+      rail.style.setProperty('margin', '0', 'important');
+      rail.style.setProperty('transform', 'none', 'important');
+      rail.style.setProperty('z-index', '2147483647', 'important');
+      lastSignature = signature2;
+    }
+    function schedule() {
+      if (scheduled) return;
+      scheduled = true;
+      if (window && typeof window.setTimeout === 'function') window.setTimeout(sync, 80);
+      else sync();
+    }
+
+    if (typeof MutationObserver === 'function') {
+      try {
+        var observer = new MutationObserver(function (records) {
+          /* Track route/sidebar mount changes only. Changes to the native
+           * transcript or controls do not require a style repair because this
+           * adapter never styles Arena-owned nodes. */
+          var relevant = false;
+          for (var i = 0; i < records.length && !relevant; i++) {
+            var record = records[i];
+            var node = record && record.target;
+            if (!record || !node) continue;
+            try {
+              relevant = !!(
+                node.id === 'bds-root' || node.id === 'bds-settings-rail' ||
+                (node.matches && node.matches('aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                (node.querySelector && node.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                (record.addedNodes && Array.prototype.some.call(record.addedNodes, function (added) {
+                  return added && (added.id === 'bds-root' || added.id === 'bds-settings-rail' ||
+                    (added.matches && added.matches('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    (added.querySelector && added.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    hasNavLandmarks(added));
+                })) ||
+                /* SPA login/route transitions often remove the native sidebar
+                 * without adding anything. Observe removed nodes too, otherwise
+                 * a stale Settings rail can remain visible beside the composer. */
+                (record.removedNodes && Array.prototype.some.call(record.removedNodes, function (removed) {
+                  return removed && (removed.id === 'bds-root' || removed.id === 'bds-settings-rail' ||
+                    (removed.matches && removed.matches('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    (removed.querySelector && removed.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    hasNavLandmarks(removed));
+                }))
+              );
+            } catch (_) { relevant = false; }
+          }
+          if (relevant) schedule();
+        });
+        observer.observe(document.documentElement, {
+          childList: true, subtree: true, attributes: true,
+          attributeFilter: ['class','style','aria-expanded','aria-hidden','data-state','data-dock']
+        });
+      } catch (_) {}
+    }
+    try {
+      document.addEventListener('click', function (event) {
+        forwardNativeAttachClick(event);
+        schedule();
+      }, true);
+      document.addEventListener('scroll', schedule, true);
+      if (window.addEventListener) window.addEventListener('resize', schedule, false);
+    } catch (_) {}
+    schedule();
+  }
+  installArenaSidebarSettingsDock();
+
   window.__sdProfile = applyProfile;
 })();

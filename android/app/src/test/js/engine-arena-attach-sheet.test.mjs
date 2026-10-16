@@ -196,6 +196,8 @@ function collect(node) {
  */
 function arenaPage({ withFileInput = true, fileInputInComposer = true, withAvatar = true } = {}) {
   const body = makeEl('body');
+  const engineRoot = makeEl('div', { id: 'bds-root' });
+  body.appendChild(engineRoot);
   const main = makeEl('main');
   body.appendChild(main);
   const form = makeEl('form');
@@ -237,6 +239,7 @@ function arenaPage({ withFileInput = true, fileInputInComposer = true, withAvata
     body,
     documentElement: makeEl('html'),
     createElement: (tag) => makeEl(tag),
+    getElementById: (id) => collect(body).find((n) => n.id === id) || null,
     querySelectorAll: (sel) => body.querySelectorAll(sel),
     querySelector: (sel) => body.querySelector(sel),
   };
@@ -349,20 +352,20 @@ test('mounting survives a reference that is not a child of the container', () =>
 
 // ── 3. hiding the site’s own "+" ────────────────────────────────────────────
 
-test('arena’s attach button is hidden, a card of its popup never is', () => {
+test('Arena keeps its native Plus visible; only DeepSeek uses the legacy hide hook', () => {
   const p = arenaPage();
   p.win.__sdSite = { id: 'arena' };
   assert.equal(
     p.run(`Yvt(document.querySelector('form input[type="file"]')) === document.querySelector('button[aria-label="Attach files"]')`),
-    true, 'the site’s own + is replaced by ours, as on DeepSeek');
+    false, 'Arena’s original + is never passed to the engine hide hook');
 
   const q = arenaPage({ fileInputInComposer: false });
   q.win.__sdSite = { id: 'arena' };
   // (booleans only: a failed assert.equal on a fake DOM node inspects a circular graph and kills the run)
   assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('[role="menu"] button')`), false,
-    'a card of arena’s popup must never be hidden');
-  assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('form button[aria-label="Attach files"]')`), true,
-    'what is hidden is the composer’s own attach button, whatever file input was asked about');
+    'a card of Arena’s popup must never be hidden');
+  assert.equal(q.run(`Yvt(document.querySelector('[role="menu"] input[type="file"]')) === document.querySelector('form button[aria-label="Attach files"]')`), false,
+    'Arena’s native Plus is preserved even when the requested file input differs');
 
   const d = arenaPage({ fileInputInComposer: false });
   d.win.__sdSite = { id: 'deepseek' };
@@ -381,7 +384,8 @@ test('arena gets the "+" sheet even before a file input exists', () => {
   assert.equal(luts.length, 1, 'the sheet must mount — the cards are the feature');
   assert.equal(luts[0].props.props.nativeInput === null, true,
     'Lut resolves the input itself at pick time, so a null input is safe here');
-  assert.ok(p.run('!!document.querySelector("form .bds-attach-menu-mount")'), 'mounted into the composer');
+  assert.ok(p.run('!!document.querySelector("#bds-root .bds-attach-menu-mount")'),
+    'the attachment sheet mount belongs to the engine root, not Arena’s React-owned composer');
 
   const d = arenaPage({ withFileInput: false, withAvatar: false });
   d.win.__sdSite = { id: 'deepseek' };
@@ -391,7 +395,7 @@ test('arena gets the "+" sheet even before a file input exists', () => {
 });
 
 test('the sheet mount is the shipped one, and the seam counts still hold', () => {
-  assert.equal(times('if((!e||!t)&&!(sdsIsArena()&&t&&t.children&&t.insertBefore)){NQ(n,t);return}'), 1);
+  assert.equal(times('if((!e||!t)&&!(sdsIsArena()&&t&&t.children&&t.insertBefore)){!sdsIsArena()&&NQ(n,t);return}'), 1);
   assert.equal(times('if(!e||!t){NQ(n,t);return}'), 0, 'the unguarded early return is gone');
   assert.equal(times('Zi(Lut,{target:o,props:{nativeInput:e}})'), 1, 'the sheet is mounted by the shipped line');
   for (const fn of ['sdsArenaComposer', 'sdsArenaInComposer', 'sdsArenaFileInput']) {

@@ -53,6 +53,9 @@ const ICON = (() => {
 // ── a fake DOM, just big enough for the menu and the rail ───────────────────
 
 function matchesSel(node, sel) {
+  /* Native Element.matches/querySelector accept comma-separated selector lists.
+     The lightweight fake DOM must model that same behavior for the observer tests. */
+  if (sel.includes(',')) return sel.split(',').some((part) => matchesSel(node, part.trim()));
   if (sel.startsWith('#')) return node.id === sel.slice(1);
   if (sel === 'button') return node.tagName === 'BUTTON';
   if (sel === 'a') return node.tagName === 'A';
@@ -395,7 +398,7 @@ test('the watcher picks a menu up however it appears', () => {
   assert.equal(p.state.observers.length, 1);
   assert.equal(p.state.observers[0].observed.opts.childList, true);
   assert.equal(p.state.observers[0].observed.opts.subtree, true);
-  p.state.observers[0].fire([{ addedNodes: [holder] }]);
+  p.state.observers[0].fire([{ type: 'childList', target: p.body, addedNodes: [holder], removedNodes: [] }]);
   assert.equal(advanced(second).length, 1, 'a mutation pass finds a nested menu too');
 
   // 3. and it survives one install, however often boot runs

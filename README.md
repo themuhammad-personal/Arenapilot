@@ -29,9 +29,10 @@ AI agent · Linux Studio · model picker · thinking chips · MCP tools · Deep 
 ## Why ArenaPilot?
 
 ArenaPilot opens **the real arena.ai** — your own account, your own sign-in, real models — and
-adds an engine on top: tools, memory, an AI agent with its own Linux sandbox, and a native
-Android chat shell built with Jetpack Compose. Direct Chat is the supported mode; Battle /
-Side-by-side / Agent mode pages stay untouched.
+adds tools, memory, an AI agent with its own Linux sandbox, and a mobile-first skin to that
+same official page. **The original Arena page is the only chat surface**: there is no parallel
+Compose chat shell, second composer, or replacement model picker. Direct Chat is the supported
+mode; Battle / Side-by-side / Agent mode pages stay untouched.
 
 | | |
 |---|---|
@@ -41,9 +42,9 @@ Side-by-side / Agent mode pages stay untouched.
 | ⚡ **Type less** | Type `/` for built-in commands and your own snippets. |
 | 🔌 **Plug in tools** | Connect MCP servers, and the AI finds and calls their tools by itself. |
 | 🔎 **Research deeply** | Multi-step Deep Research with page fetching, source ranking and a context guard. |
-| 📱 **A real native app** | A Compose chat surface — composer, model picker, thinking chips — that behaves like a modern Android app, not a shrunken web page. |
+| 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; the Android shell adds device integration and Linux Studio. |
 
-## The native rebuild (in progress)
+## The in-place mobile redesign (N0 in progress)
 
 The first generation showed the website as-is and the owner's complaints (settings buried,
 model names pushing Send off-screen, thinking mixed into answers) came from that. A first N0

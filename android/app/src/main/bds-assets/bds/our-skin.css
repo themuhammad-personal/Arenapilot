@@ -1,24 +1,14 @@
-/* ==========================================================================
-   Super DeepSeek — our-skin.css  (RETIRED — intentionally empty)
+/* Arena native-preservation mode:
+   Deliberately do not style Arena-owned page chrome, navigation, composer,
+   message textarea, mode/model selectors, Send button, icons, typography or
+   widths. Arena's own CSS/DOM owns those dimensions and states. The engine may
+   add its Settings entry to the open navigation drawer, but it must not resize
+   that drawer or the original site controls. */
 
-   Decision (user, after live testing): the engine's own design frame — this
-   fork's already-branded drawer, sheets, settings and controls — is the app's
-   design. Every custom color / geometry override that used to live here sat
-   on top of the official page's own palette and caused patchwork: a dark body
-   in light mode, mis-tinted official bars, and a drawer that no longer fit
-   phone screens. All of it is removed.
-
-   Functional shaping (hiding out-of-scope entries, trimming redundant rows,
-   repairing raw i18n keys) lives in UiPolish.kt, not here.
-   ========================================================================== */
-
-/* ==========================================================================
-   Mixed-script text (Arabic + Bengali/English in one reply)
-   sd-native.js gives each paragraph the direction of the script it is mostly
-   written in (dir + data-sd-bidi): an Arabic verse reads right-to-left, the
-   Bengali sentence around it stays left-to-right, and brackets stay with the
-   words they enclose. Paragraphs made of several lines decide line by line.
-   ========================================================================== */
+/* ── Mixed-script text (Arabic + Bengali/English in one reply) ──
+   sd-native.js marks paragraphs according to their dominant script so Arabic
+   remains right-to-left while the surrounding Bengali/English stays readable.
+*/
 [data-sd-bidi] {
   text-align: start;
 }
@@ -28,7 +18,6 @@
 li[data-sd-bidi="rtl"] {
   list-style-position: inside;
 }
-/* A bold/italic/link run keeps its own direction and its brackets. */
 .ds-markdown :is(strong, b, em, i, a, del, s, u, mark),
 .bds-message-overlay :is(strong, b, em, i, a, del, s, u, mark) {
   unicode-bidi: plaintext;
@@ -41,4 +30,36 @@ li[data-sd-bidi="rtl"] {
 .ds-markdown pre,
 .bds-message-overlay pre {
   text-align: left;
+}
+
+
+/* Only position the engine-owned Settings entry. These selectors never target
+   Arena's native composer buttons, model/mode controls, icons or sidebar. */
+.bds-arena-rail[data-dock="sidebar"][data-sidebar-confirmed="true"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  box-sizing: border-box;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  z-index: 2147483647;
+}
+
+/* Fail closed: the engine creates this row globally, but it is only allowed
+   to appear after our adapter has measured a real, open Arena sidebar. This
+   also covers route changes where data-dock is momentarily absent. */
+.bds-arena-rail:not([data-sidebar-confirmed="true"]) {
+  display: none !important;
+}
+
+.bds-arena-rail[data-dock="sidebar"][data-sidebar-confirmed="true"] .bds-arena-rail-label {
+  display: inline !important;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bds-arena-rail[data-dock="pending"],
+.bds-arena-rail[data-dock="composer"] {
+  display: none !important;
 }

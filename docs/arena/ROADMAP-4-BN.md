@@ -1,7 +1,7 @@
-# ArenaPilot — পরিকল্পনা ৪: সম্পূর্ণ নেটিভ এজেন্টিক অ্যান্ড্রয়েড অ্যাপ
+# ArenaPilot — পরিকল্পনা ৪: আসল Arena পেজ-ভিত্তিক এজেন্টিক Android অ্যাপ
 
 তারিখ: ২০২৬-১০-১৫ · শাখা: `arena/0e0268d7-super-deepseek`
-মালিকের সিদ্ধান্ত (২০২৬-১০-১৫, দুই রাউন্ড প্রশ্নোত্তরে নিশ্চিত): **সম্পূর্ণ নেটিভ UI, সরাসরি নেটিভ রিরাইট (আগে ওয়েব-পলিশ নয়), ইংরেজি-প্রথম UI (বাংলা অপশন), ডিফল্ট ধাপ-কার্ড + চাইলে লাইভ Computer ভিউ, নিজের MCP সার্ভার (URL দিয়ে), ফোরগ্রাউন্ড সার্ভিস+নোটিফিকেশন, Manus-লেভেল সব ডেলিভারেবল, ফোনের অন্য অ্যাপ নিয়ন্ত্রণ এখন নয়।**
+মালিকের বর্তমান সিদ্ধান্ত (২০২৬-১০-১৫): **চ্যাটের একমাত্র surface হলো arena.ai-র আসল পেজ—আলাদা Compose chat shell নয়। N0-তে ওই পেজের DOM-এই CSS/JS দিয়ে mobile-first Material-3 skin হবে; arena-র নিজস্ব রং, লগইন ও CAPTCHA অক্ষত থাকবে। UI ইংরেজি-প্রথম (বাংলা অপশন), ডিফল্ট ধাপ-কার্ড + চাইলে লাইভ Computer ভিউ, নিজের MCP সার্ভার (URL দিয়ে), ফোরগ্রাউন্ড সার্ভিস+নোটিফিকেশন এবং Manus-লেভেল ডেলিভারেবল; ফোনের অন্য অ্যাপ নিয়ন্ত্রণ এখন নয়।**
 
 এই পরিকল্পনা [ROADMAP-3-BN.md](ROADMAP-3-BN.md)-এর উত্তরসূরি। রেফারেন্স গবেষণা: Manus AI Android অ্যাপ (Google Play/App Store বিবরণ, ২০২৬), ২০২৬-এর agentic অ্যাপ জরিপ (ChatGPT agent mode, Perplexity Assistant, Claude connectors), ওপেন-সোর্স on-device এজেন্ট (Mobile Agent, DSHBox)।
 
@@ -22,7 +22,7 @@
 | ৯ | MCP সার্ভার কাজ করে না | কনফিগ UI + স্ট্যাটাস/এরর দৃশ্যমান নয়; মালিক নিজের সার্ভার (URL) চান | N2 — নেটিভ MCP ম্যানেজার, টুল-লিস্ট, এপ্রুভাল, হেলথ-চেক |
 | ১০ | UI অসুন্দর | — | N0 — Material-3 লুক arena-র নিজের রঙে + N4 পলিশ |
 
-**গুরুত্বপূর্ণ প্রমাণ (লাইভ প্রোব, run 38641243136):** অ্যাপের সম্পূর্ণ চুক্তি আসল সাইটে নিখুঁত — ইঞ্জিন বুট, স্ক্যানার, composer-driving, actionable সেন্ড, এক আসল ক্লিক; arena নিজস্ব anonymous সেশনে ToU-consent গেট দেখায়। মালিক সাইন-ইন করা — সুতরাং পাঠানোর পথ তাঁর ডিভাইসে খোলা। ভাঙার জায়গা মূলত **উপস্থাপন-স্তর ও পার্সিং-সহনশীলতা** — দুটোই নেটিভ রিরাইট মূলে বদলে দেয়।
+**গুরুত্বপূর্ণ প্রমাণ (লাইভ প্রোব, run 38641243136):** অ্যাপের সম্পূর্ণ চুক্তি আসল সাইটে নিখুঁত — ইঞ্জিন বুট, স্ক্যানার, composer-driving, actionable সেন্ড, এক আসল ক্লিক; arena নিজস্ব anonymous সেশনে ToU-consent গেট দেখায়। মালিক সাইন-ইন করা — সুতরাং পাঠানোর পথ তাঁর ডিভাইসে খোলা। ভাঙার জায়গা মূলত **উপস্থাপন-স্তর ও পার্সিং-সহনশীলতা** — প্রথমটি মূল arena পেজে injected CSS/JS স্কিনে, দ্বিতীয়টি N1-এর parser/step-card pipeline-এ ঠিক হবে; চ্যাট পেজকে Compose দিয়ে পুনর্লিখন করা হবে না।
 
 ---
 
@@ -30,30 +30,31 @@
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                ArenaPilot (নেটিভ, Jetpack Compose)        │
+│ ArenaPilot — Android shell + non-chat native surfaces    │
 │                                                          │
-│  চ্যাট UI · মডেল পিকার · ধাপ-কার্ড · Computer ভিউ ·      │
-│  MCP ম্যানেজার · ডেলিভারেবল এক্সপোর্ট · সেটিংস · ডক্টর    │
+│ Native support screens (as implemented in later phases): │
+│ Linux Studio · MCP manager · export · settings · doctor  │
 │                                                          │
-│  AgentCore (Kotlin): প্ল্যান-স্টেটমেশিন, টুল-লুপ,          │
-│  ইন্টারভেনশন (পজ/রিডাইরেক্ট), নোটিফিকেশন                  │
-│         ▲ ইভেন্ট (মেসেজ-ডেল্টা, রিজনিং, স্ট্যাটাস, এরর)    │
-└─────────┼────────────────────────────────────────────────┘
-          │ JS ব্রিজ (যা আজও চলে: scanner, setComposer)
-┌─────────┴────────────────────────────────────────────────┐
-│  SessionCore — দৃশ্যমান WebView-ই অ্যাপের মুখ (২০২-১০-১৫   │
-│  সিদ্ধান্ত; লুকানো নয়): arena.ai আসল পেজ + ইনজেক্ট করা      │
-│  Material-3 স্কিন · সাইন-ইন · recaptcha (পেজের ভেতরেই) ·   │
-│  composer-ড্রাইভিং · মেসেজ/রিজনিং DOM-স্ক্যান (ভেরিফায়েড    │
-│  arena-utils চুক্তি) · মডেল-তালিকা                         │
+│ AgentCore (Kotlin): plan state, tool loop, pause/redirect│
+│ background progress + notifications                     │
+└─────────┬────────────────────────────────────────────────┘
+          │ JS bridge (existing scanner + setComposer)
+          ▼
+┌──────────────────────────────────────────────────────────┐
+│ THE ONLY CHAT SURFACE: the real arena.ai page in WebView │
+│ always visible · original sign-in/CAPTCHA · original     │
+│ model picker/composer/messages/reasoning                 │
+│ injected Arena-colour mobile skin · DOM step cards       │
 └──────────────────────────────────────────────────────────┘
           │
-   Linux Computer (অন-ডিভাইস, proot Alpine — বিদ্যমান):
-   টার্মিনাল · ফাইল · pip/নেটওয়ার্ক · প্রিভিউ — AgentCore এটা
-   টুল হিসেবে কল করে; আউটপুট নেটিভ কার্ডে/লাইভ ভিউতে স্ট্রিম হয়
+          ▼
+   On-device Linux Computer (existing proot Alpine):
+   terminal · files · pip/network · preview; AgentCore calls
+   it as a tool; output streams into the page's step cards or
+   the optional live Computer view. No parallel chat UI.
 ```
 
-**নীতিগত সীমা (অপরিবর্তিত):** লগইন/ক্যাপচা বাইপাস নয় — সেশনটা একটা **আসল arena.ai পেজ**; recaptcha-টোকেন পেজের ভেতরেই তৈরি হয়। সাইন-ইন-সহ সবকিছু পেজের ভেতরেই — পেজটাই সবসময় দৃশ্যমান অ্যাপের মুখ (নেটিভ-স্কিনে)।
+**নীতিগত সীমা (অপরিবর্তিত):** লগইন/ক্যাপচা বাইপাস নয় — সেশনটা একটা **আসল arena.ai পেজ**; recaptcha-টোকেন পেজের ভেতরেই তৈরি হয়। সাইন-ইন-সহ চ্যাটের পুরো অভিজ্ঞতা পেজের ভেতরেই — পেজটাই সবসময় দৃশ্যমান একমাত্র chat surface (নেটিভ-স্কিনে)। Native Android/Compose UI থাকলেও তা কেবল non-chat support screen; চ্যাটের parallel copy, second composer, বা replacement model picker বানানো যাবে না.
 
 **যা বর্তমান কোডবেস থেকে টিকে থাকবে:** ইঞ্জিন বান্ডেল (স্ক্যানার, composer-ড্রাইভিং, ব্রিজ), proot স্যান্ডবক্স রানটাইম+CI, লাইভ প্রোব, হার্নেস/টেস্ট-অবকাঠামো, রিলিজ চ্যানেল। **যা নতুন করে লেখা হবে:** ইনজেক্ট করা Material-3 স্কিন (arena-র নিজের রঙে), এজেন্ট অর্কেস্ট্রেশন (Kotlin), পার্সিং-নরমালাইজার, DOM-ধাপ-কার্ড।
 
@@ -61,7 +62,7 @@
 
 ## ২. ফেজ N0 — অফিসিয়াল ইন্টারফেস, নেটিভ স্টাইলে (মূল ভিত্তি)
 
-> **মালিকের সিদ্ধান্ত (২০২-১০-১৫, দুই দফা প্রশ্নোত্তরে চূড়ান্ত):**
+> **মালিকের সিদ্ধান্ত (২০২৬-১০-১৫, দুই দফা প্রশ্নোত্তরে চূড়ান্ত):**
 > ১. লুকানো পেজের উপর আলাদা Compose-শেল (`a926d31`…`8ddc82c`) — **অকার্যকর ও
 > অপ্রয়োজনীয়**; মুছে ফেলা হয়েছে। **arena-র অফিসিয়াল ইন্টারফেসকেই** নেটিভ-সুন্দর করতে হবে।
 > ২. পদ্ধতি: আসল পেজের উপরে **গভীর স্কিন ইনজেকশন** (CSS/JS) — সম্পূর্ণ Material-3
@@ -89,6 +90,20 @@
    টেক্সট-ফাইল/ফোল্ডার/লিংক→ইনলাইন ডেলিভারি-কার্ড।
 6. **ট্যাগ-নরমালাইজার** (N1-এর সাথে মিলিয়ে): raw ট্যাগ কখনোই স্ক্রিনে নয়।
 
+### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৬; native-preservation follow-up)
+
+- [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell যোগ করা হয়নি।
+- [x] Arena-only skin hook; DeepSeek/অজানা host-এ skin সক্রিয় নয়।
+- [x] `our-skin.css` থেকে Arena-র native composer, textarea, Send, model/mode controls, Plus ও message typography-র width/height/flex/font/border override সরানো হয়েছে।
+- [x] ইঞ্জিনের parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected mount-এ preserve marker; অন্য host-এর আগের আচরণ আলাদা থাকে।
+- [x] মূল Arena Plus আইকন/বাটন দৃশ্যমান; injected attachment target একই মাপা slot-এ overlay হয়। Run #200 CDP-তে real pointer click-এর পর attachment dropdown খোলা দেখা গেছে।
+- [x] Settings entry শুধুমাত্র আসল, খোলা Arena sidebar শনাক্ত হলে তার native “New Chat” row-এর geometry/style mirror করে; sidebar-এর নিজস্ব width/height আর পরিবর্তন করা হয় না।
+- [x] Run #200 (২০২৬-১০-১৬)-এ APK/unit tests, Arena adapter integration, engine harness, Lint ও emulator/CDP job সব সফল; CDP pageErrors=0, Send/Plus-এর native মাপ রেকর্ড হয়েছে।
+- [ ] মালিকের বাস্তব Android ফোনে সর্বশেষ native-preservation build যাচাই—সাইন-ইন, account menu/Settings, model/mode picker, Thinking ও attachment sheet।
+- [ ] authenticated session-এ sidebar খোলা/বন্ধ, native dimensions ও Settings drawer-এর স্ক্রিনশট/DOM প্রমাণ। Run #200-এর emulator সেশনে login wall থাকায় Settings drawer খোলা যাচাই হয়নি।
+- [ ] বাস্তব ফোনের ফিডব্যাক অনুযায়ী সূক্ষ্ম spacing ও state polish; অরিজিনাল Arena control-এর appearance override না যোগ করে।
+
+**অবস্থা: স্বয়ংক্রিয় CI green, N0 এখনও সম্পূর্ণ নয়।** [Run #200](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38844646136)-এর সব job সফল এবং CDP-তে pageErrors=0; তবে emulator সেশন login wall-এ ছিল, তাই authenticated Settings drawer-এর গ্রহণযোগ্যতা প্রমাণিত নয়। সর্বশেষ build-টি বাস্তব ফোনে যাচাই ও স্ক্রিনশট/DOM প্রমাণ না পাওয়া পর্যন্ত N0 শেষ বলে চিহ্নিত হবে না।
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
 1. **প্ল্যান-কার্ড**: টাস্ক দিলে মডেলের to-do প্ল্যান নেটিভ চেকলিস্টে (Manus-স্টাইল), স্টেপ সম্পন্ন হলে টিক।

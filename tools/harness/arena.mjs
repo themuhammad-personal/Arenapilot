@@ -32,12 +32,135 @@ try {
   await reinstallBridge(page);
   await installEngine(page);
   await wait(() => document.querySelector('.bds-plus-btn'));
-  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'composer');
-  assert.equal(await page.evaluate(() => {
+  await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'pending');
+  const initialComposerLayout = await page.evaluate(() => {
     const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
     const form = document.querySelector('form').getBoundingClientRect();
-    return send.right <= form.right && form.right <= innerWidth;
-  }), true, 'the Settings fallback must not push Send outside a narrow composer');
+    const rail = document.querySelector('#bds-settings-rail');
+    const railLabel = rail && rail.querySelector('.bds-arena-rail-label');
+    return {
+      sendRight: send.right,
+      formRight: form.right,
+      viewportWidth: innerWidth,
+      railWidth: rail ? rail.getBoundingClientRect().width : null,
+      railDock: rail ? rail.dataset.dock : null,
+      railLabelDisplay: railLabel ? getComputedStyle(railLabel).display : null,
+    };
+  });
+  assert.ok(
+    initialComposerLayout.sendRight <= initialComposerLayout.formRight &&
+    initialComposerLayout.formRight <= initialComposerLayout.viewportWidth,
+    'the Settings fallback must not push Send outside a narrow composer: ' +
+      JSON.stringify(initialComposerLayout),
+  );
+
+  await wait(() => {
+    const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+    const trigger = document.querySelector('.bds-plus-btn');
+    if (!native || !trigger) return false;
+    const nr = native.getBoundingClientRect();
+    const tr = trigger.getBoundingClientRect();
+    return getComputedStyle(native).display !== 'none' &&
+      getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
+      getComputedStyle(trigger).display !== 'none' &&
+      getComputedStyle(trigger).opacity === '0' &&
+      Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1 &&
+      Math.abs(nr.width - tr.width) <= 1 && Math.abs(nr.height - tr.height) <= 1;
+  });
+  // N0 responsive skin is exercised in Chromium at 320px, not merely searched
+  // for in source. It preserves Arena's original visible attach button and
+  // routes its tap to the existing engine sheet without another visible plus.
+  stage = 'n0-responsive-skin';
+  const skinLayout = await page.evaluate(() => {
+    const form = document.querySelector('form');
+    const input = document.querySelector('textarea[name="message"]');
+    const send = document.querySelector('button[aria-label="Send message"]');
+    return {
+      pageMarked: !!(window.__sdSite && window.__sdSite.id === 'arena'),
+      originalFormMarked: !form.classList.contains('sd-arena-composer'),
+      sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
+      sendRect: (() => { const r = send.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; })(),
+      sendInlineWidth: send.style.width,
+      sendRight: send.getBoundingClientRect().right,
+      inputMaxWidth: getComputedStyle(input).maxWidth,
+      chatForms: document.querySelectorAll('textarea[name="message"]').length,
+      viewportWidth: innerWidth,
+      formRight: form.getBoundingClientRect().right,
+      settingsDock: document.querySelector('#bds-settings-rail')?.dataset.dock || null,
+      settingsRailDisplay: (() => {
+        const rail = document.querySelector('#bds-settings-rail');
+        return rail ? getComputedStyle(rail).display : 'missing';
+      })(),
+      originalPlus: (() => {
+        const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const r = b ? b.getBoundingClientRect() : null;
+        const cs = b ? getComputedStyle(b) : null;
+        return { found: !!b, display: cs && cs.display, visibility: cs && cs.visibility,
+          pointerEvents: cs && cs.pointerEvents, width: r && r.width, height: r && r.height,
+          left: r && r.left, top: r && r.top, parentClass: b && b.parentElement ? String(b.parentElement.className || '') : null };
+      })(),
+      originalPlusVisible: (() => {
+        const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        return !!b && getComputedStyle(b).display !== 'none' &&
+          b.getBoundingClientRect().width >= 24 && b.getBoundingClientRect().height >= 24;
+      })(),
+      enginePlusOverlay: (() => {
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const b = document.querySelector('.bds-plus-btn');
+        if (!native || !b) return false;
+        const nr = native.getBoundingClientRect(); const r = b.getBoundingClientRect();
+        return getComputedStyle(b).display !== 'none' && getComputedStyle(b).opacity === '0' &&
+          getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
+          Math.abs(nr.left - r.left) <= 1 && Math.abs(nr.top - r.top) <= 1 &&
+          Math.abs(nr.width - r.width) <= 1 && Math.abs(nr.height - r.height) <= 1;
+      })(),
+    };
+  });
+  assert.equal(skinLayout.pageMarked, true, 'Arena profile opts into native-preservation mode');
+  assert.equal(skinLayout.originalFormMarked, true, 'the native composer has no engine-owned marker class');
+  assert.ok(skinLayout.sendRect.width > 0 && skinLayout.sendRect.height > 0,
+    'the native Send control remains visible without injected size overrides');
+  assert.equal(skinLayout.sendRect.width, 32, 'the fixture’s original 32px Send width is preserved');
+  assert.equal(skinLayout.sendInlineWidth, '32px', 'the native Send inline width is left untouched');
+  assert.equal(skinLayout.sendRect.height, 36, 'the fixture’s native button height is preserved');
+  assert.equal(skinLayout.chatForms, 1, 'no parallel composer/chat is created');
+  assert.ok(['pending', 'composer'].includes(skinLayout.settingsDock),
+    'with no original navigation sidebar, the settings fallback is not docked elsewhere');
+  assert.equal(skinLayout.settingsRailDisplay, 'none',
+    'the settings fallback is visually hidden until the original Arena sidebar is available');
+  assert.equal(skinLayout.originalPlusVisible, true, 'Arena keeps its own visible Add files icon/control: ' + JSON.stringify(skinLayout.originalPlus));
+  assert.equal(skinLayout.enginePlusOverlay, true, 'a transparent working target exactly overlays the original Arena icon');
+  assert.ok(skinLayout.sendRight <= skinLayout.formRight, 'Send remains inside the original composer');
+  assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
+  await shot(page, 'arena-responsive-320');
+
+  /* At 360px and 390px, verify fit without imposing new minimum sizes on Arena controls. */
+  for (const width of [360, 390]) {
+    await page.setViewport({ width, height: 740, isMobile: true, hasTouch: true });
+    const layout = await page.evaluate(() => {
+      const form = document.querySelector('form');
+      const send = document.querySelector('button[aria-label="Send message"]');
+      const r = send.getBoundingClientRect();
+      return {
+        width: innerWidth,
+        formRight: form.getBoundingClientRect().right,
+        sendRight: r.right,
+        sendWidth: r.width,
+        sendHeight: r.height,
+        sendInlineWidth: send.style.width,
+        chatForms: document.querySelectorAll('textarea[name="message"]').length,
+      };
+    });
+    assert.ok(layout.sendRight <= layout.formRight && layout.formRight <= layout.width,
+      'Send/composer overflow at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.equal(layout.sendWidth, 32, 'Arena’s original Send width changes at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.equal(layout.sendHeight, 36, 'Arena’s original button height changes at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.equal(layout.sendInlineWidth, '32px', 'the original Send inline width is preserved at ' + width + 'px');
+    assert.equal(layout.chatForms, 1, 'responsive width created a second chat composer');
+    await shot(page, 'arena-responsive-' + width);
+  }
+  await page.setViewport({ width: 320, height: 740, isMobile: true, hasTouch: true });
+  console.log('PASS N0 responsive skin at 320/360/390px: original page/composer, reachable Send, no duplicate chat');
   stage = 'privacy';
   await send('Plain chat, no private context');
   await wait(() => window.__arena.replies.length === 1);
@@ -51,12 +174,13 @@ try {
   assert.doesNotMatch(outgoing, /SDS:memory_calls/, 'stored memory stays off by default');
   console.log('PASS Arena v2 privacy defaults through the real bundle: instructions on, memory off');
 
-  // Native style reset, button replacement, and group replacement with old mount
-  // still connected: the cases the static old "+" test did not exercise.
-  stage = 'composer-remount';
+  // Native style reset, button replacement, and group replacement while the engine
+  // mount stays isolated under #bds-root: the cases a static Plus test misses.
   for (const mutation of ['style', 'button', 'group']) {
+    stage = 'composer-remount-' + mutation;
     await page.evaluate((kind) => {
-      const b = document.querySelector('button[aria-label="Add files"]');
+      const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+      if (!b) throw new Error('native Add files control missing before ' + kind);
       if (kind === 'style') b.style.removeProperty('display');
       if (kind === 'button') { const next = b.cloneNode(true); next.removeAttribute('style'); b.replaceWith(next); }
       if (kind === 'group') {
@@ -69,26 +193,164 @@ try {
         b.removeAttribute('style');
       }
     }, mutation);
-    await wait(() => {
-      const native = document.querySelector('button[aria-label="Add files"]');
-      const mounts = document.querySelectorAll('.bds-attach-menu-mount');
-      return mounts.length === 1 && mounts[0].parentElement === native.parentElement && getComputedStyle(native).display === 'none';
-    });
+    try {
+      await wait(() => {
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const mounts = document.querySelectorAll('.bds-attach-menu-mount');
+        const trigger = document.querySelector('.bds-plus-btn');
+        if (!native || !trigger || mounts.length !== 1 ||
+            !mounts[0].parentElement || mounts[0].parentElement.id !== 'bds-root') return false;
+        const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
+        return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' &&
+          native.style.getPropertyValue('pointer-events') === '' &&
+          getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
+          nr.width > 0 && nr.height > 0 && tr.width > 0 && tr.height > 0;
+      });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const trigger = document.querySelector('.bds-plus-btn');
+        const mounts = [...document.querySelectorAll('.bds-attach-menu-mount')];
+        const rect = (el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          const c = getComputedStyle(el);
+          return {x:r.x,y:r.y,w:r.width,h:r.height,display:c.display,opacity:c.opacity,pointerEvents:c.pointerEvents,inlinePointer:el.style.getPropertyValue('pointer-events'),parent:el.parentElement && el.parentElement.id || el.parentElement && el.parentElement.className || null};
+        };
+        return {native:rect(native),trigger:rect(trigger),mountCount:mounts.length,mountParents:mounts.map(m=>m.parentElement && ({id:m.parentElement.id,className:m.parentElement.className})),pageErrors:[]};
+      });
+      throw new Error(String(error && error.message || error) + ' mutation=' + mutation + ' diagnostic=' + JSON.stringify(diagnostic));
+    }
   }
   stage = 'attach-open-and-back';
-  await page.click('.bds-plus-btn');
-  await page.waitForSelector('.bds-attach-dropdown', { visible: true });
+  const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
+  try {
+    await wait(() => {
+      const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      return !!(native && trigger &&
+        document.querySelectorAll('.bds-attach-menu-mount').length === 1);
+    });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => {
+      const form = document.querySelector('textarea[name="message"]')?.closest('form');
+      const rect = (el) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect(); const c = getComputedStyle(el);
+        return { x:r.x, y:r.y, w:r.width, h:r.height, display:c.display,
+          visibility:c.visibility, opacity:c.opacity, pointerEvents:c.pointerEvents };
+      };
+      const controls = form ? Array.from(form.querySelectorAll('button')).map((b) => ({
+        aria:b.getAttribute('aria-label'), title:b.title, className:String(b.className || ''),
+        rect:rect(b), engine:!!b.closest('#bds-root')
+      })) : [];
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      return { site:window.__sdSite && window.__sdSite.id, form:rect(form),
+        nativeCount:form ? form.querySelectorAll('button[aria-label="Add files"],button[aria-label="Attach files"]').length : 0,
+        native:rect(form && form.querySelector('button[aria-label="Add files"],button[aria-label="Attach files"]')),
+        trigger:rect(trigger), mountCount:document.querySelectorAll('.bds-attach-menu-mount').length,
+        wrapperCount:document.querySelectorAll('.bds-attach-wrapper').length,
+        root:!!document.querySelector('#bds-root'), controls };
+    });
+    throw new Error('native Plus target never became ready: ' +
+      String(error && error.message || error) + ' diagnostic=' + JSON.stringify(diagnostic));
+  }
+  const attachLayout = await page.evaluate((selector) => {
+    const native = document.querySelector(selector);
+    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+    const rect = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return { x:r.x, y:r.y, width:r.width, height:r.height, display:cs.display,
+        opacity:cs.opacity, pointerEvents:cs.pointerEvents };
+    };
+    const n = rect(native), t = rect(trigger);
+    const aligned = !!(n && t && Math.abs(n.x-t.x)<1 && Math.abs(n.y-t.y)<1 &&
+      Math.abs(n.width-t.width)<1 && Math.abs(n.height-t.height)<1);
+    return { native:n, trigger:t, aligned, bound:!!(native && native.__sdArenaSheetBound),
+      mountCount:document.querySelectorAll('.bds-attach-menu-mount').length };
+  }, nativePlusSelector);
+  if (!attachLayout.native || attachLayout.native.width < 24 || attachLayout.native.height < 24 ||
+      attachLayout.native.display === 'none' || attachLayout.native.pointerEvents === 'none' ||
+      !attachLayout.trigger || attachLayout.trigger.display === 'none' ||
+      attachLayout.trigger.pointerEvents !== 'none' || attachLayout.trigger.opacity !== '0' ||
+      attachLayout.mountCount !== 1) {
+    throw new Error('native Plus or non-blocking engine action is not ready: ' + JSON.stringify(attachLayout));
+  }
+  const attachTap = { x: attachLayout.native.x + attachLayout.native.width / 2,
+    y: attachLayout.native.y + attachLayout.native.height / 2 };
+  await page.mouse.click(attachTap.x, attachTap.y);
+  try {
+    await page.waitForSelector('.bds-attach-dropdown', { visible: true, timeout: 2500 });
+  } catch (error) {
+    const directTriggerCheck = await page.evaluate(() => {
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      if (trigger && !trigger.disabled) trigger.click();
+      return !!document.querySelector('.bds-attach-dropdown');
+    });
+    throw new Error('native Plus pointer tap did not open attachment sheet: ' +
+      String(error && error.message || error) + ' layout=' + JSON.stringify(attachLayout) +
+      ' engineTriggerOpenedSheet=' + directTriggerCheck);
+  }
   await shot(page, 'arena-attach');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-attach-backdrop', { hidden: true });
-  console.log('PASS remount/style reset: one working +');
+  console.log('PASS remount/style reset: original Arena + remains visible and opens the one engine sheet');
 
+  stage = 'settings-sidebar-geometry';
   await page.evaluate(() => {
     const aside = document.createElement('aside');
-    aside.innerHTML = '<a href="/text/direct">New chat</a><button aria-label="Settings">Native settings</button>';
+    aside.setAttribute('aria-label', 'Arena navigation drawer');
+    aside.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:80vw;height:76vh;background:white;color:#222;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto';
+    const navStyle = document.createElement('style');
+    navStyle.textContent = 'aside nav a{display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;box-sizing:border-box;font:500 20px system-ui;color:#222;background:transparent;border-radius:10px;text-decoration:none}aside .arena-row-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}';
+    document.head.appendChild(navStyle);
+    aside.innerHTML = '<nav><a href="/text/direct"><span class="arena-row-icon">+</span><span>New Chat</span></a>' +
+      '<a href="/leaderboard"><span class="arena-row-icon">▥</span><span>Leaderboard</span></a>' +
+      '<a href="/search"><span class="arena-row-icon">⌕</span><span>Search</span></a></nav>' +
+      '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
+      '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
     document.body.prepend(aside);
   });
   await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sidebar');
+  const sidebarSettingsLayout = await page.evaluate(() => {
+    const rail = document.querySelector('#bds-settings-rail');
+    const r = rail.getBoundingClientRect();
+    const panelEl = document.querySelector('aside');
+    const panel = panelEl.getBoundingClientRect();
+    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\s*chat/i.test(a.innerText || a.textContent || ''));
+    const nativeRect = nativeRow.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
+      nativeRowLeft: nativeRect.left, nativeRowRight: nativeRect.right,
+      nativeRowWidth: nativeRect.width, nativeRowHeight: nativeRect.height,
+      panelLeft: panel.left, panelRight: panel.right, panelWidth: panel.width,
+      panelHeight: panel.height, expectedPanelWidth: innerWidth * 0.8,
+      expectedPanelHeight: innerHeight * 0.76, dock: rail.dataset.dock,
+      position: getComputedStyle(rail).position,
+      labelVisible: getComputedStyle(rail.querySelector('.bds-arena-rail-label')).display !== 'none' };
+  });
+  assert.equal(sidebarSettingsLayout.dock, 'sidebar', 'settings fallback moves into the existing sidebar');
+  assert.equal(sidebarSettingsLayout.position, 'fixed', 'settings row anchors to the visible drawer rather than composer');
+  assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
+    sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
+    'settings row stays inside sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
+  assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
+  assert.ok(Math.abs(sidebarSettingsLayout.width - sidebarSettingsLayout.nativeRowWidth) < 1 &&
+    Math.abs(sidebarSettingsLayout.height - sidebarSettingsLayout.nativeRowHeight) < 1,
+    'Settings exactly matches the dimensions of Arena’s original New Chat row');
+  assert.ok(Math.abs(sidebarSettingsLayout.left - sidebarSettingsLayout.nativeRowLeft) < 1 &&
+    Math.abs(sidebarSettingsLayout.right - sidebarSettingsLayout.nativeRowRight) < 1,
+    'Settings uses the same horizontal alignment as Arena’s native sidebar row');
+  assert.ok(Math.abs(sidebarSettingsLayout.panelWidth - sidebarSettingsLayout.expectedPanelWidth) < 1,
+    'the adapter preserves Arena’s original sidebar width instead of forcing a new width');
+  assert.ok(Math.abs(sidebarSettingsLayout.panelHeight - sidebarSettingsLayout.expectedPanelHeight) < 1,
+    'the adapter preserves Arena’s original sidebar height instead of stretching the drawer');
+  assert.equal(sidebarSettingsLayout.labelVisible, true, 'sidebar entry keeps its label');
   stage = 'settings-open-and-back';
   await page.click('#bds-settings-rail');
   await page.waitForSelector('#bds-drawer', { visible: true });

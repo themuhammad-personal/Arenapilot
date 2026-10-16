@@ -17,11 +17,10 @@
 //           button                         ← an icon
 //           button[aria-label="Send message"][type=submit]
 //
-// So `Yvt()` — which hid "whatever sits right before the file input", true on DeepSeek —
-// hid nothing on arena, and the engine's "+" was appended at the very end of the form: two "+"
-// buttons on screen, the engine's on a row of its own below the controls. DeepSeek's design is
-// one "+": the engine's replaces the site's, in its slot. These tests build the REAL structure
-// and pin that the engine's "+" now takes arena's slot — and that nothing else moved.
+// The engine mount must not become a flex child of the Arena-owned controls row. It now lives
+// under #bds-root and is aligned as a transparent hit target by sd-site.js. Arena keeps the
+// original button, mode/model controls, Send button and textarea in their original DOM slots;
+// these tests pin that the engine core does not move or hide them.
 //
 // Run: npm run test:engine
 import { test } from 'node:test';
@@ -55,6 +54,8 @@ function realArena({ label = 'Add files', combobox = true, site = 'arena' } = {}
   const body = makeEl('body');
   const main = makeEl('main');
   body.appendChild(main);
+  const bdsRoot = Object.assign(makeEl('div'), { id: 'bds-root' });
+  body.appendChild(bdsRoot);
   const card = makeEl('div'); card.className = 'bg-surface-primary relative flex flex-col'; main.appendChild(card);
   const inner = makeEl('div'); inner.className = 'bg-surface-secondary relative mx-auto'; card.appendChild(inner);
   const form = makeEl('form'); form.className = 'flex w-full flex-col items-start justify-center p-2'; inner.appendChild(form);
@@ -81,6 +82,7 @@ function realArena({ label = 'Add files', combobox = true, site = 'arena' } = {}
   const document = {
     body, documentElement: makeEl('html'),
     createElement: (tag) => makeEl(tag),
+    getElementById: (id) => id === 'bds-root' ? bdsRoot : null,
     querySelectorAll: (sel) => body.querySelectorAll(sel),
     querySelector: (sel) => body.querySelector(sel),
   };
@@ -100,7 +102,7 @@ function realArena({ label = 'Add files', combobox = true, site = 'arena' } = {}
   const names = ['sdsIsArena', 'sdsArenaComposer', 'sdsArenaInComposer', 'sdsArenaFileInput', 'sdsArenaAttachSlot',
     '_v', 'iT', 'PQ', 'Dme', 'V_', 'Yvt', 'Ovt', 'Qvt', 'Wvt', '$vt'];
   vm.runInContext(names.map(fnSource).join('\n'), ctx);
-  return { body, form, column, fileInput, textarea, row, left, attach, mode, right, icon, send, mounts, markers, win, ctx,
+  return { body, bdsRoot, form, column, fileInput, textarea, row, left, attach, mode, right, icon, send, mounts, markers, win, ctx,
     run: (code) => vm.runInContext(code, ctx) };
 }
 
@@ -109,22 +111,25 @@ const hidden = (el) => (el._hover && el._hover.display) === 'none';
 
 // ── 1. where the "+" lands ──────────────────────────────────────────────────
 
-test('the engine’s "+" takes the slot of arena’s own "Add files" — before it, in the same group', () => {
+test('the attachment sheet mount is isolated in #bds-root, not in Arena’s native controls row', () => {
   const g = realArena();
   g.run('$vt()');
-  const mount = g.left.children.find((c) => c.classList.contains('bds-attach-menu-mount'));
-  assert.ok(mount, 'the mount is in the left group of the controls row');
-  assert.equal(g.left.children.indexOf(mount), 0, 'first in the group, where arena’s "+" was');
-  assert.equal(g.left.children[1] === g.attach, true, 'arena’s own button right after it');
-  assert.equal(g.left.children[2] === g.mode, true, 'then the mode switch, untouched');
+  const mount = g.bdsRoot.children.find((c) => c.classList.contains('bds-attach-menu-mount'));
+  assert.ok(mount, 'the mount is owned by the engine root');
+  assert.equal(g.left.children[0] === g.attach, true, 'the original Arena Plus keeps its first slot');
+  assert.equal(g.left.children[1] === g.mode, true, 'the mode switch keeps its original slot');
+  assert.equal(g.left.children[2], undefined, 'no engine mount is inserted between native controls');
   assert.equal(mountsOf(g).length, 1);
-  assert.equal(mountsOf(g)[0].props.props.nativeInput === g.fileInput, true, 'and the sheet is given the real file input to drive');
+  assert.equal(mountsOf(g)[0].props.props.nativeInput === g.fileInput, true, 'the sheet drives Arena’s real file input');
 });
 
-test('arena’s own "+" is hidden, so there is ONE "+", as on DeepSeek', () => {
+test('Arena’s original Add files button is never hidden by the engine hook', () => {
   const g = realArena();
   g.run('$vt()');
-  assert.equal(hidden(g.attach), true, 'Add files is display:none');
+  assert.equal(hidden(g.attach), false, 'the official Arena Plus remains visible');
+  assert.equal(g.left.children[0] === g.attach, true, 'the native button stays in its original slot');
+  assert.equal(g.bdsRoot.children.some((c) => c.classList.contains('bds-attach-menu-mount')), true,
+    'the working hit target is contained in the engine root, not the native control row');
   for (const [name, el] of Object.entries({ mode: g.mode, send: g.send, icon: g.icon, input: g.fileInput, textarea: g.textarea })) {
     assert.equal(hidden(el), false, `${name} is left alone`);
   }
@@ -136,21 +141,28 @@ test('the real file input is found though it is a child of the column, not of th
   assert.equal(g.run('Dme(PQ())') === g.form, true, 'the container the other mounts use is still the form');
 });
 
-test('the other engine mounts keep their place (the end of the form): only the "+" moved', () => {
+test('all engine action mounts stay outside Arena’s native form and controls', () => {
   const g = realArena();
   g.run('$vt()');
-  const classes = g.form.children.map((c) => c.className);
-  assert.ok(classes.some((c) => c.includes('bds-expand-toggle-mount')));
-  assert.ok(classes.some((c) => c.includes('bds-rag-preview-mount')));
-  assert.ok(!classes.some((c) => c.includes('bds-attach-menu-mount')), 'the "+" is no longer a child of the form');
+  const nativeClasses = g.form.children.map((c) => String(c.className || ''));
+  const engineClasses = g.bdsRoot.children.map((c) => String(c.className || ''));
+  for (const name of ['bds-attach-menu-mount', 'bds-expand-toggle-mount', 'bds-rag-preview-mount']) {
+    assert.ok(engineClasses.some((c) => c.includes(name)), name + ' is owned by #bds-root');
+    assert.ok(!nativeClasses.some((c) => c.includes(name)), name + ' is not a child of Arena’s native form');
+  }
+  assert.deepEqual(g.left.children, [g.attach, g.mode],
+    'the original Add files and mode controls keep their exact DOM order');
+  assert.deepEqual(g.right.children, [g.icon, g.send],
+    'the original action icon and Send keep their exact DOM order');
+  assert.equal(mountsOf(g).length, 1, 'the existing engine sheet is still mounted exactly once');
 });
 
 test('calling it again — the SPA scan runs constantly — never adds a second mount or sheet', () => {
   const g = realArena();
   for (let i = 0; i < 4; i += 1) g.run('$vt()');
-  assert.equal(g.left.children.filter((c) => c.classList.contains('bds-attach-menu-mount')).length, 1);
+  assert.equal(g.bdsRoot.children.filter((c) => c.classList.contains('bds-attach-menu-mount')).length, 1);
   assert.equal(mountsOf(g).length, 1);
-  assert.equal(g.left.children.indexOf(g.left.children.find((c) => c.classList.contains('bds-attach-menu-mount'))), 0);
+  assert.equal(g.left.children[0], g.attach, 'repeated scans never insert a node into the native control row');
 });
 
 // ── 2. finding arena’s button ───────────────────────────────────────────────
@@ -167,8 +179,9 @@ test('a localised or renamed label still works: the button right before the mode
   const g = realArena({ label: 'ফাইল যোগ করুন' });
   assert.equal(g.run('sdsArenaAttachSlot().button') === g.attach, true);
   g.run('$vt()');
-  assert.equal(hidden(g.attach), true);
-  assert.equal(g.left.children[0].classList.contains('bds-attach-menu-mount'), true);
+  assert.equal(hidden(g.attach), false, 'renamed/localised native Arena Plus is also preserved');
+  assert.equal(g.bdsRoot.children.some((c) => c.classList.contains('bds-attach-menu-mount')), true);
+  assert.equal(g.left.children[0], g.attach, 'localized labels do not move Arena native controls');
 });
 
 test('with neither a known label nor the mode switch the engine keeps its old placement and hides nothing', () => {
@@ -176,7 +189,7 @@ test('with neither a known label nor the mode switch the engine keeps its old pl
   assert.equal(g.run('sdsArenaAttachSlot()'), null);
   g.run('$vt()');
   assert.equal(hidden(g.attach), false, 'never hide a button we cannot identify');
-  assert.ok(g.form.children.some((c) => c.classList.contains('bds-attach-menu-mount')), 'the "+" is still offered, at the end of the form');
+  assert.ok(g.bdsRoot.children.some((c) => c.classList.contains('bds-attach-menu-mount')), 'the engine fallback remains in its own root');
   assert.equal(mountsOf(g).length, 1);
 });
 
@@ -184,9 +197,7 @@ test('the engine never claims one of its own buttons as arena’s', () => {
   const g = realArena();
   g.left.children.find((c) => c === g.attach).className = 'x';
   // an engine mount carrying a button with the same label must not be taken for arena’s
-  const root = g.body.children[0]; // main
-  const bdsRoot = Object.assign(g.ctx.document.createElement('div'), { id: 'bds-root' });
-  root.appendChild(bdsRoot);
+  const bdsRoot = g.bdsRoot;
   const fake = g.ctx.document.createElement('button');
   fake.setAttribute('aria-label', 'Add files');
   bdsRoot.appendChild(fake);
@@ -220,8 +231,12 @@ test('off arena, a button whose label is "Add files" is nobody’s business', ()
 test('the three seams are in the bundle, each exactly once', () => {
   const times = (needle) => CONTENT.split(needle).length - 1;
   assert.equal(times('function sdsArenaAttachSlot('), 1);
-  assert.equal(times('function Yvt(e){if(sdsIsArena()){const sl=sdsArenaAttachSlot();return sl?sl.button:null}'), 1);
-  assert.equal(times('i=e||sdsIsArena()?Yvt(e):null;'), 1, 'hide even before a file input exists');
-  assert.equal(times('const sl=sdsArenaAttachSlot(),o=sl?V_(sl.group,"bds-attach-menu-mount",".bds-attach-wrapper",sl.button):V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e);'), 1);
-  assert.equal(times('V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e)'), 1, 'the original call survives only as the fallback');
+  assert.equal(times('function Yvt(e){if(sdsIsArena())return null;'), 1,
+    'Arena must not pass its native Plus to the engine hide hook');
+  assert.equal(times('i=e||sdsIsArena()?Yvt(e):null;'), 1, 'the original hide call remains unchanged for DeepSeek');
+  assert.equal(times('const sl=sdsArenaAttachSlot(),o=ar?V_(root,"bds-attach-menu-mount",".bds-attach-wrapper",null):sl?V_(sl.group,"bds-attach-menu-mount",".bds-attach-wrapper",sl.button):V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e);'), 1,
+    'Arena attachment mount stays in the engine root; other sites keep their original placement');
+  assert.equal(times('const target=ar?root:t,l=V_(target,"bds-expand-toggle-mount",".bds-expand-toggle",ar?null:e);'), 1,
+    'Arena expand-toggle mount stays outside the native form');
+  assert.equal(times('V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e)'), 1, 'the other-site fallback survives');
 });

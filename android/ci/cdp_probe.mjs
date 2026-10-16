@@ -133,6 +133,25 @@ export const FACTS = `/*sdp:facts*/(function () {
   /* every control around the message box: which one is arena's own attach / plus button? */
   var ta = q('textarea[name="message"]');
   var box = ta ? (ta.closest('form') || ta.parentElement) : null;
+  var sendButton = q('button[aria-label="Send message"]');
+  var composerTarget = 'none';
+  try {
+    if (box && box.matches && box.matches('form:has(textarea[name="message"])')) composerTarget = 'has';
+  } catch (e) { /* :has() is not available in older Android WebViews */ }
+  if (composerTarget === 'none' && box && ta && box.tagName &&
+      String(box.tagName).toLowerCase() === 'form' && box.contains && box.contains(ta)) {
+    composerTarget = 'native';
+  }
+  var composerRect = rect(box);
+  var sendRect = rect(sendButton);
+  var sendInsideComposer = !!(composerRect && sendRect &&
+    sendRect[0] + sendRect[2] <= composerRect[0] + composerRect[2] + 1 &&
+    composerRect[0] + composerRect[2] <= window.innerWidth + 1);
+  var sendMinWidth = null;
+  try { sendMinWidth = sendButton ? parseFloat(getComputedStyle(sendButton).minWidth) : null; } catch (e) {}
+  var settingsLabel = rail ? rail.querySelector('.bds-arena-rail-label') : null;
+  var settingsLabelDisplay = null;
+  try { settingsLabelDisplay = settingsLabel ? getComputedStyle(settingsLabel).display : null; } catch (e) {}
   var up = box;
   for (var u = 0; u < 3 && up && up.parentElement && up.parentElement.tagName !== 'BODY'; u += 1) { up = up.parentElement; }
   var controls = up ? Array.prototype.slice.call(up.querySelectorAll('button, [role="button"], input[type="file"]')).slice(0, 16).map(function (b) {
@@ -140,14 +159,52 @@ export const FACTS = `/*sdp:facts*/(function () {
     return { tag: b.tagName.toLowerCase(), aria: b.getAttribute('aria-label'), title: b.getAttribute('title'), type: b.getAttribute('type'), cls: String(b.getAttribute('class') || '').slice(0, 70), rect: rect(b), svg: p ? String(p.getAttribute('d') || '').slice(0, 24) : null, hidden: !vis(b), engine: !!(b.closest && b.closest('#bds-root, .bds-attach-wrapper, .bds-composer-controls')) };
   }) : [];
   /* did the engine's "+" take arena's slot? one "+", in the left group, before the hidden "Add files" */
-  var add = q('button[aria-label="Add files"]');
+  var add = (function () {
+    try {
+      var messageBox = q('textarea[name="message"]') || q('textarea');
+      var form = messageBox && messageBox.closest ? messageBox.closest('form') : null;
+      if (!form) form = q('form');
+      var buttons = form ? form.querySelectorAll('button') : [];
+      for (var i = 0; i < buttons.length; i++) {
+        var candidate = buttons[i];
+        var label = candidate.getAttribute('aria-label');
+        var cls = String(candidate.getAttribute('class') || '');
+        if ((label === 'Add files' || label === 'Attach files') &&
+            cls.indexOf('bds-plus-btn') < 0 &&
+            !(candidate.closest && candidate.closest('.bds-attach-menu-mount, .bds-attach-wrapper'))) {
+          return candidate;
+        }
+      }
+    } catch (e) {}
+    return null;
+  })();
   var grp = add ? add.parentElement : null;
   /* the SITE's own file input (the engine's is inside its own mounts): the
      attach path's real contract — does it carry [multiple]? what accept? */
   var fi = (function () { try { return Array.prototype.slice.call(document.querySelectorAll('input[type="file"]')).filter(function (e) { return !(e.closest && e.closest('#bds-root, .bds-attach-wrapper, .bds-question-panel, .bds-rag-preview, .bds-preview-panel')); })[0] || null; } catch (e) { return null; } })();
+  var nativeAddRect = rect(add);
+  var enginePlus = q('.bds-plus-btn');
+  var enginePlusRect = rect(enginePlus);
+  function nearRects(a, b) {
+    if (!a || !b || a.length < 4 || b.length < 4) return false;
+    return Math.abs(a[0] - b[0]) <= 1 && Math.abs(a[1] - b[1]) <= 1 &&
+      Math.abs(a[2] - b[2]) <= 1 && Math.abs(a[3] - b[3]) <= 1;
+  }
+  var nativeAddStyle = null;
+  var enginePlusStyle = null;
+  try { nativeAddStyle = add ? getComputedStyle(add) : null; } catch (e) {}
+  try { enginePlusStyle = enginePlus ? getComputedStyle(enginePlus) : null; } catch (e) {}
+  var plusOverlay = {
+    aligned: nearRects(nativeAddRect, enginePlusRect),
+    nativeVisible: !!(nativeAddRect && nativeAddStyle && nativeAddStyle.display !== 'none' && nativeAddStyle.visibility !== 'hidden'),
+    nativePointerIntact: !!(nativeAddStyle && nativeAddStyle.pointerEvents !== 'none'),
+    engineTargetReady: !!(enginePlusRect && enginePlusStyle && enginePlusStyle.display !== 'none' &&
+      enginePlusStyle.visibility !== 'hidden' && enginePlusStyle.opacity === '0' && enginePlusStyle.pointerEvents === 'none')
+  };
   var slot = {
-    plus: rect(q('.bds-plus-btn')),
-    addFilesDisplay: add ? (function () { try { return getComputedStyle(add).display; } catch (e) { return null; } })() : null,
+    plus: enginePlusRect,
+    addFilesDisplay: nativeAddStyle ? nativeAddStyle.display : null,
+    plusOverlay: plusOverlay,
     group: grp ? Array.prototype.map.call(grp.children, function (c) {
       return c.tagName.toLowerCase() + (typeof c.className === 'string' && c.className ? '.' + c.className.split(' ')[0] : '') + (c.getAttribute('aria-label') ? '[' + c.getAttribute('aria-label') + ']' : '') + (c.getAttribute('role') ? '{' + c.getAttribute('role') + '}' : '');
     }) : null,
@@ -166,13 +223,60 @@ export const FACTS = `/*sdp:facts*/(function () {
     api: window.__sdApi || null,
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
-    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: rect(q('button[aria-label="Add files"]')), fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
+    attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: nativeAddRect, overlayAligned: plusOverlay.aligned, nativePlusVisible: plusOverlay.nativeVisible, nativePlusPointerIntact: plusOverlay.nativePointerIntact, enginePlusOverlayReady: plusOverlay.engineTargetReady, fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
     composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
+    /* N0 evidence from the actual WebView: the real page is skinned in place,
+       and we measure the existing Send control rather than trusting CSS source. */
+    skin: {
+      active: !!(window.__sdSite && window.__sdSite.id === 'arena'),
+      composerTarget: composerTarget,
+      sendInsideComposer: sendButton && composerRect && sendRect ? sendInsideComposer : null,
+      sendMinWidth: sendMinWidth,
+      viewportWidth: window.innerWidth,
+      formRect: composerRect,
+      sendRect: sendRect,
+      settingsDock: rail ? rail.getAttribute('data-dock') : null,
+      settingsLabelDisplay: settingsLabelDisplay,
+      settingsRailVisible: (function () {
+        if (!rail) return false;
+        try {
+          var rr = rail.getBoundingClientRect();
+          var cs = getComputedStyle(rail);
+          return cs.display !== 'none' && cs.visibility !== 'hidden' &&
+            Number(cs.opacity || 1) > 0 && rr.width > 0 && rr.height > 0;
+        } catch (_) { return false; }
+      })()
+    },
     health: { present: !!h, version: h ? h.version : null, site: h ? h.site : null, ok: st ? st.ok : null, visible: st ? st.visible : null, states: st && st.results ? st.results.map(function (r) { return r.id + ':' + r.state; }) : null, notice: !!q('#sd-health-notice') },
     login: /sign in|log in|sign up|continue with|create account/i.test(text.slice(0, 6000)),
     inputs: inputs,
     textSample: text.slice(0, 700)
   });
+})()`;
+
+const sidebarToggleExpr = `/*sdp:sidebar*/(function () {
+  var nodes = Array.prototype.slice.call(document.querySelectorAll('button,[role="button"]'));
+  var candidates = [];
+  for (var i = 0; i < nodes.length; i++) {
+    var el = nodes[i];
+    var r = el.getBoundingClientRect();
+    if (!(r.width >= 24 && r.height >= 24) || r.left < 0 || r.top < 0) continue;
+    var label = String(el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (/sidebar|navigation|open menu|toggle menu|drawer/i.test(label) &&
+        !/settings|advanced/i.test(label)) {
+      candidates.push({ el: el, r: r, score: 0 });
+      continue;
+    }
+    if (r.left <= window.innerWidth * 0.28 && r.top <= window.innerHeight * 0.2 &&
+        !/new chat|add files|send|stop|settings|model|leaderboard|search/i.test(label) &&
+        !el.closest('form')) {
+      candidates.push({ el: el, r: r, score: 1 });
+    }
+  }
+  if (!candidates.length) return JSON.stringify({ found: false });
+  candidates.sort(function (a, b) { return a.score - b.score || a.r.top - b.r.top || a.r.left - b.r.left; });
+  var r = candidates[0].r;
+  return JSON.stringify({ found: true, x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height });
 })()`;
 
 const rectExpr = (selector) => `/*sdp:rect*/(function (sel) {
@@ -237,6 +341,37 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   var d = q('#bds-drawer');
   var rail = q('#bds-settings-rail');
   return JSON.stringify({ present: !!d, visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0), rect: d ? r(d) : null, backdrop: !!q('.bds-drawer-backdrop'), railDock: rail && rail.dataset ? rail.dataset.dock : null });
+})()`;
+
+const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  function visible(el, box) {
+    if (!el || !box || box[2] < 1 || box[3] < 1) return false;
+    try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
+    catch (e) { return true; }
+  }
+  var rail = q('#bds-settings-rail');
+  var rr = r(rail);
+  var confirmed = !!(rail && rail.getAttribute('data-sidebar-confirmed') === 'true');
+  var pr = confirmed ? [
+    Math.round(Number(rail.getAttribute('data-sidebar-left')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-top')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-width')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-height')) || 0)
+  ] : null;
+  var inside = !!(confirmed && rr && pr &&
+    rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
+    rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
+    rr[1] + rr[3] <= pr[1] + pr[3] + 1);
+  return JSON.stringify({
+    dock: rail && rail.dataset ? rail.dataset.dock : null,
+    visible: visible(rail, rr),
+    inside: inside,
+    railRect: rr,
+    panelRect: pr,
+    panelTag: confirmed ? 'native-sidebar-measured' : null
+  });
 })()`;
 
 const snapExpr = (label) => `/*sdp:snap*/JSON.stringify(window.__sdCapture.snap(${JSON.stringify(label)}, { free: true }))`;
@@ -359,9 +494,16 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   // The engine's "+" sheet, opened the way a finger would: a real pointer click. If that does not open
   // it, a script click is tried and which of the two worked is recorded — and what was under the pointer.
   await step('engine-plus-sheet', async () => {
-    const t = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+    /* Prefer the official, visible Arena button; the engine button is only
+       an internal event target. The internal trigger is a fallback for hosts
+       without the original control. */
+    let t = await evalJson(cdp, rectExpr('button[aria-label="Add files"]'));
     result.engineToggle = t;
-    if (!t.found) return 'no engine toggle on the page';
+    if (!t.found || !(t.w > 0 && t.h > 0)) {
+      t = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+      result.engineToggle = t;
+    }
+    if (!t.found || !(t.w > 0 && t.h > 0)) return 'no visible attach control on the page';
     result.engineHit = await step('plus-hit-test', () => evalJson(cdp, hitExpr(t.x, t.y)));
     await realClick(cdp, t.x, t.y);
     await pause(1200);
@@ -383,17 +525,21 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     return 'clicked';
   });
 
-  // arena's own attach popup, for the "+" sheet's reference (hidden by the engine when it mounts)
-  await step('site-attach-popup', async () => {
-    const t = await evalJson(cdp, rectExpr('button[aria-label="Add files"]'));
+  // The original Arena button remains visible and routes to the existing attachment sheet.
+  await step('arena-original-plus-trigger', async () => {
+    /* Measure the native Arena button itself. Its transparent engine hit target
+       is layered over the same coordinates, so this physical tap must open
+       the current sheet while the original Arena SVG remains what is seen. */
+    const t = await evalJson(cdp, rectExpr('form button[aria-label="Add files"]:not(.bds-plus-btn)'));
     result.siteToggle = t;
-    if (!t.found || !(t.w > 0 && t.h > 0)) return 'site attach button absent or hidden';
+    if (!t.found || !(t.w >= 24 && t.h >= 24)) return 'site attach button absent or too small';
     await realClick(cdp, t.x, t.y);
     await pause(1200);
-    if (kitOk) await evalJson(cdp, snapExpr('site-attach-popup'));
+    result.originalPlusSheet = await evalJson(cdp, SHEET_OPEN);
+    if (kitOk) await evalJson(cdp, snapExpr('arena-original-plus-trigger'));
     await pressEscape(cdp);
     await pause(500);
-    return 'clicked';
+    return sheetIsOpen(result.originalPlusSheet) ? 'original visual Plus opens the engine sheet' : 'original Plus did not open the sheet';
   });
 
   // On the real page this combobox is the Direct / Battle / Side-by-side / Agent switch (a native
@@ -409,11 +555,37 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     return 'clicked';
   });
 
-  // The engine's own Settings drawer — the rail is arena's replacement for DeepSeek's
-  // sidebar entry, and no capture had ever watched it open on the real page.
+  // Settings belongs in Arena's own sidebar, not beside the composer. Open the
+  // site's existing navigation drawer first when its gear is not currently visible.
   await step('settings-drawer', async () => {
-    const t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
-    if (!t.found) { result.drawer = { present: false, visible: false }; return 'no settings rail'; }
+    /* Always take a fresh live measurement first. Authentication can change
+     * during startup: an earlier engine snapshot may say "chat" while the
+     * current document has already changed to the login wall (or vice versa).
+     * Assign the live facts even when the rail cannot be opened, so the runtime
+     * gate never falls back to stale Settings visibility from the first probe. */
+    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
+    const pageBeforeSettings = result.engineAfter || result.engine || {};
+    if (pageBeforeSettings.login === true) {
+      result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
+      return 'login wall: current Settings visibility captured; native sidebar unverified';
+    }
+    let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
+      const toggle = await evalJson(cdp, sidebarToggleExpr);
+      if (toggle.found && toggle.w >= 24 && toggle.h >= 24) {
+        await realClick(cdp, toggle.x, toggle.y);
+        await pause(900);
+        t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+      }
+    }
+    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
+      /* Refresh even if opening the native sidebar was impossible. */
+      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
+      result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
+      return 'Settings entry not visible in the official sidebar';
+    }
+    /* Capture placement BEFORE opening Settings can close the site navigation. */
+    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
     await realClick(cdp, t.x, t.y);
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
@@ -421,7 +593,7 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
-    return result.drawer.visible ? 'opened' : 'drawer did not open';
+    return result.drawer.visible ? 'opened from the official sidebar' : 'drawer did not open';
   });
 
   // The composer itself: fill through the engine's API (never send), read, clear.
@@ -489,10 +661,12 @@ export function summarize(result) {
     `site=${e.site ? `${e.site.id}@v${e.site.version}` : 'none'}`,
     `engine(css=${yn(eng.css)} root=${yn(eng.root)} handleBack=${eng.handleBack || '?'})`,
     `rail=${rail ? `${yn(rail.visible)} "${rail.label}" at ${JSON.stringify(rail.rect)}` : 'absent'}`,
+    `settingsAnchor(dock=${(result.settingsSidebarBeforeClick || {}).dock || '?'} visible=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.visible) : '?'} inside=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.inside) : '?'} rect=${JSON.stringify((result.settingsSidebarBeforeClick || {}).railRect || null)})`,
     `plusSheet(toggle=${att.toggle ?? '?'} mount=${att.mount ?? '?'} wrapper=${att.wrapper ?? '?'} dropdownAfterClick=${(result.engineSheet || {}).dropdown ?? '?'} openedBy=${result.sheetOpenedBy ?? 'n/a'} hit=${JSON.stringify((result.engineHit || {}).chain)} mobileCss=${(result.engineHit || {}).mobileCss ?? '?'})`,
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
     `composer(named=${(e.composer || {}).named ?? '?'} textareas=${(e.composer || {}).textareas ?? '?'})`,
+    `skin(active=${yn((e.skin || {}).active)} composer=${(e.skin || {}).composerTarget || '?'} sendInside=${(e.skin || {}).sendInsideComposer == null ? '?' : yn((e.skin || {}).sendInsideComposer)} sendRect=${JSON.stringify((e.skin || {}).sendRect || null)} viewport=${(e.skin || {}).viewportWidth ?? '?'} settingsDock=${(e.skin || {}).settingsDock || '?'} settingsLabel=${(e.skin || {}).settingsLabelDisplay || '?'})`,
     `health(site=${h.site || '?'} ok=${h.ok} visible=${h.visible} notice=${yn(h.notice)} ${(h.states || []).join(',')})`,
     `loginWall=${yn(e.login)}`,
     `fill(set=${result.composerFill ? yn(result.composerFill.set) : '?'} value=${result.composerFill ? yn(result.composerFill.valueMatches) : '?'} sendBtn=${result.composerFill ? yn(result.composerFill.sendButton) : '?'} sendEnabled=${result.composerFill && result.composerFill.sendButton ? yn(!result.composerFill.sendDisabledWhileFilled) : '?'} cleared=${result.composerFill ? yn(result.composerFill.cleared) : '?'})`,
@@ -567,14 +741,46 @@ export function acceptanceFailures(result) {
   const errors = [];
   if (!['arena.ai', 'www.arena.ai'].includes(e.host) || e.site?.id !== 'arena') errors.push('arena-profile-missing');
   if (!e.engine?.css || !e.engine?.root || e.engine?.engineApi !== 'object' || e.engine?.handleBack !== 'function') errors.push('engine-not-ready');
+  if (['arena.ai', 'www.arena.ai'].includes(e.host) && (!e.skin || e.skin.active !== true)) errors.push('arena-skin-inactive');
   if (e.composer?.named !== 1 || !(e.composer?.rect?.[2] > 0 && e.composer?.rect?.[3] > 0)) errors.push('composer-not-visible');
+  if (e.composer?.named === 1) {
+    if (!e.skin || !['has', 'native'].includes(e.skin.composerTarget)) errors.push('composer-skin-target-missing');
+    if (!e.skin || e.skin.sendInsideComposer !== true) errors.push('send-outside-composer');
+    const sendRect = e.skin?.sendRect;
+    if (!Array.isArray(sendRect) || !(Number(sendRect[2]) > 0 && Number(sendRect[3]) > 0)) {
+      errors.push('send-target-not-visible');
+    }
+  }
   if (e.attach?.toggle !== 1) errors.push('plus-count-not-one');
+  if (!e.attach?.siteButton || !(Number(e.attach.siteButton[2]) >= 24 && Number(e.attach.siteButton[3]) >= 24) ||
+      e.attach.nativePlusVisible !== true || e.attach.nativePlusPointerIntact !== true ||
+      e.attach.enginePlusOverlayReady !== true) {
+    errors.push('arena-original-plus-native-bridge-not-ready');
+  }
   if (result.sheetOpenedBy !== 'real-click') errors.push('plus-not-touch-actionable');
+  if (!sheetIsOpen(result.originalPlusSheet)) errors.push('arena-original-plus-does-not-open-sheet');
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
+  const sidebar = result.settingsSidebarBeforeClick;
+  const sidebarOk = !!(sidebar && sidebar.dock === 'sidebar' && sidebar.visible === true && sidebar.inside === true &&
+      Number(sidebar.railRect?.[2]) >= 24 && Number(sidebar.railRect?.[3]) >= 24 &&
+      sidebar.panelRect && sidebar.panelTag === 'native-sidebar-measured');
+  if (!sidebarOk) {
+    if (e.login === true) {
+      /* Use the fresh live sidebar measurement when available. The engine facts
+       * can predate the login/SPA transition, so e.skin.settingsRailVisible
+       * alone can be stale and falsely fail a hidden Settings rail. */
+      const liveRowVisible = sidebar
+        ? sidebar.visible === true && Number(sidebar.railRect?.[2]) > 0 && Number(sidebar.railRect?.[3]) > 0
+        : e.skin?.settingsRailVisible === true;
+      if (liveRowVisible) errors.push('settings-visible-without-original-sidebar');
+    } else {
+      errors.push('settings-not-inside-original-sidebar');
+    }
+  }
   const drawer = result.drawer;
-  if (!drawer || drawer.visible !== true) errors.push('settings-drawer-not-openable');
+  if ((!drawer || drawer.visible !== true) && e.login !== true) errors.push('settings-drawer-not-openable');
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }

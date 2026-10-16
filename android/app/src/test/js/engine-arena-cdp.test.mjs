@@ -72,7 +72,7 @@ function pageContext() {
     el('button', { 'aria-label': 'Add files' }), el('textarea', { name: 'message', placeholder: 'Ask anything' }), el('button', { 'aria-label': 'Send message' }),
   ]);
   const side = el('nav', {}, [el('button', { 'aria-label': 'New chat' }, [], 'New chat'), el('a', { href: `/c/${PRIVATE.uuid}` }, [], PRIVATE.title)]);
-  const body = el('body', {}, [el('header', {}), side, el('main', {}, [composer])]);
+  const body = el('body', {}, [el('header', {}, [el('button', { 'aria-label': 'Open sidebar' })]), side, el('main', {}, [composer])]);
   const html = el('html', { class: 'dark', lang: 'en' }, [body]);
   body.appendChild = (k) => { k.parentElement = body; body.children.push(k); body.childNodes.push(k); };
   const ctx = {
@@ -132,13 +132,18 @@ const FACTS = {
   host: 'arena.ai', path: '/text/direct', title: 'Arena', readyState: 'complete',
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
-  rail: { label: 'Advanced settings', rect: [4, 300, 40, 40], visible: true },
-  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: null },
+  rail: { label: 'Advanced settings', rect: [0, 0, 256, 616], visible: true },
+  attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
+  skin: {
+    active: true, composerTarget: 'has', sendInsideComposer: true,
+    sendMinWidth: 0, viewportWidth: 320, formRect: [17, 469, 286, 100],
+    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline', settingsRailVisible: true, settingsRailVisible: true,
+  },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
-  slot: { plus: [25, 517, 34, 34], addFilesDisplay: 'none', group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
-  composerControls: [{ tag: 'button', aria: 'Add files', title: null, type: null, cls: 'rounded-full', rect: [20, 700, 32, 32], svg: 'M12 5v14', hidden: false, engine: false }],
+  slot: { plus: [60, 700, 44, 44], addFilesDisplay: 'flex', plusOverlay: { aligned: true, nativeVisible: true, nativePointerIntact: true, engineTargetReady: true }, group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
+  composerControls: [{ tag: 'button', aria: 'Add files', title: null, type: null, cls: 'rounded-full', rect: [60, 700, 44, 44], svg: 'M12 5v14', hidden: false, engine: false }],
   engineMarkup: { mount: '<div class="bds-attach-menu-mount" data-bds-attach-menu-mounted="true"></div>', wrapper: '<div class="bds-attach-wrapper"></div>', controls: null },
 };
 
@@ -181,12 +186,19 @@ async function startFakeCdp(opts = {}) {
       case 'Network.getResponseBody':
         return ok({ body: JSON.stringify({ id: PRIVATE.uuid, email: PRIVATE.email, plan: 'free' }), base64Encoded: false });
       case 'Input.dispatchMouseEvent':
-        if (msg.params.type === 'mousePressed' && msg.params.x === 100 && msg.params.y === 200) {
+        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 700) {
           state.clickedToggle = true;
-          if (!opts.realClickIgnored && !opts.neverOpens) state.sheetOpen = true; // a real pointer click opens the sheet
+          if (!opts.realClickIgnored && !opts.neverOpens && opts.siteButton !== false) state.sheetOpen = true; // Arena's original Plus opens the engine sheet
+        }
+        if (msg.params.type === 'mousePressed' && msg.params.x === 100 && msg.params.y === 200) {
+          state.internalClicked = true;
+          if (!opts.neverOpens) state.sheetOpen = true; // internal fallback for hosts without Arena's button
+        }
+        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
+          state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
         }
         if (msg.params.type === 'mousePressed' && msg.params.x === 140 && msg.params.y === 550) {
-          state.drawerOpen = true; // the rail really opens the drawer
+          state.drawerOpen = true; // the rail in the sidebar really opens settings
         }
         return ok();
       case 'Runtime.evaluate': {
@@ -197,11 +209,23 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'facts') {
           if (opts.factsThrow) return fail('facts exploded');
           const facts = JSON.parse(JSON.stringify(FACTS));
+          facts.rail.visible = !!state.sidebarOpen;
+          facts.rail.rect = state.sidebarOpen ? [0, 0, 256, 616] : [0, 0, 0, 0];
+          facts.skin.settingsDock = state.sidebarOpen ? 'sidebar' : 'pending';
+          facts.skin.settingsLabelDisplay = state.sidebarOpen ? 'inline' : 'none';
+          if (state.sidebarOpen && opts.siteButton !== false) facts.attach.siteButton = [60, 700, 44, 44];
+          if (opts.siteButton === false) {
+            facts.attach.siteButton = null;
+            facts.attach.overlayAligned = false;
+            facts.attach.nativePlusVisible = false;
+            facts.attach.nativePlusPointerIntact = false;
+            facts.attach.enginePlusOverlayReady = false;
+          }
           if (state.sheetOpen) facts.attach.dropdown = 1;
           return value(JSON.stringify(facts));
         }
         if (marker === 'hit') {
-          return value(JSON.stringify({ chain: ['button.bds-plus-btn.svelte-1y27tjy', 'div.bds-attach-wrapper.svelte-1y27tjy', 'div.bds-attach-menu-mount'], viewport: [320, 616], mobileCss: true }));
+          return value(JSON.stringify({ chain: ['button[aria-label=Add files]', 'div.flex.items-center', 'form'], viewport: [320, 616], mobileCss: true }));
         }
         if (marker === 'sheet') {
           const o = state.sheetOpen ? 1 : 0;
@@ -211,11 +235,16 @@ async function startFakeCdp(opts = {}) {
           if (!opts.neverOpens) state.sheetOpen = true; // a script click opens it
           return value(true);
         }
+        if (marker === 'sidegeometry') {
+          return value(JSON.stringify(state.sidebarOpen
+            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' }
+            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, panelTag: null }));
+        }
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
-            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'composer' }
-            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'composer' }));
+            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sidebar' }
+            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'pending' }));
         }
         if (marker === 'back') { state.drawerOpen = false; return value(true); }
         if (marker === 'fillset') {
@@ -230,9 +259,13 @@ async function startFakeCdp(opts = {}) {
         }
         if (marker === 'rect') {
           const found = (x, y, w, h) => value(JSON.stringify({ found: true, x, y, w, h }));
-          if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(100, 200, 40, 40);
-          if (expr.includes('Add files')) return opts.siteButton ? found(60, 700, 30, 30) : value(JSON.stringify({ found: false }));
-          if (expr.includes('bds-settings-rail')) return opts.noRail ? value(JSON.stringify({ found: false })) : found(140, 550, 138, 36);
+          if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
+          if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
+          if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
+          if (expr.includes('bds-settings-rail')) {
+            if (opts.noRail) return value(JSON.stringify({ found: false }));
+            return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
+          }
           return value(JSON.stringify({ found: false }));
         }
         try {
@@ -273,7 +306,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'site-attach-popup', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -287,7 +320,12 @@ test('the probe runs every step against a DevTools page and returns the engine�
 test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle, and closed with Escape', async () => {
   const { fake, result } = await runProbe();
   const mouse = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent').map((c) => `${c.params.type}@${c.params.x},${c.params.y}`);
-  assert.deepEqual(mouse, ['mouseMoved@100,200', 'mousePressed@100,200', 'mouseReleased@100,200', 'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550'], 'move, press, release at the toggle’s and the rail’s centre — what a finger does');
+  assert.deepEqual(mouse, [
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+    'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
+    'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550',
+  ], 'tap Arena’s original Plus, verify it again, then open the official sidebar and Settings row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
@@ -319,23 +357,23 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'settings-drawer']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
 });
 
-test('arena’s own attach popup is only clicked when the button is really there', async () => {
-  const absent = await runProbe({});
+test('Arena’s original Plus is exercised only when the real button is present', async () => {
+  const absent = await runProbe({ siteButton: false });
   assert.equal(absent.result.siteToggle.found, false);
-  const present = await runProbe({ siteButton: true });
+  const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'site-attach-popup', 'settings-drawer']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
-  const { fake, result } = await runProbe({ noToggle: true });
+  const { fake, result } = await runProbe({ noToggle: true, siteButton: false });
   assert.equal(result.engineToggle.found, false);
   // nothing may be clicked at the missing toggle's coordinates — the drawer's
   // rail is a different element and may still get its real click
@@ -351,7 +389,7 @@ test('a real pointer click that opens the sheet is the end of it: no script clic
   assert.equal(result.sheetAfterRealClick.dropdown, 1);
   assert.equal(result.sheetAfterJsClick, undefined);
   assert.ok(!fake.calls.some((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:jsclick*/')));
-  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button.bds-plus-btn.svelte-1y27tjy'], 'what was under the pointer is recorded');
+  assert.deepEqual(result.engineHit.chain.slice(0, 1), ['button[aria-label=Add files]'], 'Arena’s original Plus remains the real physical hit target');
   assert.equal(result.engineHit.mobileCss, true);
 });
 
@@ -420,7 +458,10 @@ test('without capture.js the engine facts still come back', async () => {
 test('the settings drawer is opened by a REAL click on the rail and closed by the engine’s own Back', async () => {
   const { result } = await runProbe();
   assert.equal(result.drawer.visible, true, 'opened');
-  assert.equal(result.drawer.railDock, 'composer');
+  assert.equal(result.drawer.railDock, 'sidebar');
+  assert.equal(result.settingsSidebarBeforeClick.dock, 'sidebar');
+  assert.equal(result.settingsSidebarBeforeClick.visible, true);
+  assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
   const noRail = await runProbe({ noRail: true });
@@ -439,7 +480,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the plus toggle and the settings rail — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['100,200', '140,550'], 'only the plus toggle and the settings rail are ever clicked');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '140,550'],
+    'only Arena’s original Plus, original sidebar button and visible Settings row are clicked');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
@@ -497,16 +539,42 @@ test('packChunks / unpackChunks: any size round-trips, every chunk fits an annot
   assert.equal(unpackChunks(packChunks('{"a":1}')), '{"a":1}');
 });
 
+test('N0 acceptance gate rejects a missing skin target or Send overflow without requiring a composer at the consent gate', () => {
+  const missingSkin = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  missingSkin.engine.skin.active = false;
+  assert.ok(acceptanceFailures(missingSkin).includes('arena-skin-inactive'));
+
+  const missingTarget = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  missingTarget.engine.skin.composerTarget = 'none';
+  assert.ok(acceptanceFailures(missingTarget).includes('composer-skin-target-missing'));
+
+  const overflow = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  overflow.engine.skin.sendInsideComposer = false;
+  assert.ok(acceptanceFailures(overflow).includes('send-outside-composer'));
+
+  const undersizedSend = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  undersizedSend.engine.skin.sendRect = [250, 520, 0, 0];
+  assert.ok(acceptanceFailures(undersizedSend).includes('send-target-not-visible'));
+
+  const consentGate = { engine: JSON.parse(JSON.stringify(FACTS)) };
+  consentGate.engine.composer.named = 0;
+  assert.ok(!acceptanceFailures(consentGate).includes('composer-skin-target-missing'));
+  assert.ok(!acceptanceFailures(consentGate).includes('send-outside-composer'));
+});
+
 test('the default output is the readable summary, the engine’s own markup and the composer’s controls — no payload', async () => {
   const { result } = await runProbe();
   const lines = annotations(result);
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=yes "Advanced settings"/);
-  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\.bds-plus-btn\.svelte-1y27tjy","div\.bds-attach-wrapper\.svelte-1y27tjy","div\.bds-attach-menu-mount"\] mobileCss=true\)/);
-  assert.match(lines[0], /slot\(plus=\[25,517,34,34\] addFiles=none group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
+  assert.match(lines[0], /settingsAnchor\(dock=sidebar visible=yes inside=yes rect=\[8,550,240,44\]\)/);
+  assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\[aria-label=Add files\]","div\.flex\.items-center","form"\] mobileCss=true\)/);
+  assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
+  assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /drawer\(visible=yes dock=composer backCloses=yes\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
+  assert.match(lines[0], /drawer\(visible=yes dock=sidebar backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
   assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
