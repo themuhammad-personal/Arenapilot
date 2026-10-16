@@ -237,7 +237,7 @@ async function startFakeCdp(opts = {}) {
         }
         if (marker === 'sidegeometry') {
           return value(JSON.stringify(state.sidebarOpen
-            ? { dock: 'native-sidebar', visible: true, inside: true, railRect: [8, 606, 240, 44], panelRect: [0, 0, 256, 616], nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true, panelTag: 'current-visible-native-sidebar' }
+            ? { dock: 'native-sidebar', visible: true, inside: true, railRect: [8, 72, 240, 44], nativeRowRect: [8, 28, 240, 44], panelRect: [0, 0, 256, 616], nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true, panelTag: 'current-visible-native-sidebar' }
             : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false, panelTag: null }));
         }
         if (marker === 'drawer') {
@@ -264,7 +264,7 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
           if (expr.includes('data-bds-arena-settings-entry') || expr.includes('bds-settings-rail')) {
             if (opts.noRail) return value(JSON.stringify({ found: false }));
-            return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
+            return state.sidebarOpen ? found(8, 72, 240, 44) : found(0, 0, 0, 0);
           }
           return value(JSON.stringify({ found: false }));
         }
@@ -459,7 +459,7 @@ test('the settings drawer is opened by a REAL click on the rail and closed by th
   const { result } = await runProbe();
   assert.equal(result.drawer.visible, true, 'opened');
   assert.equal(result.drawer.railDock, 'sidebar');
-  assert.equal(result.settingsSidebarBeforeClick.dock, 'sidebar');
+  assert.equal(result.settingsSidebarBeforeClick.dock, 'native-sidebar');
   assert.equal(result.settingsSidebarBeforeClick.visible, true);
   assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
@@ -567,14 +567,14 @@ test('the default output is the readable summary, the engine’s own markup and 
   const lines = annotations(result);
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
-  assert.match(lines[0], /rail=yes "Advanced settings"/);
-  assert.match(lines[0], /settingsAnchor\(dock=sidebar visible=yes inside=yes rect=\[8,550,240,44\]\)/);
+  assert.match(lines[0], /rail=yes "Advanced [Ss]ettings"/i);
+  assert.match(lines[0], /settingsAnchor\(dock=native-sidebar visible=yes inside=yes rect=\[8,72,240,44\]\)/);
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\[aria-label=Add files\]","div\.flex\.items-center","form"\] mobileCss=true\)/);
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
   assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
-  assert.match(lines[0], /drawer\(visible=yes dock=sidebar backCloses=yes\)/);
+  assert.match(lines[0], /drawer\(visible=yes dock=native-sidebar backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
   assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
