@@ -120,11 +120,11 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the stylesheet does not replace Arena palette colours');
   assert.match(ENGINE_CSS,
-    /div:not\(#bds-root\):has\(>\.bds-attach-menu-mount\)\{/,
-    'the engine may style its own mount on other sites, not Arena\'s original controls');
-  assert.doesNotMatch(ENGINE_CSS,
-    /(?<!html:not\(\.sd-arena-native\) )div:has\(>\.bds-attach-menu-mount\)\{/,
-    'no unscoped mount-parent rule can change Arena\'s mode/model/composer widths');
+    /div:not\(#bds-root\):has\(>\.bds-attach-menu-mount\):not\(:has\(>\.bds-attach-menu-mount\[data-bds-preserve-native-layout="true"\]\)\)\{/,
+    'the generic engine parent-flex rule skips the injected Arena mount');
+  assert.match(SITE,
+    /mount\.setAttribute\('data-bds-preserve-native-layout', 'true'\)/,
+    'only the injected mount receives the marker used to preserve native Arena geometry');
 
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
   assert.match(SITE, /leaderboard/i);
