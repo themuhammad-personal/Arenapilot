@@ -991,13 +991,150 @@
     first.parentNode.insertBefore(btn, first);
   }
 
+  var SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bds-item-icon svelte-1y27tjy">' +
+    '<path d="M12.22 2h-.44a2 2 0 0 0-2 1.72l-.16 1.13a7 7 0 0 0-1.6.92l-1.08-.46a2 2 0 0 0-2.5.92l-.22.38a2 2 0 0 0 .5 2.62l.9.7a7 7 0 0 0 0 1.84l-.9.7a2 2 0 0 0-.5 2.62l.22.38a2 2 0 0 0 2.5.92l1.08-.46a7 7 0 0 0 1.6.92l.16 1.13A2 2 0 0 0 11.78 22h.44a2 2 0 0 0 2-1.72l.16-1.13a7 7 0 0 0 1.6-.92l1.08.46a2 2 0 0 0 2.5-.92l.22-.38a2 2 0 0 0-.5-2.62l-.9-.7a7 7 0 0 0 0-1.84l.9-.7a2 2 0 0 0 .5-2.62l-.22-.38a2 2 0 0 0-2.5-.92l-1.08.46a7 7 0 0 0-1.6-.92l-.16-1.13A2 2 0 0 0 12.22 2Z"></path>' +
+    '<circle cx="12" cy="12" r="3"></circle></svg>';
+
+  function fitSettingsList(sheet, list) {
+    if (!sheet || !list || !list.style || !window || !document.documentElement) return;
+    try {
+      var sheetRect = sheet.getBoundingClientRect();
+      var listRect = list.getBoundingClientRect();
+      var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || sheetRect.bottom);
+      try {
+        var visual = window.visualViewport;
+        if (visual && visual.height > 0) viewportHeight = Math.min(viewportHeight, visual.offsetTop + visual.height);
+      } catch (_) {}
+
+      var sheetStyle = window.getComputedStyle(sheet);
+      var listStyle = window.getComputedStyle(list);
+      var sheetBottomPadding = parseFloat(sheetStyle.paddingBottom) || 0;
+      var sheetBottomBorder = parseFloat(sheetStyle.borderBottomWidth) || 0;
+      var listChrome = (parseFloat(listStyle.paddingTop) || 0) +
+        (parseFloat(listStyle.paddingBottom) || 0) +
+        (parseFloat(listStyle.borderTopWidth) || 0) +
+        (parseFloat(listStyle.borderBottomWidth) || 0);
+      var visibleBottom = Math.min(sheetRect.bottom, viewportHeight) -
+        sheetBottomPadding - sheetBottomBorder;
+      var available = Math.floor(visibleBottom - listRect.top - listChrome);
+      if (!isFinite(available) || available < 1) {
+        list.style.removeProperty('max-height');
+        return;
+      }
+
+      /* The Svelte list is a flex column; default flex-shrink would squash
+       * the cards to fit and leave nothing to scroll. Keep their authored row
+       * heights and let the list, rather than the cards, absorb overflow. */
+      var rows = list.querySelectorAll('.bds-attach-item');
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].style) rows[i].style.setProperty('flex-shrink', '0');
+      }
+
+      /* Keep the sheet header/actions in view. The existing More tools card
+       * list owns its own scroll when seven cards exceed the available height. */
+      list.style.setProperty('max-height', available + 'px');
+      list.style.setProperty('min-height', '0');
+      list.style.setProperty('overflow-y', 'auto');
+      list.style.setProperty('overscroll-behavior-y', 'contain');
+      list.style.setProperty('-webkit-overflow-scrolling', 'touch');
+    } catch (_) {}
+  }
+
+  function addSettingsItem() {
+    if (!window.__sdSite || window.__sdSite.id !== 'arena') return;
+    var sheet = document.querySelector('.bds-attach-dropdown');
+    if (!sheet) return;
+
+    var btn = sheet.querySelector('#sd-arena-settings-item');
+    var items = sheet.querySelectorAll('.bds-attach-item');
+    var last = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id !== 'sd-arena-settings-item' && items[i].parentNode) last = items[i];
+    }
+    if (!last || !last.parentNode) return;
+    var parent = last.parentNode;
+
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'sd-arena-settings-item';
+      btn.className = 'bds-attach-item svelte-1y27tjy';
+      btn.setAttribute('aria-label', t('Settings', 'সেটিংস'));
+      btn.innerHTML = '<span class="bds-item-icon-box svelte-1y27tjy">' + SETTINGS_ICON + '</span> ' +
+        '<span class="bds-item-content svelte-1y27tjy"><span class="bds-item-title svelte-1y27tjy"></span> ' +
+        '<span class="bds-item-desc svelte-1y27tjy"></span></span>';
+      btn.querySelector('.bds-item-title').textContent = t('Settings', 'সেটিংস');
+      btn.querySelector('.bds-item-desc').textContent = t(
+        'Manage app preferences, tools and integrations',
+        'অ্যাপের পছন্দ, টুল ও ইন্টিগ্রেশন পরিচালনা করুন'
+      );
+      btn.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+
+        /* Let the existing sheet finish its close animation before raising Settings. */
+        var close = sheet.querySelector('.bds-sheet-close');
+        if (!close) {
+          /* Match sd-sheets.js: find the backdrop belonging to this sheet,
+           * not the first backdrop for a different hidden sheet in the DOM. */
+          try {
+            var sibling = sheet.previousElementSibling;
+            while (sibling && !close) {
+              if (sibling.matches && sibling.matches('.bds-attach-backdrop')) close = sibling;
+              sibling = sibling.previousElementSibling;
+            }
+            if (!close) close = document.querySelector('.bds-attach-backdrop');
+          } catch (_) {}
+        }
+        var openSettings = function () {
+          try {
+            if (window && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('bds:open-drawer'));
+            }
+          } catch (_) {}
+        };
+        if (close && typeof close.click === 'function') {
+          try { close.click(); } catch (_) {}
+          setTimeout(openSettings, 240);
+        } else {
+          openSettings();
+        }
+      });
+    }
+
+    var cardWasMoved = btn.parentNode !== parent || parent.lastElementChild !== btn;
+    if (cardWasMoved) parent.appendChild(btn);
+    fitSettingsList(sheet, parent);
+    if (cardWasMoved && typeof window.setTimeout === 'function') {
+      /* The Add to chat sheet slides up for 280ms. Re-measure after that
+       * animation so the list gets the final visible viewport, not its
+       * translated off-screen position during the entrance frame. */
+      window.setTimeout(function () {
+        if (sheet.isConnected && parent.isConnected) fitSettingsList(sheet, parent);
+      }, 320);
+    }
+  }
+
   function watchSheet() {
+    addStudioItem();
+    addSettingsItem();
+    if (!window.__sdArenaSettingsListResize) {
+      var resizeSettingsList = function () { addSettingsItem(); };
+      try {
+        window.addEventListener('resize', resizeSettingsList, { passive: true });
+        if (window.visualViewport && window.visualViewport.addEventListener) {
+          window.visualViewport.addEventListener('resize', resizeSettingsList, { passive: true });
+        }
+        window.__sdArenaSettingsListResize = true;
+      } catch (_) {}
+    }
     if (typeof MutationObserver !== 'function' || !document.body) return;
     var queued = false;
     new MutationObserver(function () {
       if (queued) return;
       queued = true;
-      setTimeout(function () { queued = false; addStudioItem(); adoptLinuxPage(); }, 50);
+      setTimeout(function () { queued = false; addStudioItem(); addSettingsItem(); adoptLinuxPage(); }, 50);
     }).observe(document.body, { childList: true, subtree: true });
   }
 

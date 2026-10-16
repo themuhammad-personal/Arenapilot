@@ -20,7 +20,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
+import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '../../../../..');
@@ -132,13 +132,13 @@ const FACTS = {
   host: 'arena.ai', path: '/text/direct', title: 'Arena', readyState: 'complete',
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
-  rail: { label: 'Advanced settings', rect: [0, 0, 256, 616], visible: true },
+  rail: { label: 'Advanced settings', rect: [0, 0, 0, 0], visible: false },
   attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
     sendMinWidth: 0, viewportWidth: 320, formRect: [17, 469, 286, 100],
-    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline', settingsRailVisible: true, settingsRailVisible: true,
+    sendRect: [250, 520, 44, 44], settingsDock: 'sheet', settingsLabelDisplay: 'none', settingsRailVisible: false,
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
@@ -154,7 +154,7 @@ const FACTS = {
 async function startFakeCdp(opts = {}) {
   const calls = [];
   const sockets = new Set(); // upgraded sockets are not tracked by server.close(): destroy them ourselves
-  const state = { clickedToggle: false, sheetOpen: false, drawerOpen: false };
+  const state = { clickedToggle: false, sheetOpen: false, drawerOpen: false, clickedSettingsCard: false };
   const page = pageContext();
   let port = 0;
   const server = http.createServer((req, res) => {
@@ -185,6 +185,12 @@ async function startFakeCdp(opts = {}) {
         return;
       case 'Network.getResponseBody':
         return ok({ body: JSON.stringify({ id: PRIVATE.uuid, email: PRIVATE.email, plan: 'free' }), base64Encoded: false });
+      case 'Input.dispatchKeyEvent':
+        if (msg.params.type === 'keyDown' && msg.params.key === 'Escape') {
+          if (state.drawerOpen) state.drawerOpen = false;
+          else state.sheetOpen = false;
+        }
+        return ok();
       case 'Input.dispatchMouseEvent':
         if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 700) {
           state.clickedToggle = true;
@@ -194,11 +200,10 @@ async function startFakeCdp(opts = {}) {
           state.internalClicked = true;
           if (!opts.neverOpens) state.sheetOpen = true; // internal fallback for hosts without Arena's button
         }
-        if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 35) {
-          state.sidebarOpen = true; // the existing Arena navigation button opens its drawer
-        }
-        if (msg.params.type === 'mousePressed' && msg.params.x === 140 && msg.params.y === 550) {
-          state.drawerOpen = true; // the rail in the sidebar really opens settings
+        if (msg.params.type === 'mousePressed' && msg.params.x === 160 && msg.params.y === 560) {
+          state.clickedSettingsCard = true;
+          state.sheetOpen = false; // tapping Settings first closes the Add to chat sheet
+          if (!opts.drawerNeverOpens && !opts.cardNeverOpens) state.drawerOpen = true;
         }
         return ok();
       case 'Runtime.evaluate': {
@@ -209,11 +214,10 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'facts') {
           if (opts.factsThrow) return fail('facts exploded');
           const facts = JSON.parse(JSON.stringify(FACTS));
-          facts.rail.visible = !!state.sidebarOpen;
-          facts.rail.rect = state.sidebarOpen ? [0, 0, 256, 616] : [0, 0, 0, 0];
-          facts.skin.settingsDock = state.sidebarOpen ? 'sidebar' : 'pending';
-          facts.skin.settingsLabelDisplay = state.sidebarOpen ? 'inline' : 'none';
-          if (state.sidebarOpen && opts.siteButton !== false) facts.attach.siteButton = [60, 700, 44, 44];
+          facts.rail.visible = false;
+          facts.rail.rect = [0, 0, 0, 0];
+          facts.skin.settingsDock = 'sheet';
+          facts.skin.settingsLabelDisplay = 'none';
           if (opts.siteButton === false) {
             facts.attach.siteButton = null;
             facts.attach.overlayAligned = false;
@@ -235,16 +239,21 @@ async function startFakeCdp(opts = {}) {
           if (!opts.neverOpens) state.sheetOpen = true; // a script click opens it
           return value(true);
         }
-        if (marker === 'sidegeometry') {
-          return value(JSON.stringify(state.sidebarOpen
-            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' }
-            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, panelTag: null }));
+        if (marker === 'settingscard') {
+          const exists = state.sheetOpen && !opts.noCard && !opts.cardNeverOpens;
+          return value(JSON.stringify({
+            sheetPresent: state.sheetOpen, sheetVisible: state.sheetOpen,
+            present: exists, count: exists ? 1 : 0, visible: exists, insideSheet: exists,
+            lastCard: exists, title: exists ? 'Settings' : '', description: exists ? 'Manage app preferences, tools and integrations' : '',
+            rect: exists ? [20, 530, 280, 52] : null, legacySidebarRows: 0,
+            sourceRailVisible: false, sourceDock: 'sheet'
+          }));
         }
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
-            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sidebar' }
-            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'pending' }));
+            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
+            : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
         if (marker === 'back') { state.drawerOpen = false; return value(true); }
         if (marker === 'fillset') {
@@ -262,9 +271,12 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
-          if (expr.includes('bds-settings-rail')) {
-            if (opts.noRail) return value(JSON.stringify({ found: false }));
-            return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
+          if (expr.includes('sd-arena-settings-item')) {
+            return state.sheetOpen && !opts.noCard && !opts.cardNeverOpens
+              ? found(160, 560, 280, 52) : value(JSON.stringify({ found: false }));
+          }
+          if (expr.includes('data-bds-arena-settings-entry') || expr.includes('bds-settings-rail')) {
+            return value(JSON.stringify({ found: false }));
           }
           return value(JSON.stringify({ found: false }));
         }
@@ -323,9 +335,9 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
   assert.deepEqual(mouse, [
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
-    'mouseMoved@60,35', 'mousePressed@60,35', 'mouseReleased@60,35',
-    'mouseMoved@140,550', 'mousePressed@140,550', 'mouseReleased@140,550',
-  ], 'tap Arena’s original Plus, verify it again, then open the official sidebar and Settings row');
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+    'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
+  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, then tap its Settings card');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
@@ -455,18 +467,24 @@ test('without capture.js the engine facts still come back', async () => {
 
 // ── 3b. the two new steps: the drawer, and the composer the engine must drive ─
 
-test('the settings drawer is opened by a REAL click on the rail and closed by the engine’s own Back', async () => {
-  const { result } = await runProbe();
-  assert.equal(result.drawer.visible, true, 'opened');
-  assert.equal(result.drawer.railDock, 'sidebar');
-  assert.equal(result.settingsSidebarBeforeClick.dock, 'sidebar');
-  assert.equal(result.settingsSidebarBeforeClick.visible, true);
-  assert.equal(result.settingsSidebarBeforeClick.inside, true, 'Settings is inside the original Arena sidebar before it is clicked');
-  assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes it');
+test('Settings is clicked as the last card in Add to chat, closes that sheet, and opens the existing drawer', async () => {
+  const { fake, result } = await runProbe();
+  assert.equal(result.settingsCardBeforeClick.present, true);
+  assert.equal(result.settingsCardBeforeClick.count, 1);
+  assert.equal(result.settingsCardBeforeClick.insideSheet, true);
+  assert.equal(result.settingsCardBeforeClick.lastCard, true);
+  assert.equal(result.settingsCardBeforeClick.sourceRailVisible, false);
+  assert.equal(result.drawer.visible, true, 'opened from the Settings card');
+  assert.equal(result.drawer.railDock, 'sheet');
+  assert.equal(result.drawer.sheetVisible, false, 'Add to chat closes before Settings opens');
+  assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes Settings');
+  assert.equal(result.drawerAfterBack.railDock, 'sheet');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
-  const noRail = await runProbe({ noRail: true });
-  assert.equal(noRail.result.drawer.present, false);
-  assert.ok(noRail.result.steps.find((s) => s.name === 'settings-drawer').ok, 'reported, not thrown');
+  assert.ok(fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed' && c.params.x === 160 && c.params.y === 560),
+    'the Settings card receives a physical click');
+  const noCard = await runProbe({ noCard: true });
+  assert.equal(noCard.result.drawer.present, false);
+  assert.ok(noCard.result.steps.find((s) => s.name === 'settings-drawer').ok, 'missing card is reported rather than throwing');
 });
 
 test('the composer fill is captured without ever sending: fill, settle, read, clear', async () => {
@@ -477,18 +495,18 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   const marks = fake.calls.filter((c) => c.method === 'Runtime.evaluate').map((c) => (/^\/\*sdp:([a-z]+)\*\//.exec(c.params.expression) || [])[1]);
   assert.ok(marks.indexOf('fillset') < marks.indexOf('fillbtn') && marks.indexOf('fillbtn') < marks.indexOf('fillclr'), 'fill → button → clear');
   // no key was ever pressed into the composer and the only real clicks are
-  // the plus toggle and the settings rail — nothing that could send a message
+  // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,35', '140,550'],
-    'only Arena’s original Plus, original sidebar button and visible Settings row are clicked');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560'],
+    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then click its Settings card');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
   const fill = await runProbe({ fillBroken: true });
   assert.ok(acceptanceFailures(fill.result).includes('composer-not-drivable'));
   const drawer = await runProbe({ drawerNeverOpens: true });
-  assert.ok(acceptanceFailures(drawer.result).includes('settings-drawer-not-openable'));
+  assert.ok(acceptanceFailures(drawer.result).includes('settings-drawer-not-openable-from-sheet-card'));
   const good = await runProbe();
   assert.deepEqual(acceptanceFailures(good.result), []);
 });
@@ -517,6 +535,9 @@ test('the fill and drawer expressions really run against a page: they read the D
   assert.equal(facts.visible, true);
   assert.equal(facts.backdrop, true);
   assert.equal(facts.railDock, null, 'no rail on this page yet');
+  const settingsCard = JSON.parse(vm.runInContext(SETTINGS_CARD_FACTS, ctx));
+  assert.equal(settingsCard.present, false, 'the fixture has not opened Add to chat yet');
+  assert.equal(settingsCard.sourceRailVisible, false);
   // and with no engine at all, the fill expression says so instead of throwing
   const bare = JSON.parse(vm.runInContext(FILL_SET, pageContext()));
   assert.equal(bare.engine, false);
@@ -567,14 +588,14 @@ test('the default output is the readable summary, the engine’s own markup and 
   const lines = annotations(result);
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
-  assert.match(lines[0], /rail=yes "Advanced settings"/);
-  assert.match(lines[0], /settingsAnchor\(dock=sidebar visible=yes inside=yes rect=\[8,550,240,44\]\)/);
+  assert.match(lines[0], /rail=no "Advanced [Ss]ettings"/i);
+  assert.match(lines[0], /settingsCard\(present=yes last=yes inSheet=yes sourceRail=no title="Settings"\)/);
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\[aria-label=Add files\]","div\.flex\.items-center","form"\] mobileCss=true\)/);
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sidebar settingsLabel=inline\)/);
-  assert.match(lines[0], /drawer\(visible=yes dock=sidebar backCloses=yes\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sheet settingsLabel=none\)/);
+  assert.match(lines[0], /drawer\(visible=yes dock=sheet backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
   assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
