@@ -131,13 +131,14 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.match(SITE, /data-bds-arena-settings-entry/);
   assert.ok(SITE.includes("event.key === 'Enter'") && SITE.includes("event.code === 'Space'"),
     'the native-row button supports both Enter and Space keyboard activation');
-  assert.ok(SITE.includes("nativeRow.querySelector('.arena-row-icon,[data-icon],[class*=\"icon\"]')"),
+  assert.ok(SITE.includes("entry.querySelector('.arena-row-icon,[data-icon],[class*=\"icon\"]')"),
     'icon-only wrappers without a native SVG still receive the Settings gear');
   assert.ok(SITE.includes('navRow.parentNode.insertBefore(entry, navRow.nextSibling)'),
     'Settings is inserted directly after the native row in the site list');
   assert.doesNotMatch(SITE.slice(SITE.indexOf('function sync()'), SITE.indexOf('function schedule()')),
     /position', 'fixed'/,
-    'the visible Settings option is not a fixed-position overlay');  assert.match(SITE, /leaderboard/i);
+    'the visible Settings option is not a fixed-position overlay');
+  assert.match(SITE, /leaderboard/i);
   assert.match(SITE, /search/i);
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
   assert.doesNotMatch(SITE, /classList\.add\('sd-arena-native'\)|classList\.add\('sd-arena-composer'\)/,
