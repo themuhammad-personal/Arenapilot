@@ -196,6 +196,8 @@ function collect(node) {
  */
 function arenaPage({ withFileInput = true, fileInputInComposer = true, withAvatar = true } = {}) {
   const body = makeEl('body');
+  const engineRoot = makeEl('div', { id: 'bds-root' });
+  body.appendChild(engineRoot);
   const main = makeEl('main');
   body.appendChild(main);
   const form = makeEl('form');
@@ -237,6 +239,7 @@ function arenaPage({ withFileInput = true, fileInputInComposer = true, withAvata
     body,
     documentElement: makeEl('html'),
     createElement: (tag) => makeEl(tag),
+    getElementById: (id) => collect(body).find((n) => n.id === id) || null,
     querySelectorAll: (sel) => body.querySelectorAll(sel),
     querySelector: (sel) => body.querySelector(sel),
   };
@@ -381,7 +384,8 @@ test('arena gets the "+" sheet even before a file input exists', () => {
   assert.equal(luts.length, 1, 'the sheet must mount — the cards are the feature');
   assert.equal(luts[0].props.props.nativeInput === null, true,
     'Lut resolves the input itself at pick time, so a null input is safe here');
-  assert.ok(p.run('!!document.querySelector("form .bds-attach-menu-mount")'), 'mounted into the composer');
+  assert.ok(p.run('!!document.querySelector("#bds-root .bds-attach-menu-mount")'),
+    'the attachment sheet mount belongs to the engine root, not Arena’s React-owned composer');
 
   const d = arenaPage({ withFileInput: false, withAvatar: false });
   d.win.__sdSite = { id: 'deepseek' };
@@ -391,7 +395,7 @@ test('arena gets the "+" sheet even before a file input exists', () => {
 });
 
 test('the sheet mount is the shipped one, and the seam counts still hold', () => {
-  assert.equal(times('if((!e||!t)&&!(sdsIsArena()&&t&&t.children&&t.insertBefore)){NQ(n,t);return}'), 1);
+  assert.equal(times('if((!e||!t)&&!(sdsIsArena()&&t&&t.children&&t.insertBefore)){!sdsIsArena()&&NQ(n,t);return}'), 1);
   assert.equal(times('if(!e||!t){NQ(n,t);return}'), 0, 'the unguarded early return is gone');
   assert.equal(times('Zi(Lut,{target:o,props:{nativeInput:e}})'), 1, 'the sheet is mounted by the shipped line');
   for (const fn of ['sdsArenaComposer', 'sdsArenaInComposer', 'sdsArenaFileInput']) {

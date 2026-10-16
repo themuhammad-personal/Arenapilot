@@ -398,7 +398,7 @@ test('the watcher picks a menu up however it appears', () => {
   assert.equal(p.state.observers.length, 1);
   assert.equal(p.state.observers[0].observed.opts.childList, true);
   assert.equal(p.state.observers[0].observed.opts.subtree, true);
-  p.state.observers[0].fire([{ addedNodes: [holder] }]);
+  p.state.observers[0].fire([{ type: 'childList', target: p.body, addedNodes: [holder], removedNodes: [] }]);
   assert.equal(advanced(second).length, 1, 'a mutation pass finds a nested menu too');
 
   // 3. and it survives one install, however often boot runs

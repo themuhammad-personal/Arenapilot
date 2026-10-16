@@ -142,7 +142,7 @@ const FACTS = {
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
-  slot: { plus: [60, 700, 44, 44], addFilesDisplay: 'flex', plusOverlay: { aligned: true, nativeVisible: true, nativePassThrough: true, engineTargetReady: true }, group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
+  slot: { plus: [60, 700, 44, 44], addFilesDisplay: 'flex', plusOverlay: { aligned: true, nativeVisible: true, nativePointerIntact: true, engineTargetReady: true }, group: ['div.bds-attach-menu-mount', 'button[Add files]', 'button{combobox}'], form: [17, 469, 286, 100] },
   composerControls: [{ tag: 'button', aria: 'Add files', title: null, type: null, cls: 'rounded-full', rect: [60, 700, 44, 44], svg: 'M12 5v14', hidden: false, engine: false }],
   engineMarkup: { mount: '<div class="bds-attach-menu-mount" data-bds-attach-menu-mounted="true"></div>', wrapper: '<div class="bds-attach-wrapper"></div>', controls: null },
 };

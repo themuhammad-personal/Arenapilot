@@ -61,7 +61,7 @@ try {
     const nr = native.getBoundingClientRect();
     const tr = trigger.getBoundingClientRect();
     return getComputedStyle(native).display !== 'none' &&
-      getComputedStyle(native).pointerEvents === 'none' &&
+      getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
       getComputedStyle(trigger).display !== 'none' &&
       getComputedStyle(trigger).opacity === '0' &&
       Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1 &&
@@ -110,7 +110,7 @@ try {
         if (!native || !b) return false;
         const nr = native.getBoundingClientRect(); const r = b.getBoundingClientRect();
         return getComputedStyle(b).display !== 'none' && getComputedStyle(b).opacity === '0' &&
-          getComputedStyle(native).pointerEvents === 'none' &&
+          getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
           Math.abs(nr.left - r.left) <= 1 && Math.abs(nr.top - r.top) <= 1 &&
           Math.abs(nr.width - r.width) <= 1 && Math.abs(nr.height - r.height) <= 1;
       })(),
@@ -194,7 +194,7 @@ try {
       const trigger = document.querySelector('.bds-plus-btn');
       if (!native || !trigger || mounts.length !== 1 || mounts[0].parentElement !== native.parentElement) return false;
       const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
-      return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents === 'none' &&
+      return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
         getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
         Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1;
     });

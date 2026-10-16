@@ -140,7 +140,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the engine hit target is transparent over the native icon');
   assert.doesNotMatch(SITE, /setImportantStyle\(original\.style|original\.style\.setProperty\(/,
     'the native Plus keeps its original display, pointer, border, radius and DOM state');
-  assert.match(SITE, /panel\.setAttribute\('data-bds-arena-sidebar', 'true'\)/);
+  assert.doesNotMatch(SITE, /panel\.setAttribute\('data-bds-arena-sidebar', 'true'\)/,
+    'the React-owned sidebar is measured but never marked or mutated');
   assert.doesNotMatch(SITE, /panel\.style\.setProperty\(['"](?:width|height|min-width|max-width)/,
     'sidebar width and height are never written by the adapter');
   const railStart = ENGINE_JS.indexOf('function sdsArenaRail(){');
@@ -155,7 +156,9 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   const attachEnd = ENGINE_JS.indexOf('function PQ(){', attachStart);
   assert.ok(attachStart >= 0 && attachEnd > attachStart, 'attachment-sheet hook is present');
   const attachSource = ENGINE_JS.slice(attachStart, attachEnd);
-  assert.match(attachSource, /V_\(document\.getElementById\("bds-root"\)\|\|document\.body,"bds-attach-menu-mount"/,
+  assert.match(attachSource, /const ar=sdsIsArena\(\),root=ar\?document\.getElementById\("bds-root"\):null/,
+    'Arena resolves its engine-owned overlay root');
+  assert.match(attachSource, /o=ar\?V_\(root,"bds-attach-menu-mount"/,
     'the attachment sheet mount is isolated under the engine root');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
   assert.doesNotMatch(attachSync, /createElement\(/, 'the native icon is not cloned');
