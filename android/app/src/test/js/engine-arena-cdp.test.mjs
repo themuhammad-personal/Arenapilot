@@ -138,7 +138,7 @@ const FACTS = {
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
     sendMinWidth: 0, viewportWidth: 320, formRect: [17, 469, 286, 100],
-    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline',
+    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline', settingsRailVisible: true, settingsRailVisible: true,
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
@@ -237,7 +237,7 @@ async function startFakeCdp(opts = {}) {
         }
         if (marker === 'sidegeometry') {
           return value(JSON.stringify(state.sidebarOpen
-            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'ASIDE' }
+            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' }
             : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, panelTag: null }));
         }
         if (marker === 'drawer') {
