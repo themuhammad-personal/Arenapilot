@@ -134,24 +134,28 @@ try {
   assert.ok(skinLayout.formRight <= skinLayout.viewportWidth, 'composer stays inside the phone viewport');
   await shot(page, 'arena-responsive-320');
 
-  /* The minimum-width case is the hardest, but the same original composer
-     should stay contained at common 360px and 390px phone widths too. */
+  /* At 360px and 390px, verify fit without imposing new minimum sizes on Arena controls. */
   for (const width of [360, 390]) {
     await page.setViewport({ width, height: 740, isMobile: true, hasTouch: true });
     const layout = await page.evaluate(() => {
       const form = document.querySelector('form');
       const send = document.querySelector('button[aria-label="Send message"]');
+      const r = send.getBoundingClientRect();
       return {
         width: innerWidth,
         formRight: form.getBoundingClientRect().right,
-        sendRight: send.getBoundingClientRect().right,
-        sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
+        sendRight: r.right,
+        sendWidth: r.width,
+        sendHeight: r.height,
+        sendInlineWidth: send.style.width,
         chatForms: document.querySelectorAll('textarea[name="message"]').length,
       };
     });
     assert.ok(layout.sendRight <= layout.formRight && layout.formRight <= layout.width,
       'Send/composer overflow at ' + width + 'px: ' + JSON.stringify(layout));
-    assert.ok(layout.sendMinWidth >= 44, 'Send target shrank below 44px at ' + width + 'px');
+    assert.equal(layout.sendWidth, 32, 'Arena’s original Send width changes at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.equal(layout.sendHeight, 36, 'Arena’s original button height changes at ' + width + 'px: ' + JSON.stringify(layout));
+    assert.equal(layout.sendInlineWidth, '32px', 'the original Send inline width is preserved at ' + width + 'px');
     assert.equal(layout.chatForms, 1, 'responsive width created a second chat composer');
     await shot(page, 'arena-responsive-' + width);
   }
