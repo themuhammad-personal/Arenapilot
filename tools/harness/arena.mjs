@@ -174,8 +174,8 @@ try {
   assert.doesNotMatch(outgoing, /SDS:memory_calls/, 'stored memory stays off by default');
   console.log('PASS Arena v2 privacy defaults through the real bundle: instructions on, memory off');
 
-  // Native style reset, button replacement, and group replacement with old mount
-  // still connected: the cases the static old "+" test did not exercise.
+  // Native style reset, button replacement, and group replacement while the engine
+  // mount stays isolated under #bds-root: the cases a static Plus test misses.
   stage = 'composer-remount';
   for (const mutation of ['style', 'button', 'group']) {
     await page.evaluate((kind) => {
@@ -196,7 +196,8 @@ try {
       const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
       const mounts = document.querySelectorAll('.bds-attach-menu-mount');
       const trigger = document.querySelector('.bds-plus-btn');
-      if (!native || !trigger || mounts.length !== 1 || mounts[0].parentElement !== native.parentElement) return false;
+      if (!native || !trigger || mounts.length !== 1 ||
+          !mounts[0].parentElement || mounts[0].parentElement.id !== 'bds-root') return false;
       const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
       return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
         getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
