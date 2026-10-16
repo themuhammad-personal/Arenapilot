@@ -61,10 +61,10 @@ test('Arena skin tags the existing page and composer only', () => {
   assert.equal(context.__sdSite.id, 'arena');
   assert.ok(htmlClasses.has('sd-arena-native'));
   assert.ok(formClasses.has('sd-arena-composer'));
-  assert.match(SKIN, /form:has\(textarea\[name="message"\]\)/,
-    'responsive styles survive SPA replacement of the official composer');
-  assert.match(SKIN, /html\.sd-arena-native \.sd-arena-composer/,
-    'older WebViews have a class-based fallback for the original composer');
+  assert.doesNotMatch(SKIN, /form:has\(textarea\[name="message"\]\)/,
+    'the injected stylesheet does not take over Arena composer layout');
+  assert.doesNotMatch(SKIN, /html\.sd-arena-native \.sd-arena-composer/,
+    'older WebViews also keep the original composer styling');
   assert.equal(result.createdNodes, 0,
     'the skin hook must not create a parallel chat surface');
 });
@@ -90,30 +90,33 @@ test('Arena skin is not enabled for DeepSeek or unknown hosts', () => {
   }
 });
 
-test('mobile skin preserves arena colours and protects the send/model controls', () => {
-  assert.match(SKIN, /html\.sd-arena-native/);
-  assert.match(SKIN, /button\[aria-label="Send message"\]/);
-  assert.match(SKIN, /button\[aria-label\*=", model "\]/);
-  assert.match(SKIN, /max-width: 28vw/);
-  assert.match(SKIN, /max-width: 16vw/);
-  assert.match(SKIN, /button\.whitespace-nowrap:not\(\[aria-label\]\)/);
-  assert.doesNotMatch(SKIN, /border-radius: (?:12|14)px/,
-    'the skin must not redraw the official Arena controls');
-  assert.doesNotMatch(SKIN, /font: inherit/,
-    'the original button and composer typography stay under Arena control');
-  assert.doesNotMatch(SKIN, /border: 0 !important/,
-    'the skin must not strip the original textarea border');
-  assert.match(SKIN, /> \* > \* > \* \{/);
-  assert.match(SKIN, /max-width: 54vw/);
-  assert.ok(SKIN.includes('#bds-settings-rail[data-dock="composer"]'));
+test('native-preservation skin never restyles Arena-owned layout or controls', () => {
+  assert.doesNotMatch(SKIN, /form:has\(/, 'do not override the original form/composer geometry');
+  assert.doesNotMatch(SKIN, /\.sd-arena-composer\s+(?:textarea|button|\[role=)/,
+    'do not impose textarea, Send or mode-control dimensions');
+  assert.doesNotMatch(SKIN, /button\[aria-label="Send message"\]/,
+    'the native Send button is owned by Arena CSS');
+  assert.doesNotMatch(SKIN, /button\[aria-label\*=", model "/,
+    'model picker width and truncation are not forced by the skin');
+  assert.doesNotMatch(SKIN, /\[role="combobox"\]|select\s*\{/,
+    'mode selector and native select keep their own states and dimensions');
+  assert.doesNotMatch(SKIN, /\.bds-plus-btn|\.bds-attach-menu-mount/,
+    'the injected Plus target is not resized by our stylesheet');
+  assert.doesNotMatch(SKIN, /main \.prose|text-underline-offset|line-height: 1\.6/,
+    'page typography and message styles remain Arena-owned');
+  assert.doesNotMatch(SKIN, /(?:min-width|max-width|width|height):\s*(?:calc\(100vw|\d+vw|\d+vh)/,
+    'no viewport-derived sizes are imposed on the page or composer');
+
   assert.ok(SKIN.includes('#bds-settings-rail[data-dock="sidebar"]'),
-    'the existing Settings control has a dedicated sidebar presentation');
+    'only the engine-owned Settings entry gets a sidebar placement rule');
   assert.match(SKIN, /#bds-settings-rail\[data-dock="pending"\]/,
-    'the Settings fallback is hidden outside the sidebar rather than floating by the composer');
+    'Settings remains hidden until an original sidebar is detected');
   assert.match(SKIN, /#bds-settings-rail\[data-dock="composer"\]/,
-    'the fallback remains hidden if an engine rescan briefly restores the old composer dock');
+    'Settings never falls back beside the native composer');
   assert.match(SKIN, /\.bds-arena-rail-label/);
-  const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
+  assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
+    'the stylesheet does not replace Arena palette colours');
+
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
   assert.match(SITE, /leaderboard/i);
   assert.match(SITE, /search/i);
@@ -121,31 +124,17 @@ test('mobile skin preserves arena colours and protects the send/model controls',
   assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
   assert.match(SITE, /form button\[aria-label="Add files"\]/);
   assert.match(SITE, /enginePlus\.setAttribute\('aria-label', 'Arena attachment options'\)/,
-    'the working engine target has an accessible label without colliding with Arena’s native selector');
+    'the transparent engine hit target has its own accessible label');
   assert.match(SITE, /setImportantStyle\(enginePlus\.style, 'opacity', '0'\)/,
-    'the engine target is transparent over the untouched native icon');
+    'the engine hit target is transparent over the native icon');
   assert.match(SITE, /setImportantStyle\(original\.style, 'pointer-events', 'none'\)/,
-    'the native icon remains visible while taps hit the working engine button');
+    'only hit testing changes on the native Plus, not its visual style');
+  assert.doesNotMatch(SITE, /setImportantStyle\(original\.style, 'display', 'flex'\)/,
+    'the original Plus display mode is not forced');
+  assert.match(SITE, /panel\.setAttribute\('data-bds-arena-sidebar', 'true'\)/);
+  assert.doesNotMatch(SITE, /panel\.style\.setProperty\(['"](?:width|height|min-width|max-width)/,
+    'sidebar width and height are never written by the adapter');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
-  assert.doesNotMatch(attachSync, /createElement\(/,
-    'the original icon is neither cloned nor replaced');
-  assert.doesNotMatch(attachSync, /trigger\.click\(\)/,
-    'the original button no longer relies on scripted click forwarding');
-  assert.match(SKIN, /display: none !important/);
-  assert.match(SKIN, /\.bds-plus-btn/);
-  assert.match(SKIN, /min-height: 44px/);
-  assert.match(SKIN, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="file"\]\)/);
-  assert.match(SKIN, /button\[type="submit"\]/);
-  assert.match(SKIN, /main \.prose table/);
-  assert.match(SKIN, /line-height: 1\.6/);
-  assert.match(SKIN, /line-height: 1\.3/);
-  assert.match(SKIN, /padding-inline-start: 1\.35em/);
-  assert.match(SKIN, /text-underline-offset: 0\.16em/);
-  assert.match(SKIN, /border-inline-start: 3px solid currentColor/);
-  assert.match(SKIN, /main \.prose img/);
-  assert.match(SKIN, /main \.prose pre code/);
-  assert.doesNotMatch(SKIN, /html\.sd-arena-native button\[aria-label\],/,
-    'touch sizing must not indiscriminately resize every official page button');
-  assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
-    'the skin must not replace arena.ai palette colours');
+  assert.doesNotMatch(attachSync, /createElement\(/, 'the native icon is not cloned');
+  assert.doesNotMatch(attachSync, /trigger\.click\(\)/, 'native interaction is not simulated');
 });
