@@ -989,10 +989,47 @@
    * Arena's Settings entry belongs to the bottom of the existing Add to chat
    * sheet, beside the other tools. Reuse the shipped row structure/classes.
    */
-  var SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" ' +
+  var SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" ' +
     'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bds-item-icon svelte-1y27tjy">' +
-    '<circle cx="12" cy="12" r="3"></circle>' +
-    '<path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.09-.02a1.7 1.7 0 0 0-1.74.55l-.06.08h-3.4l-.03-.1a1.7 1.7 0 0 0-1.34-1.18 1.7 1.7 0 0 0-1.62.48l-.07.07-2.94-1.7.02-.1a1.7 1.7 0 0 0-.55-1.74l-.08-.05v-3.4l.1-.04a1.7 1.7 0 0 0 1.18-1.34 1.7 1.7 0 0 0-.48-1.62l-.07-.07 1.7-2.94.1.02a1.7 1.7 0 0 0 1.74-.55l.05-.08h3.4l.04.1a1.7 1.7 0 0 0 1.34 1.18 1.7 1.7 0 0 0 1.62-.48l.07-.07 2.94 1.7-.02.1a1.7 1.7 0 0 0 .55 1.74l.08.05v3.4z"></path></svg>';
+    '<path d="M12.22 2h-.44a2 2 0 0 0-2 1.72l-.16 1.13a7 7 0 0 0-1.6.92l-1.08-.46a2 2 0 0 0-2.5.92l-.22.38a2 2 0 0 0 .5 2.62l.9.7a7 7 0 0 0 0 1.84l-.9.7a2 2 0 0 0-.5 2.62l.22.38a2 2 0 0 0 2.5.92l1.08-.46a7 7 0 0 0 1.6.92l.16 1.13A2 2 0 0 0 11.78 22h.44a2 2 0 0 0 2-1.72l.16-1.13a7 7 0 0 0 1.6-.92l1.08.46a2 2 0 0 0 2.5-.92l.22-.38a2 2 0 0 0-.5-2.62l-.9-.7a7 7 0 0 0 0-1.84l.9-.7a2 2 0 0 0 .5-2.62l-.22-.38a2 2 0 0 0-2.5-.92l-1.08.46a7 7 0 0 0-1.6-.92l-.16-1.13A2 2 0 0 0 12.22 2Z"></path>' +
+    '<circle cx="12" cy="12" r="3"></circle></svg>';
+
+  function fitSettingsList(sheet, list) {
+    if (!sheet || !list || !list.style || !window || !document.documentElement) return;
+    try {
+      var sheetRect = sheet.getBoundingClientRect();
+      var listRect = list.getBoundingClientRect();
+      var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || sheetRect.bottom);
+      try {
+        var visual = window.visualViewport;
+        if (visual && visual.height > 0) viewportHeight = Math.min(viewportHeight, visual.offsetTop + visual.height);
+      } catch (_) {}
+
+      var sheetStyle = window.getComputedStyle(sheet);
+      var listStyle = window.getComputedStyle(list);
+      var sheetBottomPadding = parseFloat(sheetStyle.paddingBottom) || 0;
+      var sheetBottomBorder = parseFloat(sheetStyle.borderBottomWidth) || 0;
+      var listChrome = (parseFloat(listStyle.paddingTop) || 0) +
+        (parseFloat(listStyle.paddingBottom) || 0) +
+        (parseFloat(listStyle.borderTopWidth) || 0) +
+        (parseFloat(listStyle.borderBottomWidth) || 0);
+      var visibleBottom = Math.min(sheetRect.bottom, viewportHeight) -
+        sheetBottomPadding - sheetBottomBorder;
+      var available = Math.floor(visibleBottom - listRect.top - listChrome);
+      if (!isFinite(available) || available < 1) {
+        list.style.removeProperty('max-height');
+        return;
+      }
+
+      /* Keep the sheet header/actions in view. The existing More tools card
+       * list owns its own scroll when seven cards exceed the available height. */
+      list.style.setProperty('max-height', available + 'px');
+      list.style.setProperty('min-height', '0');
+      list.style.setProperty('overflow-y', 'auto');
+      list.style.setProperty('overscroll-behavior-y', 'contain');
+      list.style.setProperty('-webkit-overflow-scrolling', 'touch');
+    } catch (_) {}
+  }
 
   function addSettingsItem() {
     if (!window.__sdSite || window.__sdSite.id !== 'arena') return;
@@ -1059,11 +1096,22 @@
     if (btn.parentNode !== parent || parent.lastElementChild !== btn) {
       parent.appendChild(btn);
     }
+    fitSettingsList(sheet, parent);
   }
 
   function watchSheet() {
     addStudioItem();
     addSettingsItem();
+    if (!window.__sdArenaSettingsListResize) {
+      var resizeSettingsList = function () { addSettingsItem(); };
+      try {
+        window.addEventListener('resize', resizeSettingsList, { passive: true });
+        if (window.visualViewport && window.visualViewport.addEventListener) {
+          window.visualViewport.addEventListener('resize', resizeSettingsList, { passive: true });
+        }
+        window.__sdArenaSettingsListResize = true;
+      } catch (_) {}
+    }
     if (typeof MutationObserver !== 'function' || !document.body) return;
     var queued = false;
     new MutationObserver(function () {
