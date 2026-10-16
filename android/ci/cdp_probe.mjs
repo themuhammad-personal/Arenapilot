@@ -689,7 +689,7 @@ export function summarize(result) {
     `site=${e.site ? `${e.site.id}@v${e.site.version}` : 'none'}`,
     `engine(css=${yn(eng.css)} root=${yn(eng.root)} handleBack=${eng.handleBack || '?'})`,
     `rail=${rail ? `${yn(rail.visible)} "${rail.label}" at ${JSON.stringify(rail.rect)}` : 'absent'}`,
-    `settingsAnchor(dock=${(result.settingsSidebarBeforeClick || {}).dock || '?'} visible=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.visible) : '?'} inside=${result.settingsSidebarBeforeClick ? yn(result.settingsSidebarBeforeClick.inside) : '?'} rect=${JSON.stringify((result.settingsSidebarBeforeClick || {}).railRect || null)})`,
+    `settingsCard(present=${yn((result.settingsCardBeforeClick || {}).present)} last=${yn((result.settingsCardBeforeClick || {}).lastCard)} inSheet=${yn((result.settingsCardBeforeClick || {}).insideSheet)} sourceRail=${yn((result.settingsCardBeforeClick || {}).sourceRailVisible)} title="${(result.settingsCardBeforeClick || {}).title || ''}")`,
     `plusSheet(toggle=${att.toggle ?? '?'} mount=${att.mount ?? '?'} wrapper=${att.wrapper ?? '?'} dropdownAfterClick=${(result.engineSheet || {}).dropdown ?? '?'} openedBy=${result.sheetOpenedBy ?? 'n/a'} hit=${JSON.stringify((result.engineHit || {}).chain)} mobileCss=${(result.engineHit || {}).mobileCss ?? '?'})`,
     `siteAttach=${JSON.stringify(att.siteButton)}`,
     `slot(plus=${JSON.stringify((e.slot || {}).plus)} addFiles=${(e.slot || {}).addFilesDisplay ?? '?'} group=${JSON.stringify((e.slot || {}).group)} form=${JSON.stringify((e.slot || {}).form)})`,
@@ -790,28 +790,22 @@ export function acceptanceFailures(result) {
   const fill = result.composerFill;
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
-  const sidebar = result.settingsSidebarBeforeClick;
-  const sidebarOk = !!(sidebar && sidebar.dock === 'native-sidebar' &&
-      sidebar.visible === true && sidebar.inside === true &&
-      sidebar.entryFound === true && sidebar.nativeRowFound === true &&
-      sidebar.sameParent === true && sidebar.hitTest === true &&
-      Number(sidebar.railRect?.[2]) >= 24 && Number(sidebar.railRect?.[3]) >= 24 &&
-      sidebar.panelRect && sidebar.panelTag === 'current-visible-native-sidebar');
-  if (!sidebarOk) {
-    if (e.login === true) {
-      /* Use the fresh live sidebar measurement when available. The engine facts
-       * can predate the login/SPA transition, so e.skin.settingsRailVisible
-       * alone can be stale and falsely fail a hidden Settings rail. */
-      const liveRowVisible = sidebar
-        ? sidebar.visible === true && Number(sidebar.railRect?.[2]) > 0 && Number(sidebar.railRect?.[3]) > 0
-        : e.skin?.settingsRailVisible === true;
-      if (liveRowVisible) errors.push('settings-visible-without-original-sidebar');
-    } else {
-      errors.push('settings-not-inside-original-sidebar');
-    }
+  const settingsCard = result.settingsCardBeforeClick;
+  const cardOk = !!(settingsCard && settingsCard.present === true &&
+      settingsCard.count === 1 && settingsCard.insideSheet === true &&
+      settingsCard.lastCard === true && settingsCard.legacySidebarRows === 0 &&
+      settingsCard.sourceRailVisible !== true && settingsCard.sourceDock === 'sheet');
+  if (!cardOk) errors.push('settings-card-not-last-in-plus-sheet');
+  if (settingsCard && (settingsCard.sourceRailVisible === true || settingsCard.legacySidebarRows !== 0)) {
+    errors.push('settings-sidebar-row-still-visible');
   }
   const drawer = result.drawer;
-  if ((!drawer || drawer.visible !== true) && e.login !== true) errors.push('settings-drawer-not-openable');
+  if (!drawer || drawer.visible !== true) errors.push('settings-drawer-not-openable-from-sheet-card');
+  else {
+    if (drawer.railDock !== 'sheet') errors.push('settings-drawer-opened-by-wrong-entry');
+    if (drawer.sheetVisible === true) errors.push('settings-sheet-not-closed-before-drawer');
+  }
+  if (!result.drawerAfterBack || result.drawerAfterBack.visible !== false) errors.push('settings-drawer-back-failed');
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }
