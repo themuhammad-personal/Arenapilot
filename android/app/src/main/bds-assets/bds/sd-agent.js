@@ -90,9 +90,15 @@
 
   function parseAttrs(raw) {
     var a = {};
-    var re = /([A-Za-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+    // Model variants sometimes put attribute values in backticks. Treat
+    // them as a quote delimiter (including ">" inside the quoted JSON), not
+    // as part of an unquoted tool/url/args value.
+    var re = /([A-Za-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)'|\x60([^\x60]*)\x60|([^\s"'\x60>]+))/g;
     var m;
-    while ((m = re.exec(raw))) a[m[1]] = m[3] !== undefined ? m[3] : (m[4] !== undefined ? m[4] : m[5]);
+    while ((m = re.exec(raw))) {
+      a[m[1]] = m[3] !== undefined ? m[3] :
+        (m[4] !== undefined ? m[4] : (m[5] !== undefined ? m[5] : m[6]));
+    }
     return a;
   }
 
@@ -108,7 +114,7 @@
       for (; i < s.length; i++) {
         var c = s[i];
         if (q) { if (c === q) q = null; }
-        else if (c === '"' || c === "'") q = c;
+        else if (c === '"' || c === "'" || c === '\x60') q = c;
         else if (c === '>') break;
       }
       if (i >= s.length) break;
