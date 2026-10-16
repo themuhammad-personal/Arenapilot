@@ -345,6 +345,8 @@ try {
           scrollHeight: list.scrollHeight,
           scrollTop: list.scrollTop,
           settingsHeight: item.getBoundingClientRect().height,
+          rowsDoNotShrink: Array.from(list.querySelectorAll('.bds-attach-item'))
+            .every((row) => getComputedStyle(row).flexShrink === '0'),
           iconWidth: icon && icon.getAttribute('width'),
           iconHeight: icon && icon.getAttribute('height'),
           iconHasCenter: !!center && center.getAttribute('r') === '3',
@@ -370,6 +372,8 @@ try {
     'the existing More tools card list has its own vertical scroll');
   assert.match(settingsCardLayout.list.maxHeight, /^\d+px$/,
     'the list scroll height is measured from the available sheet viewport');
+  assert.equal(settingsCardLayout.list.rowsDoNotShrink, true,
+    'tool cards retain their original row height instead of flex-shrinking and clipping the last row');
   assert.ok(settingsCardLayout.list.scrollHeight > settingsCardLayout.list.clientHeight,
     'the Settings card is reachable by scrolling the list rather than being lost below the sheet');
   assert.equal(settingsCardLayout.list.iconWidth, '18');
