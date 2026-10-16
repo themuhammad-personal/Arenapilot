@@ -118,7 +118,7 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
     'the stylesheet does not replace Arena palette colours');
   assert.match(ENGINE_CSS,
-    /html:not\(\.sd-arena-native\) div:has\(>\.bds-attach-menu-mount\)\{/,
+    /html:not\\(\\.sd-arena-native\\) div:not\\(#bds-root\\):has\\(>\\.bds-attach-menu-mount\\)\\{/,
     'the engine may style its own mount on other sites, not Arena\'s original controls');
   assert.doesNotMatch(ENGINE_CSS,
     /(?<!html:not\(\.sd-arena-native\) )div:has\(>\.bds-attach-menu-mount\)\{/,
