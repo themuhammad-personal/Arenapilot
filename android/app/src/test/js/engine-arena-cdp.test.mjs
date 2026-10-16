@@ -185,6 +185,12 @@ async function startFakeCdp(opts = {}) {
         return;
       case 'Network.getResponseBody':
         return ok({ body: JSON.stringify({ id: PRIVATE.uuid, email: PRIVATE.email, plan: 'free' }), base64Encoded: false });
+      case 'Input.dispatchKeyEvent':
+        if (msg.params.type === 'keyDown' && msg.params.key === 'Escape') {
+          if (state.drawerOpen) state.drawerOpen = false;
+          else state.sheetOpen = false;
+        }
+        return ok();
       case 'Input.dispatchMouseEvent':
         if (msg.params.type === 'mousePressed' && msg.params.x === 60 && msg.params.y === 700) {
           state.clickedToggle = true;
@@ -529,6 +535,9 @@ test('the fill and drawer expressions really run against a page: they read the D
   assert.equal(facts.visible, true);
   assert.equal(facts.backdrop, true);
   assert.equal(facts.railDock, null, 'no rail on this page yet');
+  const settingsCard = JSON.parse(vm.runInContext(SETTINGS_CARD_FACTS, ctx));
+  assert.equal(settingsCard.present, false, 'the fixture has not opened Add to chat yet');
+  assert.equal(settingsCard.sourceRailVisible, false);
   // and with no engine at all, the fill expression says so instead of throwing
   const bare = JSON.parse(vm.runInContext(FILL_SET, pageContext()));
   assert.equal(bare.engine, false);
