@@ -132,13 +132,13 @@ const FACTS = {
   host: 'arena.ai', path: '/text/direct', title: 'Arena', readyState: 'complete',
   site: { id: 'arena', version: 3 }, api: { firstTurn: '/nextjs-api/stream/create-evaluation' },
   engine: { css: true, root: true, rootChildren: 3, handleBack: 'function', engineApi: 'object', agent: 'object' },
-  rail: { label: 'Advanced settings', rect: [8, 72, 240, 44], visible: true },
+  rail: { label: 'Advanced settings', rect: [0, 0, 0, 0], visible: false },
   attach: { toggle: 1, mount: 1, wrapper: 1, controls: 1, dropdown: 0, siteButton: [60, 700, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
   composer: { named: 1, textareas: 1, rect: [20, 700, 340, 60] },
   skin: {
     active: true, composerTarget: 'has', sendInsideComposer: true,
     sendMinWidth: 0, viewportWidth: 320, formRect: [17, 469, 286, 100],
-    sendRect: [250, 520, 44, 44], settingsDock: 'sidebar', settingsLabelDisplay: 'inline', settingsRailVisible: true, settingsRailVisible: true,
+    sendRect: [250, 520, 44, 44], settingsDock: 'sheet', settingsLabelDisplay: 'none', settingsRailVisible: false,
   },
   health: { present: true, version: 1, site: 'arena', ok: true, visible: true, states: ['composer:ok', 'messages:na'], notice: false },
   login: false, inputs: [{ tag: 'textarea', type: 'textarea', name: 'message', placeholder: 'Ask anything', id: '' }], textSample: 'Direct chat',
@@ -208,11 +208,10 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'facts') {
           if (opts.factsThrow) return fail('facts exploded');
           const facts = JSON.parse(JSON.stringify(FACTS));
-          facts.rail.visible = !!state.sidebarOpen;
-          facts.rail.rect = state.sidebarOpen ? [8, 72, 240, 44] : [0, 0, 0, 0];
-          facts.skin.settingsDock = state.sidebarOpen ? 'native-sidebar' : 'pending';
-          facts.skin.settingsLabelDisplay = state.sidebarOpen ? 'inline' : 'none';
-          if (state.sidebarOpen && opts.siteButton !== false) facts.attach.siteButton = [60, 700, 44, 44];
+          facts.rail.visible = false;
+          facts.rail.rect = [0, 0, 0, 0];
+          facts.skin.settingsDock = 'sheet';
+          facts.skin.settingsLabelDisplay = 'none';
           if (opts.siteButton === false) {
             facts.attach.siteButton = null;
             facts.attach.overlayAligned = false;
@@ -490,7 +489,7 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   const marks = fake.calls.filter((c) => c.method === 'Runtime.evaluate').map((c) => (/^\/\*sdp:([a-z]+)\*\//.exec(c.params.expression) || [])[1]);
   assert.ok(marks.indexOf('fillset') < marks.indexOf('fillbtn') && marks.indexOf('fillbtn') < marks.indexOf('fillclr'), 'fill → button → clear');
   // no key was ever pressed into the composer and the only real clicks are
-  // the plus toggle and the settings rail — nothing that could send a message
+  // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
   assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560'],
@@ -580,14 +579,14 @@ test('the default output is the readable summary, the engine’s own markup and 
   const lines = annotations(result);
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
-  assert.match(lines[0], /rail=yes "Advanced [Ss]ettings"/i);
-  assert.match(lines[0], /settingsAnchor\(dock=native-sidebar visible=yes inside=yes rect=\[8,72,240,44\]\)/);
+  assert.match(lines[0], /rail=no "Advanced [Ss]ettings"/i);
+  assert.match(lines[0], /settingsCard\(present=yes last=yes inSheet=yes sourceRail=no title="Settings"\)/);
   assert.match(lines[0], /plusSheet\(toggle=1 mount=1 wrapper=1 dropdownAfterClick=1 openedBy=real-click hit=\["button\[aria-label=Add files\]","div\.flex\.items-center","form"\] mobileCss=true\)/);
   assert.match(lines[0], /siteAttach=\[60,700,44,44\]/);
   assert.match(lines[0], /slot\(plus=\[60,700,44,44\] addFiles=flex group=\["div\.bds-attach-menu-mount","button\[Add files\]","button\{combobox\}"\]/);
   assert.match(lines[0], /fill\(set=yes value=yes sendBtn=yes sendEnabled=yes cleared=yes\)/);
-  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=native-sidebar settingsLabel=inline\)/);
-  assert.match(lines[0], /drawer\(visible=yes dock=native-sidebar backCloses=yes\)/);
+  assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sheet settingsLabel=none\)/);
+  assert.match(lines[0], /drawer\(visible=yes dock=sheet backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
   assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
   assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
