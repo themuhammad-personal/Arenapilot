@@ -76,8 +76,8 @@ try {
     const input = document.querySelector('textarea[name="message"]');
     const send = document.querySelector('button[aria-label="Send message"]');
     return {
-      pageMarked: document.documentElement.classList.contains('sd-arena-native'),
-      originalFormMarked: form.classList.contains('sd-arena-composer'),
+      pageMarked: !!(window.__sdSite && window.__sdSite.id === 'arena'),
+      originalFormMarked: !form.classList.contains('sd-arena-composer'),
       sendMinWidth: parseFloat(getComputedStyle(send).minWidth),
       sendRect: (() => { const r = send.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; })(),
       sendInlineWidth: send.style.width,
@@ -116,8 +116,8 @@ try {
       })(),
     };
   });
-  assert.equal(skinLayout.pageMarked, true, 'Arena profile opts into the skin');
-  assert.equal(skinLayout.originalFormMarked, true, 'skin attaches to the official composer');
+  assert.equal(skinLayout.pageMarked, true, 'Arena profile opts into native-preservation mode');
+  assert.equal(skinLayout.originalFormMarked, true, 'the native composer has no engine-owned marker class');
   assert.ok(skinLayout.sendRect.width > 0 && skinLayout.sendRect.height > 0,
     'the native Send control remains visible without injected size overrides');
   assert.equal(skinLayout.sendRect.width, 32, 'the fixture’s original 32px Send width is preserved');
