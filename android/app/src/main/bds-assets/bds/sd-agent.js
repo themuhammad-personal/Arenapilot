@@ -985,13 +985,43 @@
     first.parentNode.insertBefore(btn, first);
   }
 
+  var SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bds-item-icon svelte-1y27tjy"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.08-.02a1.7 1.7 0 0 0-1.78.5l-.06.06h-3.4l-.02-.08a1.7 1.7 0 0 0-1.2-1.2l-.08-.02-2.94-1.7.02-.08a1.7 1.7 0 0 0-.5-1.78l-.06-.06v-3.4l.08-.02a1.7 1.7 0 0 0 1.2-1.2l.02-.08 2.94-1.7.08.02a1.7 1.7 0 0 0 1.78-.5l.06-.06h3.4l.02.08a1.7 1.7 0 0 0 1.2 1.2l.08.02 1.7 2.94-.06.06a1.7 1.7 0 0 0-.34 1.88z" transform="translate(-2 -2) scale(1.16)"></path></svg>';
+
+  function addSettingsItem() {
+    var sheet = document.querySelector('.bds-attach-dropdown');
+    if (!sheet || sheet.querySelector('#sd-settings-item')) return;
+    var first = sheet.querySelector('.bds-attach-item');
+    if (!first || !first.parentNode) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'sd-settings-item';
+    btn.className = 'bds-attach-item svelte-1y27tjy';
+    btn.setAttribute('aria-label', 'Advanced Settings');
+    btn.innerHTML = '<span class="bds-item-icon-box svelte-1y27tjy">' + SETTINGS_ICON + '</span> ' +
+      '<span class="bds-item-content svelte-1y27tjy"><span class="bds-item-title svelte-1y27tjy"></span> ' +
+      '<span class="bds-item-desc svelte-1y27tjy"></span></span>';
+    btn.querySelector('.bds-item-title').textContent = t('Advanced Settings', 'অ্যাডভান্সড সেটিংস');
+    btn.querySelector('.bds-item-desc').textContent = t('App preferences and tools', 'অ্যাপের সেটিংস ও টুল');
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var close = document.querySelector('.bds-sheet-close') || document.querySelector('.bds-attach-backdrop');
+      if (close) { try { close.click(); } catch (_) {} }
+      window.setTimeout(function () {
+        try { window.dispatchEvent(new CustomEvent('bds:open-drawer')); } catch (_) {}
+      }, 40);
+    });
+    /* Reuse ArenaPilot's native tool-row structure and place Settings last. */
+    first.parentNode.appendChild(btn);
+  }
+
   function watchSheet() {
     if (typeof MutationObserver !== 'function' || !document.body) return;
     var queued = false;
     new MutationObserver(function () {
       if (queued) return;
       queued = true;
-      setTimeout(function () { queued = false; addStudioItem(); adoptLinuxPage(); }, 50);
+      setTimeout(function () { queued = false; addStudioItem(); addSettingsItem(); adoptLinuxPage(); }, 50);
     }).observe(document.body, { childList: true, subtree: true });
   }
 
