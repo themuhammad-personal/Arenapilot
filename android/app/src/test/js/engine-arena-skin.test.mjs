@@ -138,10 +138,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the transparent engine hit target has its own accessible label');
   assert.match(SITE, /setImportantStyle\(enginePlus\.style, 'opacity', '0'\)/,
     'the engine hit target is transparent over the native icon');
-  assert.match(SITE, /setImportantStyle\(original\.style, 'pointer-events', 'none'\)/,
-    'only hit testing changes on the native Plus, not its visual style');
-  assert.doesNotMatch(SITE, /setImportantStyle\(original\.style, 'display', 'flex'\)/,
-    'the original Plus display mode is not forced');
+  assert.doesNotMatch(SITE, /setImportantStyle\(original\.style|original\.style\.setProperty\(/,
+    'the native Plus keeps its original display, pointer, border, radius and DOM state');
   assert.match(SITE, /panel\.setAttribute\('data-bds-arena-sidebar', 'true'\)/);
   assert.doesNotMatch(SITE, /panel\.style\.setProperty\(['"](?:width|height|min-width|max-width)/,
     'sidebar width and height are never written by the adapter');
