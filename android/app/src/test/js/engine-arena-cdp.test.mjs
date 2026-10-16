@@ -237,13 +237,13 @@ async function startFakeCdp(opts = {}) {
         }
         if (marker === 'sidegeometry') {
           return value(JSON.stringify(state.sidebarOpen
-            ? { dock: 'sidebar', visible: true, inside: true, railRect: [8, 550, 240, 44], panelRect: [0, 0, 256, 616], panelTag: 'native-sidebar-measured' }
-            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, panelTag: null }));
+            ? { dock: 'native-sidebar', visible: true, inside: true, railRect: [8, 606, 240, 44], panelRect: [0, 0, 256, 616], nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true, panelTag: 'current-visible-native-sidebar' }
+            : { dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0], panelRect: null, nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false, panelTag: null }));
         }
         if (marker === 'drawer') {
           const open = state.drawerOpen && !opts.drawerNeverOpens;
           return value(JSON.stringify(open
-            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sidebar' }
+            ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'native-sidebar' }
             : { present: false, visible: false, rect: null, backdrop: false, railDock: 'pending' }));
         }
         if (marker === 'back') { state.drawerOpen = false; return value(true); }
@@ -262,7 +262,7 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
-          if (expr.includes('bds-settings-rail')) {
+          if (expr.includes('data-bds-arena-settings-entry') || expr.includes('bds-settings-rail')) {
             if (opts.noRail) return value(JSON.stringify({ found: false }));
             return state.sidebarOpen ? found(140, 550, 138, 44) : found(0, 0, 0, 0);
           }
