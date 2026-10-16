@@ -613,8 +613,16 @@
         var hit = document.elementFromPoint(x, y);
         if (!hit) return false;
         if (rail && (hit === rail || (rail.contains && rail.contains(hit)))) return true;
-        return !!(panel.contains && panel.contains(hit) &&
-          (hit === row || (row.contains && row.contains(hit))));
+        if (panel.contains && panel.contains(hit) &&
+            (hit === row || (row.contains && row.contains(hit)))) return true;
+        /* Opening our own Settings drawer places an engine backdrop over the
+         * native nav row. That is expected occlusion, not evidence that Arena
+         * closed the sidebar; keep the native sibling mounted through the
+         * drawer/Back lifecycle while the underlying row remains visible. */
+        var drawerOpen = false;
+        try { drawerOpen = !!document.querySelector('#bds-drawer.bds-open'); } catch (_) {}
+        if (drawerOpen && hit.closest && hit.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop')) return true;
+        return false;
       } catch (_) { return false; }
     }
 
