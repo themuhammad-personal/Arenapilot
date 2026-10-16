@@ -141,14 +141,20 @@ test('the real file input is found though it is a child of the column, not of th
   assert.equal(g.run('Dme(PQ())') === g.form, true, 'the container the other mounts use is still the form');
 });
 
-test('engine action mounts do not become children of Arena’s native composer', () => {
+test('all engine action mounts stay outside Arena’s native form and controls', () => {
   const g = realArena();
   g.run('$vt()');
-  const classes = g.form.children.map((c) => c.className);
-  assert.ok(classes.some((c) => c.includes('bds-expand-toggle-mount')));
-  assert.ok(classes.some((c) => c.includes('bds-rag-preview-mount')));
-  assert.ok(!classes.some((c) => c.includes('bds-attach-menu-mount')));
-  assert.ok(g.left.children.every((c) => !String(c.className || '').includes('bds-attach-menu-mount')));
+  const nativeClasses = g.form.children.map((c) => String(c.className || ''));
+  const engineClasses = g.bdsRoot.children.map((c) => String(c.className || ''));
+  for (const name of ['bds-attach-menu-mount', 'bds-expand-toggle-mount', 'bds-rag-preview-mount']) {
+    assert.ok(engineClasses.some((c) => c.includes(name)), name + ' is owned by #bds-root');
+    assert.ok(!nativeClasses.some((c) => c.includes(name)), name + ' is not a child of Arena’s native form');
+  }
+  assert.deepEqual(g.left.children, [g.attach, g.mode],
+    'the original Add files and mode controls keep their exact DOM order');
+  assert.deepEqual(g.right.children, [g.icon, g.send],
+    'the original action icon and Send keep their exact DOM order');
+  assert.equal(mountsOf(g).length, 1, 'the existing engine sheet is still mounted exactly once');
 });
 
 test('calling it again — the SPA scan runs constantly — never adds a second mount or sheet', () => {
@@ -228,7 +234,9 @@ test('the three seams are in the bundle, each exactly once', () => {
   assert.equal(times('function Yvt(e){if(sdsIsArena())return null;'), 1,
     'Arena must not pass its native Plus to the engine hide hook');
   assert.equal(times('i=e||sdsIsArena()?Yvt(e):null;'), 1, 'the original hide call remains unchanged for DeepSeek');
-  assert.equal(times('const sl=sdsArenaAttachSlot(),o=sdsIsArena()?V_(document.getElementById("bds-root")||document.body,"bds-attach-menu-mount",".bds-attach-wrapper",null):sl?V_(sl.group,"bds-attach-menu-mount",".bds-attach-wrapper",sl.button):V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e);'), 1,
-    'Arena attachment mount remains under the engine root; other sites keep their original placement');
+  assert.equal(times('const sl=sdsArenaAttachSlot(),o=ar?V_(root,"bds-attach-menu-mount",".bds-attach-wrapper",null):sl?V_(sl.group,"bds-attach-menu-mount",".bds-attach-wrapper",sl.button):V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e);'), 1,
+    'Arena attachment mount stays in the engine root; other sites keep their original placement');
+  assert.equal(times('const target=ar?root:t,l=V_(target,"bds-expand-toggle-mount",".bds-expand-toggle",ar?null:e);'), 1,
+    'Arena expand-toggle mount stays outside the native form');
   assert.equal(times('V_(t,"bds-attach-menu-mount",".bds-attach-wrapper",e)'), 1, 'the other-site fallback survives');
 });
