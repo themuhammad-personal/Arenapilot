@@ -564,22 +564,6 @@
       }
       return best;
     }
-    function accountRow(panel) {
-      var found = null;
-      var foundWidth = 0;
-      try {
-        var nodes = panel.querySelectorAll('button,a,[role="button"],footer,div');
-        for (var i = 0; i < nodes.length; i++) {
-          var node = nodes[i];
-          if (!/@/.test(textOf(node)) || textOf(node).length > 180 || !isVisible(node)) continue;
-          var r = rectOf(node);
-          if (!r || r.width < panel.getBoundingClientRect().width * 0.55 ||
-              r.height < 30 || r.height > 110) continue;
-          if (r.width > foundWidth) { found = r; foundWidth = r.width; }
-        }
-      } catch (_) {}
-      return found;
-    }
     function clearInlineDock(rail) {
       try {
         ['position','left','top','right','bottom','width','height','max-width','min-width','z-index','margin','transform']
@@ -632,35 +616,6 @@
         return !!(panel.contains && panel.contains(hit) &&
           (hit === row || (row.contains && row.contains(hit))));
       } catch (_) { return false; }
-    }
-
-    function mirrorNativeSidebarStyle(rail, row) {
-      if (!rail || !rail.style || !row || !window.getComputedStyle) return;
-      try {
-        var cs = window.getComputedStyle(row);
-        [
-          'font-family','font-size','font-weight','font-style','line-height',
-          'letter-spacing','color','background-color','border-radius','border-width',
-          'border-style','border-color','padding-top','padding-right','padding-bottom',
-          'padding-left','text-align','text-transform','direction'
-        ].forEach(function (key) {
-          var value = cs.getPropertyValue(key);
-          if (value) setImportantStyle(rail.style, key, value);
-        });
-        var nativeIcon = row.querySelector && row.querySelector('svg');
-        var iconBox = rail.querySelector && rail.querySelector('.bds-arena-rail-icon');
-        var nativeRect = rectOf(nativeIcon);
-        if (nativeRect && nativeRect.width > 0 && nativeRect.height > 0 && iconBox && iconBox.style) {
-          setImportantStyle(iconBox.style, 'width', nativeRect.width + 'px');
-          setImportantStyle(iconBox.style, 'height', nativeRect.height + 'px');
-          setImportantStyle(iconBox.style, 'flex', '0 0 ' + nativeRect.width + 'px');
-          var ownSvg = iconBox.querySelector && iconBox.querySelector('svg');
-          if (ownSvg && ownSvg.style) {
-            setImportantStyle(ownSvg.style, 'width', nativeRect.width + 'px');
-            setImportantStyle(ownSvg.style, 'height', nativeRect.height + 'px');
-          }
-        }
-      } catch (_) {}
     }
 
     var positionedOriginal = null;
@@ -896,77 +851,165 @@
       } catch (_) {}
     }
 
+    function findNativeSettingsEntry() {
+      try { return document.querySelector('[data-bds-arena-settings-entry="true"]'); }
+      catch (_) { return null; }
+    }
+
+    function removeNativeSettingsEntry(entry) {
+      entry = entry || findNativeSettingsEntry();
+      try { if (entry && entry.parentNode) entry.parentNode.removeChild(entry); } catch (_) {}
+    }
+
+    function replaceNewChatText(node, label) {
+      if (!node) return false;
+      var changed = false;
+      function visit(current) {
+        if (!current || changed) return;
+        if (current.nodeType === 3) {
+          var value = String(current.nodeValue || '');
+          if (/new\\s*chat/i.test(value)) {
+            current.nodeValue = value.replace(/new\\s*chat/i, label);
+            try {
+              if (current.parentElement && current.parentElement.childElementCount === 0) {
+                current.parentElement.setAttribute('data-bds-settings-label', 'true');
+              }
+            } catch (_) {}
+            changed = true;
+          }
+          return;
+        }
+        var children = current.childNodes;
+        for (var i = 0; children && i < children.length && !changed; i++) visit(children[i]);
+      }
+      visit(node);
+      return changed;
+    }
+
+    function cloneNativeSettingsRow(sourceRail, nativeRow) {
+      if (!sourceRail || !nativeRow || !nativeRow.cloneNode) return null;
+      var labelNode = sourceRail.querySelector && sourceRail.querySelector('.bds-arena-rail-label');
+      var label = textOf(labelNode) || 'Advanced Settings';
+      var entry = null;
+      try { entry = nativeRow.cloneNode(true); } catch (_) { return null; }
+      if (!entry || !entry.setAttribute || !entry.addEventListener) return null;
+      try {
+        entry.removeAttribute('id');
+        var withIds = entry.querySelectorAll ? entry.querySelectorAll('[id]') : [];
+        for (var i = 0; i < withIds.length; i++) withIds[i].removeAttribute('id');
+        ['href','target','rel','download','aria-current','aria-expanded','aria-controls','data-state','data-testid']
+          .forEach(function (key) { entry.removeAttribute(key); });
+        entry.setAttribute('data-bds-arena-settings-entry', 'true');
+        entry.setAttribute('data-dock', 'native-sidebar');
+        entry.setAttribute('aria-label', label);
+        entry.setAttribute('title', label);
+        entry.setAttribute('role', 'button');
+        entry.setAttribute('tabindex', '0');
+        if (String(entry.tagName || '').toLowerCase() === 'button') entry.setAttribute('type', 'button');
+        if (entry.classList && entry.classList.add) entry.classList.add('bds-arena-native-settings-entry');
+      } catch (_) { return null; }
+
+      /* Preserve the site's wrapper/classes and replace only its New Chat text
+       * and icon. This makes the new item a real sibling in the native list,
+       * not a fixed overlay that merely imitates the sidebar's coordinates. */
+      if (!replaceNewChatText(entry, label)) return null;
+      try {
+        var sourceIcon = sourceRail.querySelector('.bds-arena-rail-icon svg') ||
+          sourceRail.querySelector('svg');
+        var nativeIcon = nativeRow.querySelector && nativeRow.querySelector('svg');
+        if (sourceIcon && nativeIcon && nativeIcon.parentNode) {
+          var iconBox = rectOf(nativeIcon);
+          var icon = sourceIcon.cloneNode(true);
+          if (icon.style && iconBox && iconBox.width > 0 && iconBox.height > 0) {
+            icon.style.setProperty('width', iconBox.width + 'px');
+            icon.style.setProperty('height', iconBox.height + 'px');
+            icon.style.setProperty('display', 'block');
+          }
+          nativeIcon.parentNode.replaceChild(icon, nativeIcon);
+        }
+      } catch (_) {}
+
+      function openSettings(event) {
+        try { if (event && event.preventDefault) event.preventDefault(); } catch (_) {}
+        try { if (event && event.stopPropagation) event.stopPropagation(); } catch (_) {}
+        try {
+          if (window && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('bds:open-drawer'));
+          }
+        } catch (_) {}
+      }
+      entry.addEventListener('click', openSettings);
+      if (String(entry.tagName || '').toLowerCase() !== 'button') {
+        entry.addEventListener('keydown', function (event) {
+          if (event && (event.key === ' ' || event.code === 'Space')) openSettings(event);
+        });
+      }
+      return entry;
+    }
+
     function sync() {
       scheduled = false;
       if (site.id !== 'arena') return;
       syncOriginalAttachTrigger();
-      var rail = null;
-      try { rail = document.querySelector(railSelector); } catch (_) {}
-      if (!rail || !rail.style) return;
+      var sourceRail = null;
+      try { sourceRail = document.querySelector(railSelector); } catch (_) {}
+      if (!sourceRail || !sourceRail.style) return;
+
       var panel = sidebar();
       if (!panel) {
-        /* No site-owned navigation is open. Do not leave a stale Settings
-         * row visible over the composer/login page after a route transition. */
-        hideSettingsRail(rail);
+        removeNativeSettingsEntry();
+        hideSettingsRail(sourceRail);
         return;
       }
+
       var pr = rectOf(panel);
-      if (!pr) return;
-      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
-      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
-
-      /* Mark the original, currently open Arena navigation container for
-       * evidence only. Never write dimensions, position, flex or width onto
-       * the site's panel: its own stylesheet remains the source of truth. */
-      /* Do not add a marker attribute to the React-owned Arena sidebar. */
-
-      /* Store the site's measured bounds on the engine-owned Settings row,
-       * not on the React-owned Arena sidebar. CDP can verify containment without
-       * mutating the original navigation DOM. */
-      try {
-        rail.setAttribute('data-sidebar-confirmed', 'true');
-        /* Clear the no-sidebar guard only after a real site-owned sidebar
-         * and its current bounds were measured successfully. */
-        if (rail.style.getPropertyValue('display') === 'none') rail.style.removeProperty('display');
-        rail.setAttribute('data-sidebar-left', String(pr.left));
-        rail.setAttribute('data-sidebar-top', String(pr.top));
-        rail.setAttribute('data-sidebar-width', String(pr.width));
-        rail.setAttribute('data-sidebar-height', String(pr.height));
-      } catch (_) {}
-      var account = accountRow(panel);
-      var navRow = nativeSidebarRow(panel);
-      var navRect = rectOf(navRow);
-      /* Text landmarks alone are not proof of an open sidebar: hidden React
-       * trees can keep the labels in the DOM while their rows have no live hit
-       * target. Fail closed rather than placing Settings over the composer. */
-      if (!navRect || !isHitTestableSidebarRow(panel, navRow, rail)) {
-        hideSettingsRail(rail);
+      if (!pr) {
+        removeNativeSettingsEntry();
+        hideSettingsRail(sourceRail);
         return;
       }
-      var rowHeight = navRect.height;
-      var top = account ? account.top - rowHeight : pr.bottom - rowHeight - 60;
-      top = Math.max(pr.top, Math.min(top, pr.bottom - rowHeight));
-      var left = navRect.left;
-      var width = navRect.width;
-      top = Math.max(4, Math.min(top, vh - rowHeight));
-      mirrorNativeSidebarStyle(rail, navRow);
-      var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width), Math.round(rowHeight)].join(':');
-      if (lastSignature === signature2 && rail.dataset.dock === 'sidebar' &&
-          rail.style.position === 'fixed' && rail.style.left === left + 'px' && rail.style.top === top + 'px') return;
-      rail.dataset.dock = 'sidebar';
-      rail.style.setProperty('position', 'fixed', 'important');
-      rail.style.setProperty('left', left + 'px', 'important');
-      rail.style.setProperty('top', top + 'px', 'important');
-      rail.style.setProperty('right', 'auto', 'important');
-      rail.style.setProperty('bottom', 'auto', 'important');
-      rail.style.setProperty('width', width + 'px', 'important');
-      rail.style.setProperty('min-width', '0', 'important');
-      rail.style.setProperty('max-width', width + 'px', 'important');
-      rail.style.setProperty('height', rowHeight + 'px', 'important');
-      rail.style.setProperty('margin', '0', 'important');
-      rail.style.setProperty('transform', 'none', 'important');
-      rail.style.setProperty('z-index', '2147483647', 'important');
-      lastSignature = signature2;
+
+      var navRow = nativeSidebarRow(panel);
+      if (!navRow || !isHitTestableSidebarRow(panel, navRow, null)) {
+        removeNativeSettingsEntry();
+        hideSettingsRail(sourceRail);
+        return;
+      }
+
+      var entry = findNativeSettingsEntry();
+      if (entry && (entry.parentElement !== navRow.parentElement ||
+          entry.previousElementSibling !== navRow)) {
+        removeNativeSettingsEntry(entry);
+        entry = null;
+      }
+      if (!entry) {
+        entry = cloneNativeSettingsRow(sourceRail, navRow);
+        if (!entry || !navRow.parentNode) {
+          removeNativeSettingsEntry();
+          hideSettingsRail(sourceRail);
+          return;
+        }
+        try { navRow.parentNode.insertBefore(entry, navRow.nextSibling); }
+        catch (_) {
+          removeNativeSettingsEntry(entry);
+          hideSettingsRail(sourceRail);
+          return;
+        }
+      } else {
+        var labelNode = sourceRail.querySelector && sourceRail.querySelector('.bds-arena-rail-label');
+        var label = textOf(labelNode) || 'Advanced Settings';
+        try {
+          var visibleLabel = entry.querySelector('[data-bds-settings-label="true"]');
+          if (visibleLabel && textOf(visibleLabel) !== label) visibleLabel.textContent = label;
+          entry.setAttribute('aria-label', label);
+          entry.setAttribute('title', label);
+        } catch (_) {}
+      }
+
+      /* Keep the original engine-owned source hidden inside #bds-root. The
+       * visible Settings entry is the cloned native row in Arena's own list. */
+      hideSettingsRail(sourceRail);
+      lastSignature = 'native-sidebar';
     }
     function schedule() {
       if (scheduled) return;
