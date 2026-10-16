@@ -2,8 +2,8 @@
    Deliberately do not style Arena-owned page chrome, navigation, composer,
    message textarea, mode/model selectors, Send button, icons, typography or
    widths. Arena's own CSS/DOM owns those dimensions and states. The engine may
-   add its Settings entry to the open navigation drawer, but it must not resize
-   that drawer or the original site controls. */
+   add its Settings card to the existing Add to chat tool list, but it must not
+   resize Arena's navigation drawer or the original site controls. */
 
 /* ── Mixed-script text (Arabic + Bengali/English in one reply) ──
    sd-native.js marks paragraphs according to their dominant script so Arabic
