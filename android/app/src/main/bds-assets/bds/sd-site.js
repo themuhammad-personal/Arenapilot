@@ -679,6 +679,10 @@
         }
         mount = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-menu-mount') : null;
         wrapper = enginePlus && enginePlus.closest ? enginePlus.closest('.bds-attach-wrapper') : null;
+        /* This attribute belongs to our injected mount only. It lets the
+         * engine's generic parent-flex rule opt out of Arena's original
+         * Plus/mode/model group without touching Arena-owned DOM. */
+        if (mount && mount.setAttribute) mount.setAttribute('data-bds-preserve-native-layout', 'true');
       } catch (_) {}
 
       if (!enginePlus || !enginePlus.style || !original || !mount || !mount.style) {
