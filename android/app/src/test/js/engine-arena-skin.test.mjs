@@ -162,5 +162,10 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the attachment sheet mount is isolated under the engine root');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
   assert.doesNotMatch(attachSync, /createElement\(/, 'the native icon is not cloned');
-  assert.doesNotMatch(attachSync, /trigger\.click\(\)/, 'native interaction is not simulated');
+  assert.match(attachSync, /original\.addEventListener\('click'/,
+    'the native Arena button handles taps when geometry shifts between observer passes');
+  assert.match(attachSync, /syncOriginalAttachTrigger\(\)[\s\S]*trigger\.click\(\)/,
+    'a real native-button tap refreshes engine geometry and opens the existing sheet');
+  assert.doesNotMatch(attachSync, /original\.style\.setProperty\(|setImportantStyle\(original\.style/,
+    'the forwarding bridge never changes Arena’s native button CSS');
 });

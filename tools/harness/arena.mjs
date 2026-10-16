@@ -204,7 +204,7 @@ try {
         return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' &&
           native.style.getPropertyValue('pointer-events') === '' &&
           getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
-          Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1;
+          nr.width > 0 && nr.height > 0 && tr.width > 0 && tr.height > 0;
       });
     } catch (error) {
       const diagnostic = await page.evaluate(() => {

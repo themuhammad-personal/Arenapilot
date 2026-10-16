@@ -732,9 +732,36 @@
           enginePlus.setAttribute('type', 'button');
         } catch (_) {}
 
-        /* The sheet mount now lives in #bds-root, not in Arena's React-owned
-         * composer. Use viewport coordinates for a transparent hit target over
-         * the original icon; never change the site's control-group positioning. */
+        /* A normal tap on Arena's native button must still work if the page
+         * moves the composer after our previous geometry measurement. The
+         * transparent engine button handles taps when it is already aligned;
+         * if a tap lands on the visible Arena button, remeasure first and
+         * forward that same interaction to the engine button. The native
+         * control's styles, icon, dimensions and DOM position remain untouched. */
+        if (original.__sdArenaSheetBound !== true) {
+          original.__sdArenaSheetBound = true;
+          original.addEventListener('click', function (event) {
+            var trigger = null;
+            try {
+              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+            } catch (_) {}
+            if (!trigger || trigger.disabled) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            try {
+              syncOriginalAttachTrigger();
+              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+              if (trigger && !trigger.disabled) trigger.click();
+            } catch (_) {}
+          }, true);
+        }
+
+        /* The sheet mount is isolated under #bds-root. Its overlay is only a
+         * transparent hit target; native-button click forwarding above covers
+         * layout shifts between observer passes. */
         var or = rectOf(original);
         if (!or) return;
         setImportantStyle(mount.style, 'position', 'fixed');
