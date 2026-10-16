@@ -484,10 +484,31 @@
     function isVisible(node) {
       var r = rectOf(node);
       if (!r) return false;
+      var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 360);
+      var vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 640);
+      if (r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh) return false;
+      var current = node;
+      var depth = 0;
       try {
-        var cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
-        return !cs || (cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0);
-      } catch (_) { return true; }
+        /* A child can retain a non-zero rect while an ancestor hides the
+         * whole navigation subtree (for example during an auth/SPA change).
+         * Check the entire chain instead of the candidate element alone. */
+        while (current && depth++ < 64) {
+          if (current.hasAttribute && (
+              current.hasAttribute('hidden') ||
+              current.hasAttribute('inert') ||
+              String(current.getAttribute('aria-hidden') || '').toLowerCase() === 'true')) return false;
+          var cs = window.getComputedStyle ? window.getComputedStyle(current) : null;
+          if (cs) {
+            var opacity = parseFloat(cs.opacity);
+            if (cs.display === 'none' || cs.visibility === 'hidden' ||
+                cs.visibility === 'collapse' || (isFinite(opacity) && opacity <= 0.01)) return false;
+          }
+          if (current === document.documentElement) return true;
+          current = current.parentElement;
+        }
+      } catch (_) { return false; }
+      return false;
     }
     function hasNavLandmarks(node) {
       var t = textOf(node);
@@ -565,6 +586,21 @@
           .forEach(function (key) { rail.style.removeProperty(key); });
       } catch (_) {}
     }
+
+    function hideSettingsRail(rail) {
+      try {
+        rail.removeAttribute('data-sidebar-confirmed');
+        ['data-sidebar-left','data-sidebar-top','data-sidebar-width','data-sidebar-height']
+          .forEach(function (key) { rail.removeAttribute(key); });
+      } catch (_) {}
+      if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
+      clearInlineDock(rail);
+      if (rail.style.getPropertyValue('display') !== 'none' ||
+          rail.style.getPropertyPriority('display') !== 'important') {
+        rail.style.setProperty('display', 'none', 'important');
+      }
+      lastSignature = 'pending';
+    }
     function nativeSidebarRow(panel) {
       var best = null;
       var bestArea = 0;
@@ -582,6 +618,22 @@
       } catch (_) {}
       return best;
     }
+
+    function isHitTestableSidebarRow(panel, row, rail) {
+      if (!panel || !row || typeof document.elementFromPoint !== 'function') return false;
+      var r = rectOf(row);
+      if (!r) return false;
+      var x = Math.max(r.left + 1, Math.min(r.right - 1, r.left + r.width / 2));
+      var y = Math.max(r.top + 1, Math.min(r.bottom - 1, r.top + r.height / 2));
+      try {
+        var hit = document.elementFromPoint(x, y);
+        if (!hit) return false;
+        if (rail && (hit === rail || (rail.contains && rail.contains(hit)))) return true;
+        return !!(panel.contains && panel.contains(hit) &&
+          (hit === row || (row.contains && row.contains(hit)));
+      } catch (_) { return false; }
+    }
+
     function mirrorNativeSidebarStyle(rail, row) {
       if (!rail || !rail.style || !row || !window.getComputedStyle) return;
       try {
@@ -855,20 +907,7 @@
       if (!panel) {
         /* No site-owned navigation is open. Do not leave a stale Settings
          * row visible over the composer/login page after a route transition. */
-        try {
-          rail.removeAttribute('data-sidebar-confirmed');
-          ['data-sidebar-left','data-sidebar-top','data-sidebar-width','data-sidebar-height']
-            .forEach(function (key) { rail.removeAttribute(key); });
-        } catch (_) {}
-        if (rail.dataset.dock !== 'pending') rail.dataset.dock = 'pending';
-        clearInlineDock(rail);
-        /* Fail closed in the live WebView too; do not rely only on a CSS
-         * stylesheet that might arrive later during a login/SPA transition. */
-        if (rail.style.getPropertyValue('display') !== 'none' ||
-            rail.style.getPropertyPriority('display') !== 'important') {
-          rail.style.setProperty('display', 'none', 'important');
-        }
-        lastSignature = 'pending';
+        hideSettingsRail(rail);
         return;
       }
       var pr = rectOf(panel);
@@ -897,11 +936,18 @@
       var account = accountRow(panel);
       var navRow = nativeSidebarRow(panel);
       var navRect = rectOf(navRow);
-      var rowHeight = navRect ? navRect.height : 44;
+      /* Text landmarks alone are not proof of an open sidebar: hidden React
+       * trees can keep the labels in the DOM while their rows have no live hit
+       * target. Fail closed rather than placing Settings over the composer. */
+      if (!navRect || !isHitTestableSidebarRow(panel, navRow, rail)) {
+        hideSettingsRail(rail);
+        return;
+      }
+      var rowHeight = navRect.height;
       var top = account ? account.top - rowHeight : pr.bottom - rowHeight - 60;
       top = Math.max(pr.top, Math.min(top, pr.bottom - rowHeight));
-      var left = navRect ? navRect.left : Math.max(4, pr.left + 8);
-      var width = navRect ? navRect.width : Math.max(44, Math.min(pr.width - 16, vw - left - 4));
+      var left = navRect.left;
+      var width = navRect.width;
       top = Math.max(4, Math.min(top, vh - rowHeight));
       mirrorNativeSidebarStyle(rail, navRow);
       var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width), Math.round(rowHeight)].join(':');
