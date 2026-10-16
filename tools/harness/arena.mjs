@@ -274,8 +274,12 @@ try {
     return { native:n, trigger:t, aligned, bound:!!(native && native.__sdArenaSheetBound),
       mountCount:document.querySelectorAll('.bds-attach-menu-mount').length };
   }, nativePlusSelector);
-  if (!attachLayout.aligned || attachLayout.mountCount !== 1) {
-    throw new Error('original Plus and engine hit target are not ready: ' + JSON.stringify(attachLayout));
+  if (!attachLayout.native || attachLayout.native.width < 24 || attachLayout.native.height < 24 ||
+      attachLayout.native.display === 'none' || attachLayout.native.pointerEvents === 'none' ||
+      !attachLayout.trigger || attachLayout.trigger.display === 'none' ||
+      attachLayout.trigger.pointerEvents !== 'none' || attachLayout.trigger.opacity !== '0' ||
+      attachLayout.mountCount !== 1) {
+    throw new Error('native Plus or non-blocking engine action is not ready: ' + JSON.stringify(attachLayout));
   }
   const attachTap = { x: attachLayout.native.x + attachLayout.native.width / 2,
     y: attachLayout.native.y + attachLayout.native.height / 2 };
