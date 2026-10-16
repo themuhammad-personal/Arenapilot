@@ -398,7 +398,7 @@ const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
     var y = Math.max(rowRect[1] + 1, Math.min(rowRect[1] + rowRect[3] - 1, rowRect[1] + rowRect[3] / 2));
     var hit = document.elementFromPoint(x, y);
     hitTest = !!(hit && ((hit === row || (row.contains && row.contains(hit))) ||
-      (rail && (hit === rail || (rail.contains && rail.contains(hit)))));
+      (rail && (hit === rail || (rail.contains && rail.contains(hit))))));
   }
   var inside = !!(visible(rail) && panel && row && hitTest && rr && pr &&
     rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
