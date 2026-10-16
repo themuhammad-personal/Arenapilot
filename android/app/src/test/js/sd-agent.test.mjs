@@ -94,6 +94,45 @@ test('a ">" inside a quoted attribute does not end the tag', () => {
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo 1 > f' });
 });
 
+test('backtick-quoted attributes accept JSON containing ">" and preserve tool arguments', () => {
+  const { win } = load();
+  const tick = String.fromCharCode(96);
+  const text = '<SDS:AUTO:MCP url=' + tick + 'sandbox://linux' + tick +
+    ' tool=' + tick + 'run' + tick +
+    ' args=' + tick + '{"command":"echo 1 > f"}' + tick + '/>';
+  const tags = win.__sdAgent._parseTags(text);
+  assert.equal(tags.length, 1);
+  assert.equal(tags[0].attrs.url, 'sandbox://linux');
+  assert.equal(tags[0].attrs.tool, 'run');
+  assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo 1 > f' });
+});
+
+test('JSON fences and response fragments do not break a tool tag', () => {
+  const { win } = load();
+  const fence = String.fromCharCode(96).repeat(3);
+  const messages = win.__sdAgent._assistantTexts([{
+    role: 'ASSISTANT',
+    fragments: [
+      { type: 'THINK', content: 'do not inspect this fragment' },
+      { type: 'RESPONSE', content: 'Example tag:\n' + fence + 'xml\n<SDS:AUTO:MCP url="sandbox" tool="run">' },
+      { type: 'RESPONSE', content: fence + 'json\n{"command":"echo split > result.txt"}\n' + fence + '</SDS:AUTO:MCP>\n' + fence },
+    ],
+  }]);
+  assert.equal(messages.length, 1);
+  const tags = win.__sdAgent._parseTags(messages[0]);
+  assert.equal(tags.length, 1);
+  assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo split > result.txt' });
+});
+
+test('an incomplete backtick-quoted opener is ignored rather than becoming an executable call', () => {
+  const { win } = load();
+  const tick = String.fromCharCode(96);
+  const incomplete = '<SDS:AUTO:MCP url=' + tick + 'sandbox' +
+    ' tool=' + tick + 'run' + tick +
+    ' args=' + tick + '{"command":"must-not-run"}';
+  assert.deepEqual(plain(win.__sdAgent._parseTags(incomplete)), []);
+});
+
 test('picks the raw args of the matching sandbox call, newest reply first', () => {
   const { win } = load();
   const older = '<BDS:AUTO:MCP url="sandbox" tool="run">{"command":"old"}</BDS:AUTO:MCP>';
