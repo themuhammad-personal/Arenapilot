@@ -121,6 +121,16 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the Arena-only sidebar cleanup runs at profile initialization');
   assert.match(AGENT, /function addSettingsItem\(\)/,
     'the Settings option is added by the same engine that builds the Plus sheet tools');
+  assert.match(AGENT, /function fitSettingsList\(sheet, list\)/,
+    'the existing More tools list is given a measured scroll viewport on short screens');
+  assert.match(AGENT, /list\.style\.setProperty\('overflow-y', 'auto'\)/,
+    'Settings can be reached by scrolling inside the tool list, without hiding the header and quick actions');
+  assert.match(AGENT, /list\.style\.setProperty\('max-height', available \+ 'px'\)/,
+    'the list viewport is measured from the actual remaining sheet space, not a guessed CSS height');
+  assert.match(AGENT, /width="18" height="18" viewBox="0 0 24 24"/,
+    'Settings uses an icon large enough to match the other tool cards');
+  assert.match(AGENT, /M12\.22 2h-\.44/,
+    'Settings uses a conventional gear outline rather than the old malformed teeth path');
   assert.match(AGENT, /\.bds-attach-dropdown/);
   assert.match(AGENT, /sd-arena-settings-item/);
   assert.match(AGENT, /Manage app preferences, tools and integrations/);
