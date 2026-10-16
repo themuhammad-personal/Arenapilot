@@ -123,7 +123,7 @@ export const FACTS = `/*sdp:facts*/(function () {
   var h = window.__sdHealth;
   var st = null;
   try { st = h && h.status ? h.status() : null; } catch (e) { st = null; }
-  var rail = q('[data-bds-arena-settings-entry="true"]') || q('#bds-settings-rail');
+  var rail = q('#bds-settings-rail');
   var inputs = Array.prototype.slice.call(document.querySelectorAll('textarea, input')).filter(vis).slice(0, 8).map(function (e) {
     return { tag: e.tagName.toLowerCase(), type: e.type || null, name: e.getAttribute('name'), placeholder: String(e.getAttribute('placeholder') || '').slice(0, 40), id: String(e.id || '').slice(0, 24) };
   });
@@ -339,85 +339,57 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
   var d = q('#bds-drawer');
-  var rail = q('[data-bds-arena-settings-entry="true"]') || q('#bds-settings-rail');
-  return JSON.stringify({ present: !!d, visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0), rect: d ? r(d) : null, backdrop: !!q('.bds-drawer-backdrop'), railDock: rail && rail.dataset ? rail.dataset.dock : null });
+  var rail = q('#bds-settings-rail');
+  var sheet = q('.bds-attach-dropdown');
+  return JSON.stringify({
+    present: !!d,
+    visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0),
+    rect: d ? r(d) : null,
+    backdrop: !!q('.bds-drawer-backdrop'),
+    railDock: rail && rail.dataset ? rail.dataset.dock : null,
+    sheetVisible: !!(sheet && r(sheet) && r(sheet)[2] > 0 && r(sheet)[3] > 0)
+  });
 })()`;
 
-const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
+export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  function txt(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim(); } catch (e) { return ''; } }
-  function visible(el) {
-    var box = r(el);
-    if (!el || !box || box[2] < 1 || box[3] < 1 ||
-        box[0] + box[2] <= 0 || box[1] + box[3] <= 0 ||
-        box[0] >= innerWidth || box[1] >= innerHeight) return false;
-    var node = el, depth = 0;
+  function shown(el) {
+    if (!el || !r(el) || r(el)[2] < 1 || r(el)[3] < 1) return false;
     try {
-      while (node && depth++ < 64) {
-        if (node.hasAttribute && (node.hasAttribute('hidden') || node.hasAttribute('inert') ||
-            String(node.getAttribute('aria-hidden') || '').toLowerCase() === 'true')) return false;
-        var cs = getComputedStyle(node), opacity = parseFloat(cs.opacity);
+      var n = el, depth = 0;
+      while (n && depth++ < 64) {
+        if (n.hasAttribute && (n.hasAttribute('hidden') || n.hasAttribute('inert') ||
+            String(n.getAttribute('aria-hidden') || '').toLowerCase() === 'true')) return false;
+        var cs = getComputedStyle(n);
         if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' ||
-            (isFinite(opacity) && opacity <= 0.01)) return false;
-        if (node === document.documentElement) return true;
-        node = node.parentElement;
+            parseFloat(cs.opacity) <= 0.01) return false;
+        if (n === document.documentElement) return true;
+        n = n.parentElement;
       }
     } catch (e) { return false; }
     return false;
   }
-  function landmarks(el) {
-    var text = txt(el);
-    return /new\\s*chat/i.test(text) && /leaderboard/i.test(text) && /\\bsearch\\b/i.test(text);
-  }
-  var entry = q('[data-bds-arena-settings-entry="true"]');
-  var source = q('#bds-settings-rail');
-  var rr = r(entry || source);
-  var row = null, rowArea = 0;
-  var rows = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
-  for (var i = 0; i < rows.length; i++) {
-    var item = rows[i], text = txt(item), box = r(item);
-    if (!/new\\s*chat/i.test(text) || !visible(item) || !box ||
-        box[2] < innerWidth * 0.42 || box[3] < 24 || box[3] > 120) continue;
-    var area = box[2] * box[3];
-    if (area > rowArea) { row = item; rowArea = area; }
-  }
-  var panel = null, panelArea = Infinity;
-  for (var parent = row && row.parentElement, depth = 0;
-       parent && parent !== document.body && depth++ < 9; parent = parent.parentElement) {
-    var pr0 = r(parent);
-    if (!visible(parent) || !pr0 || pr0[0] > innerWidth * 0.12 ||
-        pr0[2] < innerWidth * 0.42 || pr0[2] > innerWidth * 0.96 ||
-        pr0[3] < Math.min(220, innerHeight * 0.32) || pr0[0] + pr0[2] > innerWidth * 0.97 ||
-        !landmarks(parent) || (parent.closest && parent.closest('#bds-root, #bds-drawer, .bds-drawer-backdrop'))) continue;
-    var panelSize = pr0[2] * pr0[3];
-    if (panelSize < panelArea) { panel = parent; panelArea = panelSize; }
-  }
-  var pr = r(panel), er = r(entry), adjacent = !!(entry && row &&
-    entry.parentElement === row.parentElement && entry.previousElementSibling === row);
-  var hitTest = false;
-  if (entry && er && document.elementFromPoint) {
-    var x = Math.max(er[0] + 1, Math.min(er[0] + er[2] - 1, er[0] + er[2] / 2));
-    var y = Math.max(er[1] + 1, Math.min(er[1] + er[3] - 1, er[1] + er[3] / 2));
-    var hit = document.elementFromPoint(x, y);
-    hitTest = !!(hit && (hit === entry || (entry.contains && entry.contains(hit))));
-  }
-  var inside = !!(visible(entry) && panel && row && adjacent && hitTest && er && pr &&
-    er[0] >= pr[0] - 1 && er[1] >= pr[1] - 1 &&
-    er[0] + er[2] <= pr[0] + pr[2] + 1 &&
-    er[1] + er[3] <= pr[1] + pr[3] + 1);
+  var sheet = q('.bds-attach-dropdown');
+  var card = q('#sd-arena-settings-item');
+  var rail = q('#bds-settings-rail');
+  var items = sheet ? Array.prototype.slice.call(sheet.querySelectorAll('.bds-attach-item')) : [];
+  var title = card && card.querySelector('.bds-item-title');
+  var desc = card && card.querySelector('.bds-item-desc');
   return JSON.stringify({
-    dock: entry && entry.dataset ? entry.dataset.dock : source && source.dataset ? source.dataset.dock : null,
-    visible: visible(entry || source),
-    inside: inside,
-    railRect: rr,
-    panelRect: pr,
-    nativeRowFound: !!row,
-    nativeRowRect: r(row),
-    entryFound: !!entry,
-    sameParent: adjacent,
-    hitTest: hitTest,
-    panelTag: panel ? 'current-visible-native-sidebar' : null
+    sheetPresent: !!sheet,
+    sheetVisible: shown(sheet),
+    present: !!card,
+    count: sheet ? sheet.querySelectorAll('#sd-arena-settings-item').length : 0,
+    visible: shown(card),
+    insideSheet: !!(sheet && card && sheet.contains(card)),
+    lastCard: !!card && items[items.length - 1] === card,
+    title: title ? String(title.textContent || '').trim() : '',
+    description: desc ? String(desc.textContent || '').trim() : '',
+    rect: r(card),
+    legacySidebarRows: document.querySelectorAll('[data-bds-arena-settings-entry="true"]').length,
+    sourceRailVisible: shown(rail),
+    sourceDock: rail && rail.dataset ? rail.dataset.dock : null
   });
 })()`;
 
@@ -604,35 +576,42 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
 
   // Settings belongs in Arena's own sidebar, not beside the composer. Open the
   // site's existing navigation drawer first when its gear is not currently visible.
+  // Settings is a card at the bottom of the existing Add to chat sheet.
+  // It closes that sheet and opens the existing engine drawer; it is not a second UI.
   await step('settings-drawer', async () => {
-    /* Always take a fresh live measurement first. Authentication can change
-     * during startup: an earlier engine snapshot may say "chat" while the
-     * current document has already changed to the login wall (or vice versa).
-     * Assign the live facts even when the rail cannot be opened, so the runtime
-     * gate never falls back to stale Settings visibility from the first probe. */
-    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
-    const pageBeforeSettings = result.engineAfter || result.engine || {};
-    if (pageBeforeSettings.login === true) {
-      result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
-      return 'login wall: current Settings visibility captured; native sidebar unverified';
+    const plus = await evalJson(cdp, rectExpr('form button[aria-label="Add files"]:not(.bds-plus-btn)'));
+    let trigger = plus;
+    if (!trigger.found || !(trigger.w >= 24 && trigger.h >= 24)) {
+      trigger = await evalJson(cdp, rectExpr('.bds-plus-btn'));
     }
-    let t = await evalJson(cdp, rectExpr('[data-bds-arena-settings-entry="true"]'));
+    if (!trigger.found || !(trigger.w >= 24 && trigger.h >= 24)) {
+      result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
+      result.drawer = { present: false, visible: false, reason: 'plus-trigger-not-visible' };
+      return 'Add to chat trigger not visible';
+    }
+
+    await realClick(cdp, trigger.x, trigger.y);
+    await pause(900);
+    result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
+    if (!result.settingsCardBeforeClick || result.settingsCardBeforeClick.present !== true ||
+        result.settingsCardBeforeClick.count !== 1 || result.settingsCardBeforeClick.insideSheet !== true ||
+        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.sourceRailVisible === true ||
+        result.settingsCardBeforeClick.legacySidebarRows !== 0) {
+      result.drawer = { present: false, visible: false, reason: 'settings-card-not-last-in-plus-sheet' };
+      return 'Settings card not present at the bottom of Add to chat';
+    }
+
+    await evalValue(cdp, `(function () {
+      var card = document.querySelector('#sd-arena-settings-item');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'end', behavior: 'instant' });
+      return !!card;
+    })()`);
+    await pause(150);
+    const t = await evalJson(cdp, rectExpr('#sd-arena-settings-item'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
-      const toggle = await evalJson(cdp, sidebarToggleExpr);
-      if (toggle.found && toggle.w >= 24 && toggle.h >= 24) {
-        await realClick(cdp, toggle.x, toggle.y);
-        await pause(900);
-        t = await evalJson(cdp, rectExpr('[data-bds-arena-settings-entry="true"]'));
-      }
+      result.drawer = { present: false, visible: false, reason: 'settings-card-not-visible' };
+      return 'Settings card could not be brought into the visible sheet area';
     }
-    if (!t.found || !(t.w >= 44 && t.h >= 40)) {
-      /* Refresh even if opening the native sidebar was impossible. */
-      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
-      result.drawer = { present: false, visible: false, reason: 'sidebar-settings-not-visible' };
-      return 'Settings entry not visible in the official sidebar';
-    }
-    /* Capture placement BEFORE opening Settings can close the site navigation. */
-    result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
     await realClick(cdp, t.x, t.y);
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
@@ -640,7 +619,9 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
-    return result.drawer.visible ? 'opened from the official sidebar' : 'drawer did not open';
+    return result.drawer.visible && result.drawer.sheetVisible === false
+      ? 'Settings card opened the existing drawer; Add to chat closed'
+      : 'Settings drawer did not open cleanly from the sheet';
   });
 
   // The composer itself: fill through the engine's API (never send), read, clear.
