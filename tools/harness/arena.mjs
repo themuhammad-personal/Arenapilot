@@ -71,6 +71,13 @@ try {
   // for in source. It preserves Arena's original visible attach button and
   // routes its tap to the existing engine sheet without another visible plus.
   stage = 'n0-responsive-skin';
+  // Settings cleanup is intentionally deferred briefly so it cannot race Arena's
+  // native React reconciliation. Wait for its final hidden-sheet state before
+  // asserting layout; an immediate read sees the source rail's initial `pending`.
+  await wait(() => {
+    const rail = document.querySelector('#bds-settings-rail');
+    return !!(rail && rail.dataset && rail.dataset.dock === 'sheet' && getComputedStyle(rail).display === 'none');
+  });
   const skinLayout = await page.evaluate(() => {
     const form = document.querySelector('form');
     const input = document.querySelector('textarea[name="message"]');
