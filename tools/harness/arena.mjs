@@ -234,6 +234,7 @@ try {
   await page.waitForSelector('.bds-attach-backdrop', { hidden: true });
   console.log('PASS remount/style reset: original Arena + remains visible and opens the one engine sheet');
 
+  stage = 'settings-sidebar-geometry';
   await page.evaluate(() => {
     const aside = document.createElement('aside');
     aside.setAttribute('aria-label', 'Arena navigation drawer');
@@ -254,7 +255,7 @@ try {
     const r = rail.getBoundingClientRect();
     const panelEl = document.querySelector('aside');
     const panel = panelEl.getBoundingClientRect();
-    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\\s*chat/i.test(a.innerText || a.textContent || ''));
+    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\s*chat/i.test(a.innerText || a.textContent || ''));
     const nativeRect = nativeRow.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
       nativeRowLeft: nativeRect.left, nativeRowRight: nativeRect.right,
