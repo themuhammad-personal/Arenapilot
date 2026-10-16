@@ -304,9 +304,8 @@ try {
 
   stage = 'settings-attach-card';
   await page.evaluate(() => {
-    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-    if (!trigger || trigger.disabled) throw new Error('engine Plus trigger missing before Settings-card test');
+    const trigger = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+    if (!trigger || trigger.disabled) throw new Error('native Arena Plus trigger missing before Settings-card test');
     trigger.click();
   });
   await page.waitForSelector('.bds-attach-dropdown', { visible: true });
