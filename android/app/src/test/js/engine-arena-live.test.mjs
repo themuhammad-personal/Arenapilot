@@ -209,5 +209,5 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     assert.ok(acceptanceFailures({ ...good, composerFill: broken }).includes('composer-not-drivable'), JSON.stringify(broken));
   }
   assert.ok(acceptanceFailures({ ...good, composerFill: { ...good.composerFill, sendButton: false } }).includes('send-button-missing'));
-  assert.ok(acceptanceFailures({ ...good, drawer: { present: true, visible: false } }).includes('settings-drawer-not-openable'));
+  assert.ok(acceptanceFailures({ ...good, drawer: { present: true, visible: false } }).includes('settings-drawer-not-openable-from-sheet-card'));
 });
