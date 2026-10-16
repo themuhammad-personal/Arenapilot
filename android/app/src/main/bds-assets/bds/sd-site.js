@@ -623,6 +623,52 @@
           .forEach(function (key) { rail.style.removeProperty(key); });
       } catch (_) {}
     }
+    function nativeSidebarRow(panel) {
+      var best = null;
+      var bestArea = 0;
+      try {
+        var nodes = panel.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
+        var panelWidth = panel.getBoundingClientRect().width;
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          if (!/new\s*chat/i.test(textOf(node)) || !isVisible(node)) continue;
+          var r = rectOf(node);
+          if (!r || r.width < panelWidth * 0.55 || r.height < 24 || r.height > 120) continue;
+          var area = r.width * r.height;
+          if (area > bestArea) { best = node; bestArea = area; }
+        }
+      } catch (_) {}
+      return best;
+    }
+    function mirrorNativeSidebarStyle(rail, row) {
+      if (!rail || !rail.style || !row || !window.getComputedStyle) return;
+      try {
+        var cs = window.getComputedStyle(row);
+        [
+          'font-family','font-size','font-weight','font-style','line-height',
+          'letter-spacing','color','background-color','border-radius','border-width',
+          'border-style','border-color','padding-top','padding-right','padding-bottom',
+          'padding-left','text-align','text-transform','direction'
+        ].forEach(function (key) {
+          var value = cs.getPropertyValue(key);
+          if (value) setImportantStyle(rail.style, key, value);
+        });
+        var nativeIcon = row.querySelector && row.querySelector('svg');
+        var iconBox = rail.querySelector && rail.querySelector('.bds-arena-rail-icon');
+        var nativeRect = rectOf(nativeIcon);
+        if (nativeRect && nativeRect.width > 0 && nativeRect.height > 0 && iconBox && iconBox.style) {
+          setImportantStyle(iconBox.style, 'width', nativeRect.width + 'px');
+          setImportantStyle(iconBox.style, 'height', nativeRect.height + 'px');
+          setImportantStyle(iconBox.style, 'flex', '0 0 ' + nativeRect.width + 'px');
+          var ownSvg = iconBox.querySelector && iconBox.querySelector('svg');
+          if (ownSvg && ownSvg.style) {
+            setImportantStyle(ownSvg.style, 'width', nativeRect.width + 'px');
+            setImportantStyle(ownSvg.style, 'height', nativeRect.height + 'px');
+          }
+        }
+      } catch (_) {}
+    }
+
     var positionedOriginal = null;
     var positionedParent = null;
     var savedOriginalPosition = null;
@@ -889,12 +935,16 @@
       try { panel.setAttribute('data-bds-arena-sidebar', 'true'); } catch (_) {}
 
       var account = accountRow(panel);
-      var top = account ? account.top - 48 : pr.bottom - 60;
-      top = Math.max(pr.top + Math.min(140, pr.height * 0.2), Math.min(top, pr.bottom - 56));
-      var left = Math.max(4, pr.left + 8);
-      var width = Math.max(44, Math.min(pr.width - 16, vw - left - 4));
-      top = Math.max(4, Math.min(top, vh - 48));
-      var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width)].join(':');
+      var navRow = nativeSidebarRow(panel);
+      var navRect = rectOf(navRow);
+      var rowHeight = navRect ? navRect.height : 44;
+      var top = account ? account.top - rowHeight : pr.bottom - rowHeight - 60;
+      top = Math.max(pr.top, Math.min(top, pr.bottom - rowHeight));
+      var left = navRect ? navRect.left : Math.max(4, pr.left + 8);
+      var width = navRect ? navRect.width : Math.max(44, Math.min(pr.width - 16, vw - left - 4));
+      top = Math.max(4, Math.min(top, vh - rowHeight));
+      mirrorNativeSidebarStyle(rail, navRow);
+      var signature2 = ['sidebar', Math.round(left), Math.round(top), Math.round(width), Math.round(rowHeight)].join(':');
       if (lastSignature === signature2 && rail.dataset.dock === 'sidebar' &&
           rail.style.position === 'fixed' && rail.style.left === left + 'px' && rail.style.top === top + 'px') return;
       rail.dataset.dock = 'sidebar';
@@ -906,7 +956,7 @@
       rail.style.setProperty('width', width + 'px', 'important');
       rail.style.setProperty('min-width', '0', 'important');
       rail.style.setProperty('max-width', width + 'px', 'important');
-      rail.style.setProperty('height', '44px', 'important');
+      rail.style.setProperty('height', rowHeight + 'px', 'important');
       rail.style.setProperty('margin', '0', 'important');
       rail.style.setProperty('transform', 'none', 'important');
       rail.style.setProperty('z-index', '2147483647', 'important');
