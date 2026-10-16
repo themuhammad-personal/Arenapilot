@@ -12,6 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
 const SKIN = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/our-skin.css'), 'utf8');
 const ENGINE_CSS = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/content.css'), 'utf8');
+const ENGINE_JS = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/content.js'), 'utf8');
 
 function runSite(host, initiallyHasComposer = true) {
   const htmlClasses = new Set();
@@ -141,6 +142,20 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.match(SITE, /panel\.setAttribute\('data-bds-arena-sidebar', 'true'\)/);
   assert.doesNotMatch(SITE, /panel\.style\.setProperty\(['"](?:width|height|min-width|max-width)/,
     'sidebar width and height are never written by the adapter');
+  const railStart = ENGINE_JS.indexOf('function sdsArenaRail(){');
+  const railEnd = ENGINE_JS.indexOf('function sdsArenaInstall(){', railStart);
+  assert.ok(railStart >= 0 && railEnd > railStart, 'Arena Settings rail function is present');
+  const railSource = ENGINE_JS.slice(railStart, railEnd);
+  assert.match(railSource, /host=document\.getElementById\("bds-root"\)\|\|document\.body/,
+    'the Settings rail is owned by the engine root');
+  assert.doesNotMatch(railSource, /host=sdsArenaComposer\(\)|host=n;/,
+    'the engine rail is never appended into Arena’s React-owned sidebar or composer');
+  const attachStart = ENGINE_JS.indexOf('function $vt(){');
+  const attachEnd = ENGINE_JS.indexOf('function PQ(){', attachStart);
+  assert.ok(attachStart >= 0 && attachEnd > attachStart, 'attachment-sheet hook is present');
+  const attachSource = ENGINE_JS.slice(attachStart, attachEnd);
+  assert.match(attachSource, /V_\(document\.getElementById\("bds-root"\)\|\|document\.body,"bds-attach-menu-mount"/,
+    'the attachment sheet mount is isolated under the engine root');
   const attachSync = SITE.slice(SITE.indexOf('function syncOriginalAttachTrigger()'), SITE.indexOf('function sync()'));
   assert.doesNotMatch(attachSync, /createElement\(/, 'the native icon is not cloned');
   assert.doesNotMatch(attachSync, /trigger\.click\(\)/, 'native interaction is not simulated');
