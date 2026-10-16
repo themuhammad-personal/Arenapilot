@@ -35,7 +35,7 @@ li[data-sd-bidi="rtl"] {
 
 /* Only position the engine-owned Settings entry. These selectors never target
    Arena's native composer buttons, model/mode controls, icons or sidebar. */
-.bds-arena-rail[data-dock="sidebar"] {
+.bds-arena-rail[data-dock="sidebar"][data-sidebar-confirmed="true"] {
   display: inline-flex !important;
   align-items: center !important;
   box-sizing: border-box;
@@ -44,7 +44,11 @@ li[data-sd-bidi="rtl"] {
   z-index: 2147483647;
 }
 
-.bds-arena-rail[data-dock="sidebar"] .bds-arena-rail-label {
+.bds-arena-rail[data-dock="sidebar"]:not([data-sidebar-confirmed="true"]) {
+  display: none !important;
+}
+
+.bds-arena-rail[data-dock="sidebar"][data-sidebar-confirmed="true"] .bds-arena-rail-label {
   display: inline !important;
   min-width: 0;
   overflow: hidden;
