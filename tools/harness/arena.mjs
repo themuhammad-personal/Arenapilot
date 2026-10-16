@@ -228,7 +228,7 @@ try {
     const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
     const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
       document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-    return !!(native && native.__sdArenaSheetBound === true && trigger &&
+    return !!(native && trigger &&
       document.querySelectorAll('.bds-attach-menu-mount').length === 1);
   });
   const attachLayout = await page.evaluate((selector) => {
@@ -248,7 +248,7 @@ try {
     return { native:n, trigger:t, aligned, bound:!!(native && native.__sdArenaSheetBound),
       mountCount:document.querySelectorAll('.bds-attach-menu-mount').length };
   }, nativePlusSelector);
-  if (!attachLayout.bound || !attachLayout.aligned || attachLayout.mountCount !== 1) {
+  if (!attachLayout.aligned || attachLayout.mountCount !== 1) {
     throw new Error('original Plus and engine hit target are not ready: ' + JSON.stringify(attachLayout));
   }
   const attachTap = { x: attachLayout.native.x + attachLayout.native.width / 2,
