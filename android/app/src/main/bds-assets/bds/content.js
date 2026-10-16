@@ -3214,13 +3214,11 @@ function sdsArenaComposer(){
   for(i=0;i<sel.length;i++){try{n=ta.closest&&ta.closest(sel[i]);if(n)return n}catch(_){}}
   try{return(ta.closest&&ta.closest("form"))||ta.parentElement||null}catch(_){return null}
 }
-/* arena's own "+" and the group it sits in. VERIFIED on the real arena.ai page (the CI
-   emulator's DevTools capture): inside the composer <form>, the controls row's left group
-   is  [button aria-label="Add files"] [button role=combobox = the Direct/Battle/... switch].
-   The engine's "+" takes that slot — the site's button hidden, ours before it — exactly as
-   on DeepSeek, where it takes the place of the site's "+". Fallback when the label is
-   different (the UI is localised): the button right before the mode switch. null = not found,
-   and the engine then keeps its old placement (end of the form) and hides nothing. */
+/* Locate Arena's native Add files control only as a visual/geometry reference.
+   The original button and its flex group belong to Arena. The attachment-sheet mount is kept
+   under #bds-root and positioned over the native button by sd-site.js, so neither a mount nor
+   engine-owned flex rules become children/styles of the React-owned composer. Fallback to the
+   sibling before the mode switch only to find the localized native button; never replace it. */
 function sdsArenaAttachSlot(){
   if(!sdsIsArena())return null;
   var c=sdsArenaComposer(),b=null,combo,prev;
