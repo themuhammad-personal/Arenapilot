@@ -613,7 +613,6 @@
 
     var positionedOriginal = null;
     var positionedParent = null;
-    var savedOriginalPosition = null;
     var positionedMount = null;
     var savedMountStyles = null;
     var positionedWrapper = null;
@@ -641,32 +640,13 @@
       });
     }
     function clearOverlay() {
-      restoreInlineStyles(positionedOriginal, savedOriginalPosition);
-      /* The hidden state was imposed by the generic engine hook, not Arena.
-       * When the overlay is released, reveal the site button using its native
-       * stylesheet instead of restoring that injected display:none. */
-      try {
-        if (positionedOriginal && positionedOriginal.style &&
-            positionedOriginal.style.getPropertyValue('display') === 'none') {
-          positionedOriginal.style.removeProperty('display');
-        }
-      } catch (_) {}
+      /* Arena-owned nodes are immutable from the adapter's perspective.
+       * Only restore styles on our own engine mount/wrapper/trigger. */
       restoreInlineStyles(positionedMount, savedMountStyles);
       restoreInlineStyles(positionedWrapper, savedWrapperStyles);
       restoreInlineStyles(positionedPlus, savedPlusStyles);
-      try {
-        if (positionedOriginal && positionedOriginal.__sdArenaOverlayA11y) {
-          var a = positionedOriginal.__sdArenaOverlayA11y;
-          if (a.ariaHidden == null) positionedOriginal.removeAttribute('aria-hidden');
-          else positionedOriginal.setAttribute('aria-hidden', a.ariaHidden);
-          if (a.tabindex == null) positionedOriginal.removeAttribute('tabindex');
-          else positionedOriginal.setAttribute('tabindex', a.tabindex);
-          delete positionedOriginal.__sdArenaOverlayA11y;
-        }
-      } catch (_) {}
       positionedOriginal = null;
       positionedParent = null;
-      savedOriginalPosition = null;
       positionedMount = null;
       savedMountStyles = null;
       positionedWrapper = null;
@@ -725,7 +705,6 @@
           positionedMount = mount;
           positionedWrapper = wrapper;
           positionedPlus = enginePlus;
-          savedOriginalPosition = saveInlineStyles(original, ['pointer-events']);
           savedMountStyles = saveInlineStyles(mount, [
             'position','left','top','right','bottom','width','height','min-width','min-height',
             'max-width','max-height','z-index','margin','padding','flex','flex-basis',
@@ -754,15 +733,10 @@
          * zero opacity: what the user sees is still Arena's native icon, but
          * the touch lands on the engine button and opens our attachment sheet.
          * No cloned icon, second visible button, or scripted click forwarding. */
-        if (original.style.getPropertyValue('display') === 'none') original.style.removeProperty('display');
-        /* Keep the site's computed display/layout untouched. Only pass pointer
-         * hit testing to the transparent working target placed in this slot. */
-        setImportantStyle(original.style, 'pointer-events', 'none');
+        /* The original Arena Plus remains completely untouched: no style,
+         * aria, tabindex, label or event handlers are changed. The engine-owned
+         * transparent target sits above it and receives the physical tap. */
         try {
-          original.setAttribute('aria-hidden', 'true');
-          original.setAttribute('tabindex', '-1');
-          /* Do not reuse the native selector label on the engine button:
-           * Arena's own attach-slot discovery queries [aria-label="Add files"]. */
           enginePlus.setAttribute('aria-label', 'Arena attachment options');
           enginePlus.setAttribute('title', 'Add files and attachment modes');
           enginePlus.setAttribute('type', 'button');
@@ -866,7 +840,7 @@
       /* Mark the original, currently open Arena navigation container for
        * evidence only. Never write dimensions, position, flex or width onto
        * the site's panel: its own stylesheet remains the source of truth. */
-      try { panel.setAttribute('data-bds-arena-sidebar', 'true'); } catch (_) {}
+      /* Do not add a marker attribute to the React-owned Arena sidebar. */
 
       var account = accountRow(panel);
       var navRow = nativeSidebarRow(panel);
@@ -906,27 +880,28 @@
     if (typeof MutationObserver === 'function') {
       try {
         var observer = new MutationObserver(function (records) {
-          /* The engine's SPA scan may set the native Add files button back to
-           * display:none after every pass. Repair that one mutation immediately
-           * (before paint), instead of waiting for the general 80ms layout pass.
-           * The native SVG remains visible while the transparent target receives taps. */
-          var nativeAttachStyleChanged = false;
-          for (var i = 0; i < records.length; i++) {
+          /* Track route/sidebar mount changes only. Changes to the native
+           * transcript or controls do not require a style repair because this
+           * adapter never styles Arena-owned nodes. */
+          var relevant = false;
+          for (var i = 0; i < records.length && !relevant; i++) {
             var record = records[i];
             var node = record && record.target;
-            if (!record || record.type !== 'attributes' || record.attributeName !== 'style' ||
-                !node || String(node.tagName || '').toUpperCase() !== 'BUTTON') continue;
-            var label = '';
-            try { label = String(node.getAttribute('aria-label') || ''); } catch (_) {}
-            if (label !== 'Add files' && label !== 'Attach files') continue;
+            if (!record || !node) continue;
             try {
-              if (node.closest && node.closest('.bds-attach-menu-mount, .bds-attach-wrapper')) continue;
-            } catch (_) {}
-            nativeAttachStyleChanged = true;
-            break;
+              relevant = !!(
+                node.id === 'bds-root' || node.id === 'bds-settings-rail' ||
+                (node.matches && node.matches('aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                (node.querySelector && node.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                (record.addedNodes && Array.prototype.some.call(record.addedNodes, function (added) {
+                  return added && (added.id === 'bds-root' || added.id === 'bds-settings-rail' ||
+                    (added.matches && added.matches('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')) ||
+                    (added.querySelector && added.querySelector('#bds-root,#bds-settings-rail,aside,nav,[role="navigation"],[data-sidebar="sidebar"]')));
+                }))
+              );
+            } catch (_) { relevant = false; }
           }
-          if (nativeAttachStyleChanged) syncOriginalAttachTrigger();
-          schedule();
+          if (relevant) schedule();
         });
         observer.observe(document.documentElement, {
           childList: true, subtree: true, attributes: true,
