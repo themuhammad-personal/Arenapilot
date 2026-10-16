@@ -127,7 +127,13 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'only the injected mount receives the marker used to preserve native Arena geometry');
 
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
-  assert.match(SITE, /leaderboard/i);
+
+  assert.match(SITE, /data-bds-arena-settings-entry/);
+  assert.match(SITE, /navRow\\.parentNode\\.insertBefore\\(entry, navRow\\.nextSibling\\)/,
+    'Settings is inserted directly after the native row in the site list');
+  assert.doesNotMatch(SITE.slice(SITE.indexOf('function sync()'), SITE.indexOf('function schedule()')),
+    /position', 'fixed'/,
+    'the visible Settings option is not a fixed-position overlay');  assert.match(SITE, /leaderboard/i);
   assert.match(SITE, /search/i);
   assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
   assert.doesNotMatch(SITE, /classList\.add\('sd-arena-native'\)|classList\.add\('sd-arena-composer'\)/,
