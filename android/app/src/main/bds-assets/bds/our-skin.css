@@ -39,9 +39,9 @@ html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] {
   display: inline-flex !important;
   align-items: center !important;
   box-sizing: border-box;
-  min-height: 44px;
+  min-width: 0 !important;
+  min-height: 0 !important;
   z-index: 2147483647;
-  touch-action: manipulation;
 }
 
 html.sd-arena-native #bds-settings-rail[data-dock="sidebar"] .bds-arena-rail-label {
