@@ -655,6 +655,15 @@
     }
     function clearOverlay() {
       restoreInlineStyles(positionedOriginal, savedOriginalPosition);
+      /* The hidden state was imposed by the generic engine hook, not Arena.
+       * When the overlay is released, reveal the site button using its native
+       * stylesheet instead of restoring that injected display:none. */
+      try {
+        if (positionedOriginal && positionedOriginal.style &&
+            positionedOriginal.style.getPropertyValue('display') === 'none') {
+          positionedOriginal.style.removeProperty('display');
+        }
+      } catch (_) {}
       restoreInlineStyles(positionedParent, savedParentPosition);
       restoreInlineStyles(positionedMount, savedMountStyles);
       restoreInlineStyles(positionedWrapper, savedWrapperStyles);
@@ -731,7 +740,7 @@
           positionedMount = mount;
           positionedWrapper = wrapper;
           positionedPlus = enginePlus;
-          savedOriginalPosition = saveInlineStyles(original, ['display','pointer-events']);
+          savedOriginalPosition = saveInlineStyles(original, ['pointer-events']);
           savedParentPosition = saveInlineStyles(positionedParent, ['position']);
           savedMountStyles = saveInlineStyles(mount, [
             'position','left','top','right','bottom','width','height','min-width','min-height',
@@ -762,7 +771,8 @@
          * the touch lands on the engine button and opens our attachment sheet.
          * No cloned icon, second visible button, or scripted click forwarding. */
         if (original.style.getPropertyValue('display') === 'none') original.style.removeProperty('display');
-        setImportantStyle(original.style, 'display', 'flex');
+        /* Keep the site's computed display/layout untouched. Only pass pointer
+         * hit testing to the transparent working target placed in this slot. */
         setImportantStyle(original.style, 'pointer-events', 'none');
         try {
           original.setAttribute('aria-hidden', 'true');
