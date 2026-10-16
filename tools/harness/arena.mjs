@@ -176,10 +176,11 @@ try {
 
   // Native style reset, button replacement, and group replacement while the engine
   // mount stays isolated under #bds-root: the cases a static Plus test misses.
-  stage = 'composer-remount';
   for (const mutation of ['style', 'button', 'group']) {
+    stage = 'composer-remount-' + mutation;
     await page.evaluate((kind) => {
       const b = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+      if (!b) throw new Error('native Add files control missing before ' + kind);
       if (kind === 'style') b.style.removeProperty('display');
       if (kind === 'button') { const next = b.cloneNode(true); next.removeAttribute('style'); b.replaceWith(next); }
       if (kind === 'group') {
@@ -192,18 +193,36 @@ try {
         b.removeAttribute('style');
       }
     }, mutation);
-    await wait(() => {
-      const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
-      const mounts = document.querySelectorAll('.bds-attach-menu-mount');
-      const trigger = document.querySelector('.bds-plus-btn');
-      if (!native || !trigger || mounts.length !== 1 ||
-          !mounts[0].parentElement || mounts[0].parentElement.id !== 'bds-root') return false;
-      const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
-      return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' && native.style.getPropertyValue('pointer-events') === '' &&
-        getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
-        Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1;
-    });
+    try {
+      await wait(() => {
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const mounts = document.querySelectorAll('.bds-attach-menu-mount');
+        const trigger = document.querySelector('.bds-plus-btn');
+        if (!native || !trigger || mounts.length !== 1 ||
+            !mounts[0].parentElement || mounts[0].parentElement.id !== 'bds-root') return false;
+        const nr = native.getBoundingClientRect(); const tr = trigger.getBoundingClientRect();
+        return getComputedStyle(native).display !== 'none' && getComputedStyle(native).pointerEvents !== 'none' &&
+          native.style.getPropertyValue('pointer-events') === '' &&
+          getComputedStyle(trigger).display !== 'none' && getComputedStyle(trigger).opacity === '0' &&
+          Math.abs(nr.left - tr.left) <= 1 && Math.abs(nr.top - tr.top) <= 1;
+      });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const native = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+        const trigger = document.querySelector('.bds-plus-btn');
+        const mounts = [...document.querySelectorAll('.bds-attach-menu-mount')];
+        const rect = (el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          const c = getComputedStyle(el);
+          return {x:r.x,y:r.y,w:r.width,h:r.height,display:c.display,opacity:c.opacity,pointerEvents:c.pointerEvents,inlinePointer:el.style.getPropertyValue('pointer-events'),parent:el.parentElement && el.parentElement.id || el.parentElement && el.parentElement.className || null};
+        };
+        return {native:rect(native),trigger:rect(trigger),mountCount:mounts.length,mountParents:mounts.map(m=>m.parentElement && ({id:m.parentElement.id,className:m.parentElement.className})),pageErrors:[]};
+      });
+      throw new Error(String(error && error.message || error) + ' mutation=' + mutation + ' diagnostic=' + JSON.stringify(diagnostic));
+    }
   }
+  stage = 'attach-open-and-back';
   stage = 'attach-open-and-back';
   const attachTap = await page.$eval('form button[aria-label="Add files"]:not(.bds-plus-btn)', (b) => {
     const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
