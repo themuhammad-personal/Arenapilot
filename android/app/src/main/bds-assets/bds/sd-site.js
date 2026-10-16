@@ -742,26 +742,10 @@
          * if a tap lands on the visible Arena button, remeasure first and
          * forward that same interaction to the engine button. The native
          * control's styles, icon, dimensions and DOM position remain untouched. */
-        if (original.__sdArenaSheetBound !== true) {
-          original.__sdArenaSheetBound = true;
-          original.addEventListener('click', function (event) {
-            var trigger = null;
-            try {
-              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-            } catch (_) {}
-            if (!trigger || trigger.disabled) return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-            try {
-              syncOriginalAttachTrigger();
-              trigger = document.querySelector('#bds-root .bds-plus-btn') ||
-                document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
-              if (trigger && !trigger.disabled) trigger.click();
-            } catch (_) {}
-          }, true);
-        }
+        /* This marker tells the harness that native-button forwarding is ready.
+         * The actual forwarding listener is delegated from document, so it survives
+         * React replacing the native button after composer state changes. */
+        try { original.__sdArenaSheetBound = true; } catch (_) {}
 
         /* The sheet mount is isolated under #bds-root. Its overlay is only a
          * transparent hit target; native-button click forwarding above covers
@@ -834,6 +818,29 @@
         setImportantStyle(enginePlus.style, 'background', 'transparent');
         setImportantStyle(enginePlus.style, 'border', '0');
         setImportantStyle(enginePlus.style, 'box-shadow', 'none');
+      } catch (_) {}
+    }
+
+    function forwardNativeAttachClick(event) {
+      var target = event && event.target;
+      var original = null;
+      var trigger = null;
+      try {
+        if (!target || !target.closest) return;
+        original = target.closest('form button[aria-label="Add files"], form button[aria-label="Attach files"]');
+        if (!original || (original.closest && original.closest('#bds-root, .bds-attach-menu-mount, .bds-attach-wrapper'))) return;
+        trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        if (!trigger || trigger.disabled) return;
+        event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        /* Re-measure after any React re-render, then forward only this user's
+         * native-button tap to the one existing engine attachment trigger. */
+        syncOriginalAttachTrigger();
+        trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+          document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+        if (trigger && !trigger.disabled) trigger.click();
       } catch (_) {}
     }
 
@@ -946,7 +953,10 @@
       } catch (_) {}
     }
     try {
-      document.addEventListener('click', schedule, true);
+      document.addEventListener('click', function (event) {
+        forwardNativeAttachClick(event);
+        schedule();
+      }, true);
       document.addEventListener('scroll', schedule, true);
       if (window.addEventListener) window.addEventListener('resize', schedule, false);
     } catch (_) {}
