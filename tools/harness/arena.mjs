@@ -220,18 +220,22 @@ try {
     const panelEl = document.querySelector('aside');
     const panel = panelEl.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
-      panelLeft: panel.left, panelRight: panel.right, panelHeight: panel.height, dock: rail.dataset.dock,
+      panelLeft: panel.left, panelRight: panel.right, panelWidth: panel.width,
+      panelHeight: panel.height, expectedPanelWidth: innerWidth * 0.8,
+      expectedPanelHeight: innerHeight * 0.76, dock: rail.dataset.dock,
       position: getComputedStyle(rail).position,
       labelVisible: getComputedStyle(rail.querySelector('.bds-arena-rail-label')).display !== 'none' };
   });
-  const panelHeight = sidebarSettingsLayout.panelHeight;
   assert.equal(sidebarSettingsLayout.dock, 'sidebar', 'settings fallback moves into the existing sidebar');
   assert.equal(sidebarSettingsLayout.position, 'fixed', 'settings row anchors to the visible drawer rather than composer');
   assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
     sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
     'settings row stays inside sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
   assert.ok(sidebarSettingsLayout.top < sidebarSettingsLayout.bottom, 'settings row has visible height');
-  assert.ok(panelHeight >= 736, 'sidebar height is extended to the full 740px phone viewport'); 
+  assert.ok(Math.abs(sidebarSettingsLayout.panelWidth - sidebarSettingsLayout.expectedPanelWidth) < 1,
+    'the adapter preserves Arena’s original sidebar width instead of forcing a new width');
+  assert.ok(Math.abs(sidebarSettingsLayout.panelHeight - sidebarSettingsLayout.expectedPanelHeight) < 1,
+    'the adapter preserves Arena’s original sidebar height instead of stretching the drawer');
   assert.equal(sidebarSettingsLayout.labelVisible, true, 'sidebar entry keeps its label');
   stage = 'settings-open-and-back';
   await page.click('#bds-settings-rail');
