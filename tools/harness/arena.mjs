@@ -313,7 +313,7 @@ try {
   await page.waitForFunction(() => {
     const item = document.querySelector('#sd-arena-settings-item');
     const list = item && item.parentElement;
-    return !!(list && /^\\d+px$/.test(list.style.maxHeight) &&
+    return !!(list && /^\d+px$/.test(list.style.maxHeight) &&
       getComputedStyle(list).overflowY === 'auto');
   }, { timeout: 5000 });
   const settingsCardLayout = await page.evaluate(() => {
