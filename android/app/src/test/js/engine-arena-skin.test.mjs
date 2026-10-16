@@ -125,6 +125,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
     'the existing More tools list is given a measured scroll viewport on short screens');
   assert.match(AGENT, /list\.style\.setProperty\('overflow-y', 'auto'\)/,
     'Settings can be reached by scrolling inside the tool list, without hiding the header and quick actions');
+  assert.match(AGENT, /rows\[i\]\.style\.setProperty\('flex-shrink', '0'\)/,
+    'the tool cards keep their authored height and the list absorbs overflow');
   assert.match(AGENT, /list\.style\.setProperty\('max-height', available \+ 'px'\)/,
     'the list viewport is measured from the actual remaining sheet space, not a guessed CSS height');
   assert.match(AGENT, /width="18" height="18" viewBox="0 0 24 24"/,
