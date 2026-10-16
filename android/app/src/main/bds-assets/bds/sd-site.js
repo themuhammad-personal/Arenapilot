@@ -868,8 +868,8 @@
         if (!current || changed) return;
         if (current.nodeType === 3) {
           var value = String(current.nodeValue || '');
-          if (/new\\s*chat/i.test(value)) {
-            current.nodeValue = value.replace(/new\\s*chat/i, label);
+          if (/new\s*chat/i.test(value)) {
+            current.nodeValue = value.replace(/new\s*chat/i, label);
             try {
               if (current.parentElement && current.parentElement.childElementCount === 0) {
                 current.parentElement.setAttribute('data-bds-settings-label', 'true');
