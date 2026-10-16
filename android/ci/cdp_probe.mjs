@@ -792,7 +792,7 @@ export function acceptanceFailures(result) {
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
   const settingsCard = result.settingsCardBeforeClick;
   const cardOk = !!(settingsCard && settingsCard.present === true &&
-      settingsCard.count === 1 && settingsCard.insideSheet === true &&
+      settingsCard.count === 1 && settingsCard.visible === true && settingsCard.insideSheet === true &&
       settingsCard.lastCard === true && settingsCard.legacySidebarRows === 0 &&
       settingsCard.sourceRailVisible !== true && settingsCard.sourceDock === 'sheet');
   if (!cardOk) errors.push('settings-card-not-last-in-plus-sheet');
