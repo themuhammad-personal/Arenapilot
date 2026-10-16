@@ -145,48 +145,49 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     engine: { css: true, root: true, engineApi: 'object', handleBack: 'function' },
     composer: { named: 1, rect: [0, 0, 320, 50] },
     attach: { toggle: 1, siteButton: [20, 520, 44, 44], overlayAligned: true, nativePlusVisible: true, nativePlusPointerIntact: true, enginePlusOverlayReady: true },
-    skin: { active: true, composerTarget: 'native', sendInsideComposer: true, sendRect: [250, 520, 44, 44], settingsRailVisible: true },
+    skin: { active: true, composerTarget: 'native', sendInsideComposer: true, sendRect: [250, 520, 44, 44], settingsRailVisible: false, settingsDock: 'sheet', settingsLabelDisplay: 'none' },
   },
     sheetOpenedBy: 'real-click', originalPlusSheet: { dropdown: 1 }, steps: [],
-    settingsSidebarBeforeClick: {
-      dock: 'native-sidebar', visible: true, inside: true,
-      railRect: [8, 72, 240, 44], nativeRowRect: [8, 28, 240, 44],
-      nativeRowFound: true, entryFound: true, sameParent: true, hitTest: true,
-      panelRect: [0, 0, 256, 616], panelTag: 'current-visible-native-sidebar',
+    settingsCardBeforeClick: {
+      sheetPresent: true, sheetVisible: true, present: true, count: 1, visible: true,
+      insideSheet: true, lastCard: true, title: 'Settings',
+      description: 'Manage app preferences, tools and integrations',
+      rect: [20, 530, 280, 52], legacySidebarRows: 0,
+      sourceRailVisible: false, sourceDock: 'sheet',
     },
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
-    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'native-sidebar' } };
+    drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sheet', sheetVisible: false },
+    drawerAfterBack: { present: true, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: false },
+  };
   assert.deepEqual(acceptanceFailures(good), []);
   const loginWall = {
     ...good,
-    engine: {
-      ...good.engine,
-      login: true,
-      skin: { ...good.engine.skin, settingsRailVisible: false, settingsDock: 'pending' },
-    },
-    settingsSidebarBeforeClick: {
-      dock: 'pending', visible: false, inside: false, railRect: [0, 0, 0, 0],
-      nativeRowFound: false, entryFound: false, sameParent: false, hitTest: false,
-      panelRect: null, panelTag: null,
-    },
-    drawer: { present: false, visible: false, reason: 'login-wall-no-native-sidebar' },
+    engine: { ...good.engine, login: true },
   };
   assert.deepEqual(acceptanceFailures(loginWall), [],
-    'a login wall with a live hidden Settings row is accepted; signed-in sidebar acceptance remains unverified');
-  assert.deepEqual(acceptanceFailures({
-    ...loginWall,
-    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: true } },
-  }), [], 'stale initial page facts cannot override fresh evidence that the Settings row is hidden');
+    'Settings is app-owned in Add to chat, so its entry remains available even when Arena shows a login wall');
   assert.ok(acceptanceFailures({
-    ...loginWall,
-    engine: { ...loginWall.engine, skin: { ...loginWall.engine.skin, settingsRailVisible: false } },
-    settingsSidebarBeforeClick: {
-      ...loginWall.settingsSidebarBeforeClick, visible: true, railRect: [8, 524, 240, 32],
-    },
-  }).includes('settings-visible-without-original-sidebar'),
-  'fresh live evidence of a leaked Settings row must fail even if the older snapshot says hidden');
+    ...good,
+    settingsCardBeforeClick: { ...good.settingsCardBeforeClick, sourceRailVisible: true },
+  }).includes('settings-sidebar-row-still-visible'),
+  'a visible legacy sidebar Settings control fails the gate');
+  assert.ok(acceptanceFailures({
+    ...good,
+    settingsCardBeforeClick: { ...good.settingsCardBeforeClick, lastCard: false },
+  }).includes('settings-card-not-last-in-plus-sheet'),
+  'Settings must be the bottom-most tool card');
+  assert.ok(acceptanceFailures({
+    ...good,
+    drawer: { ...good.drawer, sheetVisible: true },
+  }).includes('settings-sheet-not-closed-before-drawer'),
+  'the Add to chat sheet must close before the drawer opens');
+  assert.ok(acceptanceFailures({
+    ...good,
+    drawerAfterBack: { ...good.drawerAfterBack, visible: true },
+  }).includes('settings-drawer-back-failed'),
+  'Back must dismiss the Settings drawer');
   assert.ok(acceptanceFailures({ ...good, originalPlusSheet: { dropdown: 0 } }).includes('arena-original-plus-does-not-open-sheet'));
-  assert.ok(acceptanceFailures({ ...good, settingsSidebarBeforeClick: { ...good.settingsSidebarBeforeClick, dock: 'pending', inside: false } }).includes('settings-not-inside-original-sidebar'));
+  assert.ok(acceptanceFailures({ ...good, settingsSidebarBeforeClick: { ...good.settingsSidebarBeforeClick, dock: 'pending', inside: false } }).includes('settings-card-not-last-in-plus-sheet'));
   assert.ok(acceptanceFailures({}).length);
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
