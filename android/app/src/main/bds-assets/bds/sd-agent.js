@@ -1009,7 +1009,7 @@
       if (close) { try { close.click(); } catch (_) {} }
       window.setTimeout(function () {
         try { window.dispatchEvent(new CustomEvent('bds:open-drawer')); } catch (_) {}
-      }, 40);
+      }, 280);
     });
     /* Reuse ArenaPilot's native tool-row structure and place Settings last. */
     first.parentNode.appendChild(btn);
