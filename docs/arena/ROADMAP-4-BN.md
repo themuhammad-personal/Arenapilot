@@ -90,23 +90,29 @@
    টেক্সট-ফাইল/ফোল্ডার/লিংক→ইনলাইন ডেলিভারি-কার্ড।
 6. **ট্যাগ-নরমালাইজার** (N1-এর সাথে মিলিয়ে): raw ট্যাগ কখনোই স্ক্রিনে নয়।
 
-### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৬; native-preservation + Add to chat Settings card)
+### N0 বাস্তবায়ন-স্থিতি (২০২৬-১০-১৬; native-preservation follow-up)
 
-- [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell বা দ্বিতীয় composer যোগ করা হয়নি।
+- [x] চ্যাটের একমাত্র surface হিসেবে আসল arena.ai পেজ রাখা; parallel Compose chat shell যোগ করা হয়নি।
 - [x] Arena-only skin hook; DeepSeek/অজানা host-এ Arena skin সক্রিয় নয়।
-- [x] `our-skin.css` থেকে Arena-র native composer, textarea, Send, model/mode controls, Plus ও message typography-র forced width/height/flex/font/border override সরানো হয়েছে।
-- [x] Engine parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected attachment mount-এ preserve marker; native Plus দৃশ্যমান রেখে real pointer click-এ বিদ্যমান attachment sheet খোলে।
-- [x] [Run #201](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38851951620)-এর API-34 CDP evidence: 320 CSS px viewport-এ Plus `[25,551,32,32]`, Send `[263,551,32,32]`, attachment sheet real-pointer-click-এ open, `pageErrors=0`। একই capture-এ `loginWall=yes` ও Health-এ `sidebar:missing`; এটি authenticated Settings acceptance ছিল না।
-- [x] মালিকের Android ফোনের feedback অনুযায়ী sidebar Settings entry সরিয়ে নেওয়ার সিদ্ধান্ত; মূল আপত্তি ছিল row-এর অনিয়মিত visibility/loading এবং sidebar-এর সঙ্গে native integration না থাকা।
-- [x] নতুন পথের implementation: বিদ্যমান `+ / Add to chat` sheet-এর tool-card list-এর একেবারে শেষে Settings card; tap করলে sheet বন্ধ করে বিদ্যমান `bds:open-drawer` event-এর মাধ্যমে বর্তমান Settings drawer খোলে।
-- [x] ফোনের screenshot-এ শেষ Settings card কেটে যাওয়ার follow-up: More tools list-এর available height sheet-এর বাস্তব bounds থেকে মেপে inner vertical scroll চালু; sheet header ও Camera/Photos/Files visible থাকে, Settings-এ scroll করে পৌঁছানো যায়।
-- [x] আগের malformed ছোট gear SVG-র বদলে standard gear outline; icon size এখন অন্যান্য tool card-এর সঙ্গে সামঞ্জস্যপূর্ণ।
-- [x] পুরোনো engine source rail `#bds-settings-rail` hidden; Arena navigation-এ cloned Settings row দেখানো হয় না। Native Plus click-forwarding অক্ষত।
-- [ ] এই Settings-card follow-up-এর CI: adapter integration, engine harness, lint, unit tests, APK build/signature/payload verify ও API-34 smoke; harness-এ scroll করে Settings card সম্পূর্ণ visible ও gear SVG যাচাই হবে।
-- [ ] CI-তে তৈরি APK মালিকের বাস্তব Android ফোনে পরীক্ষা: sign-in/login-wall behavior, Add to chat sheet-এর নীচে scroll করে Settings দেখা ও খোলা, sheet close/Settings drawer open/Back, model/mode picker, Thinking, Plus attachment sheet এবং Send।
-- [ ] authenticated session-এ screenshot ও live DOM geometry-সহ final phone acceptance; emulator fixture বা login-wall capture একা এই ধাপ পূরণ করবে না।
+- [x] `our-skin.css` থেকে Arena-র native composer, textarea, Send, model/mode controls, Plus ও message typography-র width/height/flex/font/border override সরানো হয়েছে।
+- [x] ইঞ্জিনের parent-flex rule Arena-র native Plus/model/mode group-এ প্রয়োগ না হওয়ার জন্য injected mount-এ preserve marker; অন্য host-এর আচরণ আলাদা থাকে।
+- [x] মূল Arena Plus দৃশ্যমান থাকে; injected attachment target native Plus-এর মাপা slot-এ overlay হয়। Run #201-এর API-34 CDP log-এ 320 CSS px viewport-এ Plus `[25,551,32,32]`, Send `[263,551,32,32]`, real-pointer-click-এর পর attachment sheet open এবং `pageErrors=0` রেকর্ড হয়েছে। এটি ওই CI WebView-এর মাপ, unmodified-browser baseline-এর সঙ্গে side-by-side diff নয়।
+- [x] Settings adapter আসল, open, site-owned sidebar শনাক্ত হলে তার “New Chat” row-এর geometry/style mirror করার চেষ্টা করে; sidebar-এর width/height/position লিখে না। কোনো নিশ্চিত sidebar না থাকলে engine-owned Settings entry hidden থাকে, composer-এ fallback করে না। এই আচরণ fixture/test-এ কভার করা আছে; authenticated live-site acceptance এখনও pending।
+- [x] [Run #201](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38851951620) (২০২৬-১০-১৬; branch `n0/arena-main-page-skin`, head `0de0e7905ba4b79dbc6889aa7e1bb97bba02fc4d`) — Build & Verify APK, Lint, Arena adapter integration, Engine harness এবং Emulator smoke (API 34) সফল। PR context-এ `Publish ArenaPilot Release` skipped ছিল; এটি failure নয়।
+- [ ] মালিকের বাস্তব Android ফোনে সর্বশেষ merged build যাচাই—সাইন-ইন, account menu/Settings, sidebar open/close, model/mode picker, Thinking, attachment sheet এবং Send state।
+- [ ] authenticated session-এ Arena sidebar, composer/textarea, Plus, model/mode ও Send-এর screenshot + computed-style/DOM geometry সংগ্রহ; একই viewport-এ unmodified Arena baseline-এর সঙ্গে তুলনা। Run #201 CDP report-এ `loginWall=yes` এবং Health status-এ `sidebar:missing`; তাই CI-র Settings-anchor measurement-কে authenticated sidebar acceptance ধরা যাবে না।
+- [ ] মালিকের বাস্তব ফোনের evidence অনুযায়ী সূক্ষ্ম spacing/state polish; Arena-owned control-এ অনুমানভিত্তিক width/height/font/radius/padding/flex/transform যোগ করা যাবে না।
 
-**অবস্থা: N0 এখনও সম্পূর্ণ নয়।** Settings card-এর নতুন implementation ও regression checks branch-এ যোগ হয়েছে, কিন্তু নতুন head-এর CI ফল এবং এই APK-এর বাস্তব ফোনে পুনরায় পরীক্ষা বাকি। আগের CI screenshot/fixture-কে authenticated phone acceptance হিসেবে গণ্য করা হবে না।
+**অবস্থা: CI green, N0 এখনও সম্পূর্ণ নয়।** Run #201-এর CDP-তে `pageErrors=0`, native Plus থেকে attachment sheet open এবং 320px viewport-এ Send reachable থাকার প্রমাণ আছে। কিন্তু ওই session-এ `loginWall=yes`; authenticated Settings/sidebar open-close acceptance এবং real-device screenshot/geometry diff এখনও বাকি। বাস্তব ফোনে যাচাই ও প্রমাণ না পাওয়া পর্যন্ত N0 complete বলা যাবে না।
+
+### N0 follow-up — Settings card clipping and icon
+
+- [x] সাইডবারের অনিয়মিত Settings shortcut সরিয়ে বিদ্যমান `+ / Add to chat` tool list-এর একেবারে শেষে Settings card রাখা হয়েছে; card tap করলে একই Settings drawer খোলে এবং শিট আগে বন্ধ হয়।
+- [x] ছোট viewport-এ tool-list container-এর বাস্তব available height মেপে scroll area করা হয়েছে; `overflow-y:auto` দিয়ে তালিকা নিজে scroll করে, আর row-গুলোর `flex-shrink:0` থাকার কারণে শেষ card আর সংকুচিত/কাটা পড়ে না। header ও Camera/Photos/Files quick actions অক্ষত থাকে।
+- [x] Gear icon standard outline path ও 18×18 viewBox-size-এ আপডেট; fixture test-এ center ring, outline ও Settings-এর সম্পূর্ণ দৃশ্যমানতা এবং scroll করে শেষ card-এ পৌঁছানো যাচাই করা হয়েছে।
+- [x] [Settings-card CI run](https://github.com/themuhammad-personal/Arenapilot/actions/runs/38889266715) সফল; authenticated বাস্তব ফোনে পুনরায় পরীক্ষা এখনও দরকার।
+
+**N0 অবস্থা:** code/CI check সম্পন্ন, কিন্তু signed-in ফোনে Settings card পুরো দেখা ও খোলা এবং model/mode, Thinking, attachment ও Send পরীক্ষা না হওয়া পর্যন্ত N0 সম্পূর্ণ নয়।
 
 ## ৩. ফেজ N1 — এজেন্ট কোর (কম্পিউটার + ধাপ-কার্ড)
 
