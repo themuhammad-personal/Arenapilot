@@ -129,6 +129,10 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
 
   assert.match(SITE, /data-bds-arena-settings-entry/);
+  assert.match(SITE, /event.key === 'Enter'[\\s\\S]*event.code === 'Space'/,
+    'the native-row button supports both Enter and Space keyboard activation');
+  assert.match(SITE, /nativeRow.querySelector\\('.arena-row-icon,\\[data-icon\\],\\[class\\*="icon"\\]'\\)/,
+    'icon-only wrappers without a native SVG still receive the Settings gear');
   assert.match(SITE, /navRow\\.parentNode\\.insertBefore\\(entry, navRow\\.nextSibling\\)/,
     'Settings is inserted directly after the native row in the site list');
   assert.doesNotMatch(SITE.slice(SITE.indexOf('function sync()'), SITE.indexOf('function schedule()')),
