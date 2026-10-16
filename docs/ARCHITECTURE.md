@@ -224,12 +224,13 @@ set and the sidebar *Advanced settings* entry are owner-pinned surfaces.
 
 ### The settings entry on arena (`Phase 4`)
 
-The Settings drawer is an existing engine-owned screen. Its shared open action is
-the `bds:open-drawer` event; entry points should dispatch that event rather than
-create a parallel preferences page. The engine's shipped account-menu row uses
-that event. DeepSeek's menu is `.ds-dropdown-menu`, so the engine's original
-installer (`Y2t()`) only scans that class; Arena's role-based account menu needs
-the Arena-only installer described below.
+The settings drawer has exactly one door everywhere in the app: a row the engine
+inserts into the **account menu** (`WQ()`, reachable only through the
+`bds:open-drawer` event it dispatches — there is no native menu item and no other
+dispatcher in the bundle). DeepSeek's menu is `.ds-dropdown-menu`, and the
+installer (`Y2t()`) only ever scans for that class, so on arena — whose menu is
+role-based — the row was never injected and the drawer would have been
+unreachable.
 
 `content.js` therefore carries a second, **arena-only** installer beside it
 (`sdsArenaInstall()`, called from boot as `Y2t(),sdsArenaInstall(),gge()`). It
@@ -242,28 +243,12 @@ functions returns without touching a thing — asserted by
 `engine-arena-settings-entry.test.mjs`, which runs the shipped functions against a
 fake DOM.
 
-The account-menu entry remains an existing fallback, and the engine-owned
-source rail stays inside `#bds-root` for engine ownership and Back-gesture guards;
-neither is added to Arena's navigation sidebar. The source rail
-(`#bds-settings-rail`) is hidden. The page adapter continues to preserve Arena's
-original Plus button hit target and does not paint, resize or relocate the
-native sidebar.
-
-The visible Settings entry now lives at the very bottom of the existing
-`+ / Add to chat` sheet. `sd-agent.js` adds one card using the same
-`.bds-attach-item` structure and classes as the other tool cards, after the
-existing tools, and gives it a standard gear icon, a short description and an accessible
-label. On short screens, the existing More tools list receives a measured
-vertical scroll viewport that leaves the sheet header and Camera/Photos/Files
-actions visible; list height is calculated from its actual remaining viewport
-after the sheet animation rather than from a guessed CSS dimension. Tapping the
-card closes the attachment sheet first, then dispatches the same
-`bds:open-drawer` event that opens the existing Settings drawer. There is no
-parallel settings screen, chat surface or composer. The regression harness
-checks the list is scrollable and that the full Settings card (including its
-description and gear) fits inside the list after scrolling, along with
-uniqueness, sheet-close/open-drawer sequence, Back behavior, hidden legacy
-sidebar row, and preservation of the real Plus tap.
+Because a MODELLED menu anchor can silently stop matching, arena also gets a
+permanent engine-owned rail (`#bds-settings-rail`). It lives inside `#bds-root`,
+so every guard that asks `el.closest('#bds-root')` already treats it as ours, and
+it needs no arena selector at all. Its class deliberately does **not** match the
+overlay pattern in the back-gesture code (`ROOT_RE`), otherwise `sd-sheets.js`
+would read it as a sheet under the finger — a test pins that too.
 
 ## Linux sandbox and the agent
 
@@ -430,10 +415,22 @@ Arena instructions are `ARENA_PROMPT` in `sd-site.js`, not the legacy DeepSeek
 prompt. The compatibility `<SuperDeepSeek>` envelope and `SDS:` tool grammar
 remain unchanged. Turning privacy off later cannot retract prior messages.
 
-The visible Settings option is a sibling in Arena's own navigation list, not a
-fixed-position copy laid over the drawer. If the native row cannot be
-independently verified, no visible clone remains; the account-menu entry stays
-available. The attach mount is reused across toolbar moves and reconciled after
-native button/style changes. Chromium fixtures cover hidden-navigation
-detection, sibling placement, icon replacement and click dispatch, but sidebar
-and conversation still need authenticated live-site and real-device confirmation.
+The Settings entry docks only into a recognized, open, site-owned Arena
+sidebar. When no such sidebar is confirmed, the engine-owned entry stays hidden
+rather than falling back beside the composer; the account menu remains a separate
+entry point. The attach mount is reused across toolbar moves and reconciled after
+native button/style changes. Both flows have a Chromium integration gate
+(`test:harness:arena`), but sidebar and conversation fixtures still need
+authenticated live-site confirmation.
+
+### Arena Settings entry — current N0 implementation (2026-10-16)
+
+The visible Settings shortcut is now a card at the bottom of Arena's existing
+`+ / Add to chat` sheet, not a row in the navigation sidebar. The old engine
+source rail remains inside `#bds-root` for engine ownership and Back guards but
+is hidden. The card reuses the sheet's existing `.bds-attach-item` structure,
+opens the existing drawer through `bds:open-drawer`, and closes the Add to chat
+sheet first. The measured tool-list viewport scrolls independently on short
+screens; each existing card retains its authored row height. No Arena-owned
+composer or sidebar geometry is overridden. The fixture and CI checks pass, but
+authenticated real-phone acceptance remains required before N0 is complete.
