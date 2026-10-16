@@ -123,7 +123,7 @@ export const FACTS = `/*sdp:facts*/(function () {
   var h = window.__sdHealth;
   var st = null;
   try { st = h && h.status ? h.status() : null; } catch (e) { st = null; }
-  var rail = q('#bds-settings-rail');
+  var rail = q('[data-bds-arena-settings-entry="true"]') || q('#bds-settings-rail');
   var inputs = Array.prototype.slice.call(document.querySelectorAll('textarea, input')).filter(vis).slice(0, 8).map(function (e) {
     return { tag: e.tagName.toLowerCase(), type: e.type || null, name: e.getAttribute('name'), placeholder: String(e.getAttribute('placeholder') || '').slice(0, 40), id: String(e.id || '').slice(0, 24) };
   });
@@ -339,14 +339,14 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
   var d = q('#bds-drawer');
-  var rail = q('#bds-settings-rail');
+  var rail = q('[data-bds-arena-settings-entry="true"]') || q('#bds-settings-rail');
   return JSON.stringify({ present: !!d, visible: !!(d && r(d) && r(d)[2] > 0 && r(d)[3] > 0), rect: d ? r(d) : null, backdrop: !!q('.bds-drawer-backdrop'), railDock: rail && rail.dataset ? rail.dataset.dock : null });
 })()`;
 
 const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  function txt(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\s+/g, ' ').trim(); } catch (e) { return ''; } }
+  function txt(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim(); } catch (e) { return ''; } }
   function visible(el) {
     var box = r(el);
     if (!el || !box || box[2] < 1 || box[3] < 1 ||
@@ -368,15 +368,16 @@ const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
   }
   function landmarks(el) {
     var text = txt(el);
-    return /new\s*chat/i.test(text) && /leaderboard/i.test(text) && /\bsearch\b/i.test(text);
+    return /new\\s*chat/i.test(text) && /leaderboard/i.test(text) && /\\bsearch\\b/i.test(text);
   }
-  var rail = q('#bds-settings-rail');
-  var rr = r(rail);
+  var entry = q('[data-bds-arena-settings-entry="true"]');
+  var source = q('#bds-settings-rail');
+  var rr = r(entry || source);
   var row = null, rowArea = 0;
   var rows = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
   for (var i = 0; i < rows.length; i++) {
     var item = rows[i], text = txt(item), box = r(item);
-    if (!/new\s*chat/i.test(text) || !visible(item) || !box ||
+    if (!/new\\s*chat/i.test(text) || !visible(item) || !box ||
         box[2] < innerWidth * 0.42 || box[3] < 24 || box[3] > 120) continue;
     var area = box[2] * box[3];
     if (area > rowArea) { row = item; rowArea = area; }
@@ -392,26 +393,29 @@ const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
     var panelSize = pr0[2] * pr0[3];
     if (panelSize < panelArea) { panel = parent; panelArea = panelSize; }
   }
-  var pr = r(panel), rowRect = r(row), hitTest = false;
-  if (panel && row && rowRect && document.elementFromPoint) {
-    var x = Math.max(rowRect[0] + 1, Math.min(rowRect[0] + rowRect[2] - 1, rowRect[0] + rowRect[2] / 2));
-    var y = Math.max(rowRect[1] + 1, Math.min(rowRect[1] + rowRect[3] - 1, rowRect[1] + rowRect[3] / 2));
+  var pr = r(panel), er = r(entry), adjacent = !!(entry && row &&
+    entry.parentElement === row.parentElement && entry.previousElementSibling === row);
+  var hitTest = false;
+  if (entry && er && document.elementFromPoint) {
+    var x = Math.max(er[0] + 1, Math.min(er[0] + er[2] - 1, er[0] + er[2] / 2));
+    var y = Math.max(er[1] + 1, Math.min(er[1] + er[3] - 1, er[1] + er[3] / 2));
     var hit = document.elementFromPoint(x, y);
-    hitTest = !!(hit && ((hit === row || (row.contains && row.contains(hit))) ||
-      (rail && (hit === rail || (rail.contains && rail.contains(hit))))));
+    hitTest = !!(hit && (hit === entry || (entry.contains && entry.contains(hit))));
   }
-  var inside = !!(visible(rail) && panel && row && hitTest && rr && pr &&
-    rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
-    rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
-    rr[1] + rr[3] <= pr[1] + pr[3] + 1);
+  var inside = !!(visible(entry) && panel && row && adjacent && hitTest && er && pr &&
+    er[0] >= pr[0] - 1 && er[1] >= pr[1] - 1 &&
+    er[0] + er[2] <= pr[0] + pr[2] + 1 &&
+    er[1] + er[3] <= pr[1] + pr[3] + 1);
   return JSON.stringify({
-    dock: rail && rail.dataset ? rail.dataset.dock : null,
-    visible: visible(rail),
+    dock: entry && entry.dataset ? entry.dataset.dock : source && source.dataset ? source.dataset.dock : null,
+    visible: visible(entry || source),
     inside: inside,
     railRect: rr,
     panelRect: pr,
     nativeRowFound: !!row,
-    nativeRowRect: rowRect,
+    nativeRowRect: r(row),
+    entryFound: !!entry,
+    sameParent: adjacent,
     hitTest: hitTest,
     panelTag: panel ? 'current-visible-native-sidebar' : null
   });
@@ -612,13 +616,13 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
       return 'login wall: current Settings visibility captured; native sidebar unverified';
     }
-    let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+    let t = await evalJson(cdp, rectExpr('[data-bds-arena-settings-entry="true"]'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
       const toggle = await evalJson(cdp, sidebarToggleExpr);
       if (toggle.found && toggle.w >= 24 && toggle.h >= 24) {
         await realClick(cdp, toggle.x, toggle.y);
         await pause(900);
-        t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
+        t = await evalJson(cdp, rectExpr('[data-bds-arena-settings-entry="true"]'));
       }
     }
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
