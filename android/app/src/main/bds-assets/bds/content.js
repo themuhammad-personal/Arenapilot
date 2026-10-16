@@ -3881,13 +3881,33 @@ function sdsArenaInstall(){
   function schedule(){if(queued)return;queued=true;setTimeout(function(){queued=false;pass()},60);}
   document.addEventListener("mousedown",schedule,true);
   document.addEventListener("click",schedule,true);
+  function relevantArenaNode(node){
+    if(!node||node.nodeType!==1)return false;
+    try{
+      if(node.closest&&node.closest("#bds-root"))return node.id==="bds-root"||node.id==="bds-settings-rail";
+      if(node.matches&&node.matches('textarea[name="message"],input[type="file"],button[aria-label="Add files"],button[aria-label="Attach files"],aside,nav,[role="navigation"],[data-sidebar="sidebar"],[role="menu"],[role="dialog"],[data-state="open"],#bds-root,#bds-settings-rail'))return true;
+      if(node.querySelector&&node.querySelector('textarea[name="message"],input[type="file"],button[aria-label="Add files"],button[aria-label="Attach files"],aside,nav,[role="navigation"],[data-sidebar="sidebar"],[role="menu"],[role="dialog"],[data-state="open"],#bds-root,#bds-settings-rail'))return true;
+      if(node.closest&&node.closest('aside,nav,[role="navigation"],[data-sidebar="sidebar"],[role="menu"],[role="dialog"],[data-state="open"]'))return true;
+    }catch(_){}
+    return false;
+  }
   window.__sdsArenaMenuObserver=new MutationObserver(function(records){
-    if(records.some(function(rec){
-      if(rec.type==="attributes"){var sl=sdsArenaAttachSlot();return !!sl&&rec.target===sl.button;}
-      return true;
-    }))schedule();
+    for(var i=0;i<records.length;i++){
+      var rec=records[i];
+      if(!rec)continue;
+      if(rec.type==="attributes"){
+        var sl=sdsArenaAttachSlot();
+        if(sl&&rec.target===sl.button)continue;
+        if(relevantArenaNode(rec.target)){schedule();return}
+      }else if(rec.type==="childList"){
+        if(relevantArenaNode(rec.target)){schedule();return}
+        for(var j=0;rec.addedNodes&&j<rec.addedNodes.length;j++){
+          if(relevantArenaNode(rec.addedNodes[j])){schedule();return}
+        }
+      }
+    }
   });
-  window.__sdsArenaMenuObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["style"]});
+  window.__sdsArenaMenuObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["style","class","aria-expanded","aria-hidden","data-state","href"]});
   setTimeout(pass,0);
 }
 function WQ(e){var a;if(sdsIsArena()){sdsArenaMenu(e);return}if(e.querySelector(".bds-advanced-settings-option"))return;const t=Array.from(e.querySelectorAll(".ds-dropdown-menu-option")).find(o=>{var c;const l=(((c=o.querySelector(".ds-dropdown-menu-option__label"))==null?void 0:c.textContent)||"").toLowerCase();return l.includes("setting")||l.includes("\u09B8\u09C7\u099F\u09BF\u0982\u09B8")||l.includes("\u8BBE\u7F6E")||l.includes("\u062A\u0646\u0638\u06CC\u0645\u0627\u062A")||l.includes("\u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A")||l.includes("ayar")});if(!t)return;const n=sdsIsBn(),r=ur.t("sidebarMenu.advancedSettings"),i=sdsAdvancedLabel(n,r),s=rw(i,V2t,"bds-advanced-settings-option",()=>{document.body.click(),window.dispatchEvent(new CustomEvent("bds:open-drawer"))});if(t.parentNode.insertBefore(s,t.nextSibling),!1&&!e.querySelector(".bds-whats-new-option")){const o=ur.t("sidebarMenu.whatsNew"),l=n?"\u09A8\u09A4\u09C1\u09A8 \u0995\u09C0 \u0986\u099B\u09C7?":!o||o.startsWith("sidebarMenu.")?"What's New?":o,c=rw(l,g1e,"bds-whats-new-option",()=>{document.body.click(),B.whatsNewPending=!0,B.ui&&B.ui.refreshWhatsNew()});s.parentNode.insertBefore(c,s.nextSibling)}}function rw(e,t,n,r){const i=document.createElement("div");return i.className=`ds-dropdown-menu-option ds-dropdown-menu-option--none ${n}`,i.innerHTML=`
