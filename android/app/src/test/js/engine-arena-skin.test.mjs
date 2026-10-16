@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-site.js'), 'utf8');
+const AGENT = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-agent.js'), 'utf8');
 const SKIN = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/our-skin.css'), 'utf8');
 const ENGINE_CSS = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/content.css'), 'utf8');
 const ENGINE_JS = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/content.js'), 'utf8');
@@ -110,39 +111,25 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   assert.doesNotMatch(SKIN, /(?:min-width|max-width|width|height):\s*(?:calc\(100vw|\d+vw|\d+vh)/,
     'no viewport-derived sizes are imposed on the page or composer');
 
-  assert.ok(SKIN.includes('.bds-arena-rail[data-dock="sidebar"]'),
-    'only the engine-owned Settings entry gets a sidebar placement rule');
-  assert.match(SKIN, /\.bds-arena-rail\[data-dock="pending"\]/,
-    'Settings remains hidden until an original sidebar is detected');
-  assert.match(SKIN, /\.bds-arena-rail\[data-dock="composer"\]/,
-    'Settings never falls back beside the native composer');
-  assert.match(SKIN, /\.bds-arena-rail-label/);
-  assert.doesNotMatch(SKIN, /background(?:-color)?\s*:\s*#[0-9a-f]{3,8}/i,
-    'the stylesheet does not replace Arena palette colours');
-  assert.match(ENGINE_CSS,
-    /div:not\(#bds-root\):has\(>\.bds-attach-menu-mount\):not\(:has\(>\.bds-attach-menu-mount\[data-bds-preserve-native-layout="true"\]\)\)\{/,
-    'the generic engine parent-flex rule skips the injected Arena mount');
-  assert.match(SITE,
-    /mount\.setAttribute\('data-bds-preserve-native-layout', 'true'\)/,
-    'only the injected mount receives the marker used to preserve native Arena geometry');
-
-  assert.match(SITE, /function installArenaSidebarSettingsDock\(\)/);
-
-  assert.match(SITE, /data-bds-arena-settings-entry/);
-  assert.ok(SITE.includes("event.key === 'Enter'") && SITE.includes("event.code === 'Space'"),
-    'the native-row button supports both Enter and Space keyboard activation');
-  assert.ok(SITE.includes("entry.querySelector('.arena-row-icon,[data-icon],[class*=\"icon\"]')"),
-    'icon-only wrappers without a native SVG still receive the Settings gear');
-  assert.ok(SITE.includes('navRow.parentNode.insertBefore(entry, navRow.nextSibling)'),
-    'Settings is inserted directly after the native row in the site list');
-  assert.doesNotMatch(SITE.slice(SITE.indexOf('function sync()'), SITE.indexOf('function schedule()')),
-    /position', 'fixed'/,
-    'the visible Settings option is not a fixed-position overlay');
-  assert.match(SITE, /leaderboard/i);
-  assert.match(SITE, /search/i);
-  assert.match(SITE, /installArenaSidebarSettingsDock\(\);/);
-  assert.doesNotMatch(SITE, /classList\.add\('sd-arena-native'\)|classList\.add\('sd-arena-composer'\)/,
-    'Arena hydration must not see classes injected onto the document or native composer');
+  assert.match(SITE, /function installArenaSettingsSidebarCleanup\(\)/,
+    'Arena Settings no longer depends on a sidebar being present or visible');
+  assert.match(SITE, /rail\.style\.setProperty\('display', 'none', 'important'\)/,
+    'the old source rail is explicitly hidden instead of falling back beside native controls');
+  assert.match(SITE, /document\.querySelectorAll\('\[data-bds-arena-settings-entry="true"\]'\)/,
+    'a stale cloned Settings row is removed during SPA or reinjection changes');
+  assert.match(SITE, /installArenaSettingsSidebarCleanup\(\);/,
+    'the Arena-only sidebar cleanup runs at profile initialization');
+  assert.match(AGENT, /function addSettingsItem\(\)/,
+    'the Settings option is added by the same engine that builds the Plus sheet tools');
+  assert.match(AGENT, /\.bds-attach-dropdown/);
+  assert.match(AGENT, /sd-arena-settings-item/);
+  assert.match(AGENT, /Manage app preferences, tools and integrations/);
+  assert.match(AGENT, /parent\.appendChild\(btn\)/,
+    'the Settings card is appended after the existing tool cards');
+  assert.match(AGENT, /new CustomEvent\('bds:open-drawer'\)/,
+    'the card opens the existing Settings drawer instead of a parallel UI');
+  assert.match(AGENT, /setTimeout\(openSettings, 240\)/,
+    'the attachment sheet closes before the Settings drawer opens');
   assert.match(SITE, /function syncOriginalAttachTrigger\(\)/);
   assert.match(SITE, /form button\[aria-label="Add files"\]/);
   assert.match(SITE, /enginePlus\.setAttribute\('aria-label', 'Arena attachment options'\)/,
