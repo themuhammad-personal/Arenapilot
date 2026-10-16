@@ -810,9 +810,12 @@ export function acceptanceFailures(result) {
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
   const sidebar = result.settingsSidebarBeforeClick;
-  const sidebarOk = !!(sidebar && sidebar.dock === 'sidebar' && sidebar.visible === true && sidebar.inside === true &&
+  const sidebarOk = !!(sidebar && sidebar.dock === 'native-sidebar' &&
+      sidebar.visible === true && sidebar.inside === true &&
+      sidebar.entryFound === true && sidebar.nativeRowFound === true &&
+      sidebar.sameParent === true && sidebar.hitTest === true &&
       Number(sidebar.railRect?.[2]) >= 24 && Number(sidebar.railRect?.[3]) >= 24 &&
-      sidebar.panelRect && sidebar.panelTag === 'native-sidebar-measured');
+      sidebar.panelRect && sidebar.panelTag === 'current-visible-native-sidebar');
   if (!sidebarOk) {
     if (e.login === true) {
       /* Use the fresh live sidebar measurement when available. The engine facts
