@@ -560,9 +560,12 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   await step('settings-drawer', async () => {
     const pageBeforeSettings = result.engineAfter || result.engine || {};
     if (pageBeforeSettings.login === true) {
-      result.settingsSidebarBeforeClick = null;
+      /* Capture the rail's CURRENT visibility even when the login wall has no
+       * chat sidebar. The runtime gate must distinguish hidden from leaked UI
+       * and must not rely on the earlier, potentially stale engine snapshot. */
+      result.settingsSidebarBeforeClick = await evalJson(cdp, SIDEBAR_FACTS);
       result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
-      return 'unverified on login wall: no original chat navigation';
+      return 'login wall: verified Settings hidden unless a native sidebar is present';
     }
     let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
@@ -761,9 +764,13 @@ export function acceptanceFailures(result) {
       sidebar.panelRect && sidebar.panelTag === 'native-sidebar-measured');
   if (!sidebarOk) {
     if (e.login === true) {
-      /* The unauthenticated Arena login wall may not render chat navigation.
-       * In that state, Settings must be hidden; sidebar behavior remains unverified. */
-      if (e.skin?.settingsRailVisible === true) errors.push('settings-visible-without-original-sidebar');
+      /* Use the fresh live sidebar measurement when available. The engine facts
+       * can predate the login/SPA transition, so e.skin.settingsRailVisible
+       * alone can be stale and falsely fail a hidden Settings rail. */
+      const liveRowVisible = sidebar
+        ? sidebar.visible === true && Number(sidebar.railRect?.[2]) > 0 && Number(sidebar.railRect?.[3]) > 0
+        : e.skin?.settingsRailVisible === true;
+      if (liveRowVisible) errors.push('settings-visible-without-original-sidebar');
     } else {
       errors.push('settings-not-inside-original-sidebar');
     }
