@@ -320,6 +320,7 @@ try {
       '<a href="/search"><span class="arena-row-icon">⌕</span><span>Search</span></a></nav>' +
       '<div class="fixture-account" style="margin-top:auto;height:56px;display:flex;align-items:center">themuhammadpersonal@gmail.com</div>' +
       '<footer style="height:48px;display:flex;align-items:center">Terms of Use · Privacy Policy · Cookies</footer>';
+    content.querySelector('a[href="/text/direct"]').setAttribute('data-testid', 'arena-native-new-chat');
     aside.appendChild(content);
     document.body.prepend(aside);
   });
@@ -347,7 +348,7 @@ try {
     const r = rail.getBoundingClientRect();
     const panelEl = document.querySelector('#arena-sidebar-fixture');
     const panel = panelEl.getBoundingClientRect();
-    const nativeRow = Array.from(panelEl.querySelectorAll('a')).find((a) => /new\\s*chat/i.test(a.innerText || a.textContent || ''));
+    const nativeRow = panelEl.querySelector('[data-testid="arena-native-new-chat"]');
     const nativeRect = nativeRow.getBoundingClientRect();
     return {
       left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height,
@@ -363,6 +364,8 @@ try {
       immediatelyAfterNative: rail.previousElementSibling === nativeRow,
       copiedNativeClasses: Array.from(nativeRow.classList).every((name) => rail.classList.contains(name)),
       entryLabel: (rail.getAttribute('aria-label') || '') + ' ' + (rail.innerText || rail.textContent || ''),
+      hasSettingsSvg: !!rail.querySelector('svg'),
+      stalePlusGlyph: !!Array.from(rail.querySelectorAll('.arena-row-icon')).find((node) => (node.textContent || '').trim() === '+'),
       labelVisible: getComputedStyle(rail).display !== 'none'
     };
   });
@@ -373,6 +376,8 @@ try {
     'Settings keeps the native row positioning mode; no fixed overlay is used');
   assert.ok(sidebarSettingsLayout.copiedNativeClasses,
     'Settings inherits the native row classes instead of maintaining a visually separate widget');
+  assert.equal(sidebarSettingsLayout.hasSettingsSvg, true, 'the cloned native icon slot receives the Settings gear');
+  assert.equal(sidebarSettingsLayout.stalePlusGlyph, false, 'the original New Chat plus glyph is not left beside the Settings label');
   assert.ok(sidebarSettingsLayout.left >= sidebarSettingsLayout.panelLeft &&
     sidebarSettingsLayout.right <= sidebarSettingsLayout.panelRight,
     'Settings stays inside native sidebar bounds: ' + JSON.stringify(sidebarSettingsLayout));
