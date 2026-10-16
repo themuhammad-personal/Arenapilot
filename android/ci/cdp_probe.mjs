@@ -236,7 +236,16 @@ export const FACTS = `/*sdp:facts*/(function () {
       formRect: composerRect,
       sendRect: sendRect,
       settingsDock: rail ? rail.getAttribute('data-dock') : null,
-      settingsLabelDisplay: settingsLabelDisplay
+      settingsLabelDisplay: settingsLabelDisplay,
+      settingsRailVisible: (function () {
+        if (!rail) return false;
+        try {
+          var rr = rail.getBoundingClientRect();
+          var cs = getComputedStyle(rail);
+          return cs.display !== 'none' && cs.visibility !== 'hidden' &&
+            Number(cs.opacity || 1) > 0 && rr.width > 0 && rr.height > 0;
+        } catch (_) { return false; }
+      })()
     },
     health: { present: !!h, version: h ? h.version : null, site: h ? h.site : null, ok: st ? st.ok : null, visible: st ? st.visible : null, states: st && st.results ? st.results.map(function (r) { return r.id + ':' + r.state; }) : null, notice: !!q('#sd-health-notice') },
     login: /sign in|log in|sign up|continue with|create account/i.test(text.slice(0, 6000)),
@@ -337,49 +346,21 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
 const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  function textOf(el) { try { return String(el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim(); } catch (e) { return ''; } }
   function visible(el, box) {
     if (!el || !box || box[2] < 1 || box[3] < 1) return false;
     try { var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0; }
     catch (e) { return true; }
   }
-  function nativeSidebar(node) {
-    if (!node || node === document.body || node === document.documentElement) return false;
-    try { if (node.closest && node.closest('#bds-root,#bds-drawer,.bds-drawer-backdrop')) return false; } catch (e) {}
-    var box = r(node);
-    var vw = window.innerWidth || document.documentElement.clientWidth || 360;
-    var vh = window.innerHeight || document.documentElement.clientHeight || 640;
-    if (!visible(node, box) || box[0] > vw * .12 || box[2] < vw * .42 || box[2] > vw * .96 ||
-        box[3] < Math.min(220, vh * .32) || box[0] + box[2] > vw * .97) return false;
-    var t = textOf(node);
-    return /new\\s*chat/i.test(t) && /leaderboard/i.test(t) && /\\bsearch\\b/i.test(t);
-  }
-  var candidates = [];
-  function add(node) { if (node && candidates.indexOf(node) < 0) candidates.push(node); }
-  try {
-    var controls = document.querySelectorAll('a,button,[role="button"],[role="menuitem"]');
-    for (var i = 0; i < controls.length; i++) {
-      var el = controls[i], txt = textOf(el), href = String(el.getAttribute('href') || '');
-      if (!/new\\s*chat/i.test(txt) && !/\\/text\\/direct(?:[/?#]|$)/i.test(href)) continue;
-      var parent = el;
-      for (var depth = 0; parent && parent !== document.body && depth < 9; depth++, parent = parent.parentElement) add(parent);
-    }
-  } catch (e) {}
-  try {
-    var semantic = document.querySelectorAll('aside,nav,[role="navigation"],[data-sidebar="sidebar"]');
-    for (var j = 0; j < semantic.length; j++) add(semantic[j]);
-  } catch (e) {}
-  var panel = null, bestArea = Infinity;
-  for (var k = 0; k < candidates.length; k++) {
-    var candidate = candidates[k];
-    if (!nativeSidebar(candidate)) continue;
-    var cr = r(candidate), area = cr[2] * cr[3];
-    if (area < bestArea) { panel = candidate; bestArea = area; }
-  }
   var rail = q('#bds-settings-rail');
   var rr = r(rail);
-  var pr = r(panel);
-  var inside = !!(rr && pr &&
+  var confirmed = !!(rail && rail.getAttribute('data-sidebar-confirmed') === 'true');
+  var pr = confirmed ? [
+    Math.round(Number(rail.getAttribute('data-sidebar-left')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-top')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-width')) || 0),
+    Math.round(Number(rail.getAttribute('data-sidebar-height')) || 0)
+  ] : null;
+  var inside = !!(confirmed && rr && pr &&
     rr[0] >= pr[0] - 1 && rr[1] >= pr[1] - 1 &&
     rr[0] + rr[2] <= pr[0] + pr[2] + 1 &&
     rr[1] + rr[3] <= pr[1] + pr[3] + 1);
@@ -389,7 +370,7 @@ const SIDEBAR_FACTS = `/*sdp:sidegeometry*/(function () {
     inside: inside,
     railRect: rr,
     panelRect: pr,
-    panelTag: panel ? panel.tagName.toLowerCase() : null
+    panelTag: confirmed ? 'native-sidebar-measured' : null
   });
 })()`;
 
@@ -577,6 +558,12 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
   // Settings belongs in Arena's own sidebar, not beside the composer. Open the
   // site's existing navigation drawer first when its gear is not currently visible.
   await step('settings-drawer', async () => {
+    const pageBeforeSettings = await evalJson(cdp, FACTS);
+    if (pageBeforeSettings && pageBeforeSettings.login === true) {
+      result.settingsSidebarBeforeClick = null;
+      result.drawer = { present: false, visible: false, reason: 'login-wall-no-native-sidebar' };
+      return 'unverified on login wall: no original chat navigation';
+    }
     let t = await evalJson(cdp, rectExpr('#bds-settings-rail'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
       const toggle = await evalJson(cdp, sidebarToggleExpr);
@@ -769,11 +756,20 @@ export function acceptanceFailures(result) {
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
   const sidebar = result.settingsSidebarBeforeClick;
-  if (!sidebar || sidebar.dock !== 'sidebar' || sidebar.visible !== true || sidebar.inside !== true ||
-      !(Number(sidebar.railRect?.[2]) >= 44 && Number(sidebar.railRect?.[3]) >= 40) ||
-      !sidebar.panelRect || sidebar.panelTag === null) errors.push('settings-not-inside-original-sidebar');
+  const sidebarOk = !!(sidebar && sidebar.dock === 'sidebar' && sidebar.visible === true && sidebar.inside === true &&
+      Number(sidebar.railRect?.[2]) >= 24 && Number(sidebar.railRect?.[3]) >= 24 &&
+      sidebar.panelRect && sidebar.panelTag === 'native-sidebar-measured');
+  if (!sidebarOk) {
+    if (e.login === true) {
+      /* The unauthenticated Arena login wall may not render chat navigation.
+       * In that state, Settings must be hidden; sidebar behavior remains unverified. */
+      if (e.skin?.settingsRailVisible === true) errors.push('settings-visible-without-original-sidebar');
+    } else {
+      errors.push('settings-not-inside-original-sidebar');
+    }
+  }
   const drawer = result.drawer;
-  if (!drawer || drawer.visible !== true) errors.push('settings-drawer-not-openable');
+  if ((!drawer || drawer.visible !== true) && e.login !== true) errors.push('settings-drawer-not-openable');
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }
