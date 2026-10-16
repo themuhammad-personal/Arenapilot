@@ -223,12 +223,50 @@ try {
     }
   }
   stage = 'attach-open-and-back';
-  stage = 'attach-open-and-back';
-  const attachTap = await page.$eval('form button[aria-label="Add files"]:not(.bds-plus-btn)', (b) => {
-    const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  const nativePlusSelector = 'form button[aria-label="Add files"]:not(.bds-plus-btn)';
+  await wait(() => {
+    const native = document.querySelector(nativePlusSelector);
+    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+    return !!(native && native.__sdArenaSheetBound === true && trigger &&
+      document.querySelectorAll('.bds-attach-menu-mount').length === 1);
   });
+  const attachLayout = await page.evaluate((selector) => {
+    const native = document.querySelector(selector);
+    const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+      document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+    const rect = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return { x:r.x, y:r.y, width:r.width, height:r.height, display:cs.display,
+        opacity:cs.opacity, pointerEvents:cs.pointerEvents };
+    };
+    const n = rect(native), t = rect(trigger);
+    const aligned = !!(n && t && Math.abs(n.x-t.x)<1 && Math.abs(n.y-t.y)<1 &&
+      Math.abs(n.width-t.width)<1 && Math.abs(n.height-t.height)<1);
+    return { native:n, trigger:t, aligned, bound:!!(native && native.__sdArenaSheetBound),
+      mountCount:document.querySelectorAll('.bds-attach-menu-mount').length };
+  }, nativePlusSelector);
+  if (!attachLayout.bound || !attachLayout.aligned || attachLayout.mountCount !== 1) {
+    throw new Error('original Plus and engine hit target are not ready: ' + JSON.stringify(attachLayout));
+  }
+  const attachTap = { x: attachLayout.native.x + attachLayout.native.width / 2,
+    y: attachLayout.native.y + attachLayout.native.height / 2 };
   await page.mouse.click(attachTap.x, attachTap.y);
-  await page.waitForSelector('.bds-attach-dropdown', { visible: true });
+  try {
+    await page.waitForSelector('.bds-attach-dropdown', { visible: true, timeout: 2500 });
+  } catch (error) {
+    const directTriggerCheck = await page.evaluate(() => {
+      const trigger = document.querySelector('#bds-root .bds-plus-btn') ||
+        document.querySelector('.bds-attach-menu-mount .bds-plus-btn');
+      if (trigger && !trigger.disabled) trigger.click();
+      return !!document.querySelector('.bds-attach-dropdown');
+    });
+    throw new Error('native Plus pointer tap did not open attachment sheet: ' +
+      String(error && error.message || error) + ' layout=' + JSON.stringify(attachLayout) +
+      ' engineTriggerOpenedSheet=' + directTriggerCheck);
+  }
   await shot(page, 'arena-attach');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-attach-backdrop', { hidden: true });
