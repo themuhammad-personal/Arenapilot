@@ -148,8 +148,8 @@ test('native-preservation skin never restyles Arena-owned layout or controls', (
   const railEnd = ENGINE_JS.indexOf('function sdsArenaInstall(){', railStart);
   assert.ok(railStart >= 0 && railEnd > railStart, 'Arena Settings rail function is present');
   const railSource = ENGINE_JS.slice(railStart, railEnd);
-  assert.match(railSource, /host=document\.getElementById\("bds-root"\)\|\|document\.body/,
-    'the Settings rail is owned by the engine root');
+  assert.match(railSource, /var host=document\.getElementById\("bds-root"\);\s*if\(!host\)return;/,
+    'the Settings rail is only mounted inside the engine root and never falls back to the document body');
   assert.doesNotMatch(railSource, /host=sdsArenaComposer\(\)|host=n;/,
     'the engine rail is never appended into Arena’s React-owned sidebar or composer');
   const attachStart = ENGINE_JS.indexOf('function $vt(){');
