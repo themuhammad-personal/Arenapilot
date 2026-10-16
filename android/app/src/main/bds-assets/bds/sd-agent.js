@@ -985,13 +985,82 @@
     first.parentNode.insertBefore(btn, first);
   }
 
+  /*
+   * Arena's Settings entry belongs to the bottom of the existing Add to chat
+   * sheet, beside the other tools. Reuse the shipped row structure/classes.
+   */
+  var SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bds-item-icon svelte-1y27tjy">' +
+    '<circle cx="12" cy="12" r="3"></circle>' +
+    '<path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.09-.02a1.7 1.7 0 0 0-1.74.55l-.06.08h-3.4l-.03-.1a1.7 1.7 0 0 0-1.34-1.18 1.7 1.7 0 0 0-1.62.48l-.07.07-2.94-1.7.02-.1a1.7 1.7 0 0 0-.55-1.74l-.08-.05v-3.4l.1-.04a1.7 1.7 0 0 0 1.18-1.34 1.7 1.7 0 0 0-.48-1.62l-.07-.07 1.7-2.94.1.02a1.7 1.7 0 0 0 1.74-.55l.05-.08h3.4l.04.1a1.7 1.7 0 0 0 1.34 1.18 1.7 1.7 0 0 0 1.62-.48l.07-.07 2.94 1.7-.02.1a1.7 1.7 0 0 0 .55 1.74l.08.05v3.4z"></path></svg>';
+
+  function addSettingsItem() {
+    if (!window.__sdSite || window.__sdSite.id !== 'arena') return;
+    var sheet = document.querySelector('.bds-attach-dropdown');
+    if (!sheet) return;
+
+    var btn = sheet.querySelector('#sd-arena-settings-item');
+    var items = sheet.querySelectorAll('.bds-attach-item');
+    var last = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id !== 'sd-arena-settings-item' && items[i].parentNode) last = items[i];
+    }
+    if (!last || !last.parentNode) return;
+    var parent = last.parentNode;
+
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'sd-arena-settings-item';
+      btn.className = 'bds-attach-item svelte-1y27tjy';
+      btn.setAttribute('aria-label', t('Settings', 'সেটিংস'));
+      btn.innerHTML = '<span class="bds-item-icon-box svelte-1y27tjy">' + SETTINGS_ICON + '</span> ' +
+        '<span class="bds-item-content svelte-1y27tjy"><span class="bds-item-title svelte-1y27tjy"></span> ' +
+        '<span class="bds-item-desc svelte-1y27tjy"></span></span>';
+      btn.querySelector('.bds-item-title').textContent = t('Settings', 'সেটিংস');
+      btn.querySelector('.bds-item-desc').textContent = t(
+        'Manage app preferences, tools and integrations',
+        'অ্যাপের পছন্দ, টুল ও ইন্টিগ্রেশন পরিচালনা করুন'
+      );
+      btn.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+
+        /* Let the existing sheet finish its close animation before raising Settings. */
+        var close = sheet.querySelector('.bds-sheet-close');
+        if (!close) {
+          try { close = document.querySelector('.bds-attach-backdrop'); } catch (_) {}
+        }
+        var openSettings = function () {
+          try {
+            if (window && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('bds:open-drawer'));
+            }
+          } catch (_) {}
+        };
+        if (close && typeof close.click === 'function') {
+          try { close.click(); } catch (_) {}
+          setTimeout(openSettings, 240);
+        } else {
+          openSettings();
+        }
+      });
+    }
+
+    if (btn.parentNode !== parent || parent.lastElementChild !== btn) {
+      parent.appendChild(btn);
+    }
+  }
+
   function watchSheet() {
+    addStudioItem();
+    addSettingsItem();
     if (typeof MutationObserver !== 'function' || !document.body) return;
     var queued = false;
     new MutationObserver(function () {
       if (queued) return;
       queued = true;
-      setTimeout(function () { queued = false; addStudioItem(); adoptLinuxPage(); }, 50);
+      setTimeout(function () { queued = false; addStudioItem(); addSettingsItem(); adoptLinuxPage(); }, 50);
     }).observe(document.body, { childList: true, subtree: true });
   }
 
