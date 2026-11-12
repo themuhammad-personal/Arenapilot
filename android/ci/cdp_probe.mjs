@@ -820,7 +820,15 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         await realClick(cdp, toggle.x, toggle.y);
         await pause(900);
         rows = await evalJson(cdp, ATTACH_SHEET_ROWS);
-        taps.push({ tap: i + 1, present: !!(rows && rows.present), count: (rows && rows.count) || 0 });
+        const present = !!(rows && rows.present);
+        taps.push({ tap: i + 1, present, count: (rows && rows.count) || 0 });
+        if (present) break;
+        // A tap can land on a toggle whose state is stale and close it instead of
+        // opening it. The engine exposes the intent, so stop guessing at it.
+        const opened = await evalValue(cdp, '/*sdp:attachopen*/(function () { try { window.dispatchEvent(new CustomEvent("bds:open-attach")); return true; } catch (e) { return false; } })()');
+        await pause(500);
+        rows = await evalJson(cdp, ATTACH_SHEET_ROWS);
+        taps.push({ tap: 'intent', present: !!(rows && rows.present), count: (rows && rows.count) || 0, sent: opened === true });
         if (rows && rows.present === true) break;
       }
       result.sheetTaps = taps;

@@ -336,6 +336,7 @@ async function startFakeCdp(opts = {}) {
             pageTitle: onDoctor && !opts.doctorPageUntitled ? 'Check-up' : 'Advanced settings'
           }));
         }
+        if (marker === 'attachopen') { state.sheetOpen = true; return value(true); }
         if (marker === 'back') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
         if (/bds-back-btn/.test(expr)) state.onDoctorPage = false; // Back, real or scripted
         if (marker === 'fillset') {
