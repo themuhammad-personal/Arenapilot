@@ -37,9 +37,12 @@ internal data class SiteProfile(
 
     /**
      * Whether the in-app updater runs. It reads THIS repo's GitHub releases,
-     * which publish the ArenaPilot APK on the `arena-latest` channel. Off for
-     * now: the checker predates that channel (it looked for the Super DeepSeek
-     * asset name) and is re-enabled in phase N3 once it is adapted.
+     * which publish `arenapilot-latest.apk` for the app that ships.
+     *
+     * The "not yet adapted" note that used to sit here was the reason it stayed
+     * off — and an off flag makes the whole updater dead, silently, in the only
+     * build users install. Whatever profile ships must be able to update itself;
+     * SiteTest pins that.
      */
     val selfUpdateEnabled: Boolean = true,
 ) {

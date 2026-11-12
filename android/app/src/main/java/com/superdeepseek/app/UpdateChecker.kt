@@ -96,8 +96,8 @@ internal fun compareVersions(a: List<Int>, b: List<Int>): Int {
 /**
  * Pick the Android APK out of a release's asset list.
  *
- * CI publishes one APK per release on the `arena-latest` channel,
- * `arenapilot-latest.apk`; an asset whose name starts with `arenapilot` wins,
+ * CI publishes one versioned release whose asset is `arenapilot-latest.apk`; an
+ * asset whose name starts with `arenapilot` wins,
  * otherwise the first other `.apk` is taken (older releases). Only assets the
  * API reports as `uploaded` and that have a download URL are eligible.
  * (The checker also still recognises the historical `super-deepseek-*` names,

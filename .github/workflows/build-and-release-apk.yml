@@ -382,6 +382,19 @@ jobs:
           path: /tmp/emulator-smoke
           if-no-files-found: ignore
           retention-days: 14
+      # The CDP capture is the only record of what was actually inside the page
+      # (composer, engine mount, the "+" sheet). It used to live only inside the
+      # emulator log, which is what made the launch investigation so expensive.
+      - name: Upload the in-page CDP capture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdp-capture-api-${{ matrix.api-level }}-arena
+          path: |
+            /tmp/emulator-smoke/cdp-capture.json
+            /tmp/emulator-smoke/cdp-*.png
+          if-no-files-found: ignore
+          retention-days: 14
 
   release-arena:
     # ArenaPilot's continuous channel. ONE tag per version (`v1.9.0`), rebuilt
