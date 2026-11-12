@@ -1592,9 +1592,50 @@
   install();
 
   window.__sdSandboxServers = sandboxServers;
+  /**
+   * One plain-language answer to "why is nothing happening?".
+   *
+   * The owner's report -- "the features are all there but none of them work"
+   * -- was impossible to act on because every failure looked the same from the
+   * outside: a model that ignored the protocol, a page whose request shape
+   * changed, a sandbox that is switched off. This reports the facts the engine
+   * actually knows, so a screenshot of it is a usable bug report.
+   */
+  function diagnose() {
+    var out = { version: 1, site: null, mode: null, composer: false, send: false,
+      generating: false, sandbox: null, agent: null, health: null, tools: null };
+    try { out.site = (window.__sdSite && window.__sdSite.id) || null; } catch (_) {}
+    try { out.mode = window.__sdSite && typeof window.__sdSite.arenaMode === 'function'
+      ? window.__sdSite.arenaMode() : null; } catch (_) {}
+    try { out.composer = !!document.querySelector('textarea[name="message"]'); } catch (_) {}
+    try { out.send = !!document.querySelector('button[aria-label="Send message"]'); } catch (_) {}
+    try { out.generating = generating(); } catch (_) {}
+    try {
+      var i = info();
+      out.sandbox = { supported: !!i.supported, enabled: i.enabled !== false, installed: !!i.installed,
+        active: Number(i.active) || 0, mode: i.mode || null, reason: i.reason || null };
+    } catch (_) { out.sandbox = { error: 'unavailable' }; }
+    out.agent = { active: state.active, pending: state.pending, nudges: flow.nudges, calls: flow.calls,
+      stopped: !!window.__sdAgentStopped };
+    try {
+      if (window.__sdHealth && typeof window.__sdHealth.status === 'function') {
+        var h = window.__sdHealth.status();
+        out.health = { ok: !!h.ok, failed: h.failed || [], visible: !!h.visible };
+      }
+    } catch (_) {}
+    try {
+      var schemas = window.__sdEngine && window.__sdEngine.mcpToolSchemas;
+      if (typeof schemas === 'function') schemas = schemas();
+      out.tools = Array.isArray(schemas) ? schemas.map(function (t) { return t && t.toolName; }) : null;
+    } catch (_) {}
+    return out;
+  }
+
   window.__sdAgent = {
     version: 1,
     stop: stopAgent,
+    /** For the native side and for bug reports: what the engine sees right now. */
+    diagnose: diagnose,
     isActive: function () { return state.active; },
     /** From native: sandbox activity outside a tool call (Studio, jobs, reset). */
     refresh: function () { infoCache = null; updateCard(); },

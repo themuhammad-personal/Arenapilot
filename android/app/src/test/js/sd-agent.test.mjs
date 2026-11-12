@@ -680,3 +680,20 @@ test('continue chip: no offer while the model is still writing or the agent is s
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(win.__sdAgent._continueKind(), null);
 });
+
+// ── Doctor surface ──────────────────────────────────────────────────────────
+// "Everything is there but nothing works" was unactionable because every
+// failure looked identical from outside. diagnose() reports what the engine
+// actually knows, so one screenshot is a usable bug report.
+
+test('diagnose reports composer, mode, sandbox and tool facts without throwing', async () => {
+  const { win } = load();
+  const d = win.__sdAgent.diagnose();
+  assert.equal(typeof d, 'object');
+  assert.equal(d.version, 1);
+  for (const key of ['site', 'mode', 'composer', 'send', 'generating', 'sandbox', 'agent', 'health', 'tools']) {
+    assert.ok(key in d, `diagnose reports ${key}`);
+  }
+  assert.equal(typeof d.agent.active, 'boolean');
+  assert.equal(typeof d.composer, 'boolean');
+});
