@@ -948,8 +948,38 @@ export function summarize(result) {
 }
 
 /** The few readable lines: the summary, and the engine's own markup (why a piece may be missing). */
+/**
+ * One compact line of the facts a failing gate is about, in reading order.
+ *
+ * The full capture is chunked into annotations, and GitHub caps the total size of
+ * a step's annotations: when the capture grew, the chunks were silently cut and
+ * one run's evidence was simply gone. These ~1 KB always fit, so the reason for a
+ * red gate survives even when the payload does not.
+ */
+export function factsLine(result) {
+  const pick = (o, keys) => {
+    if (!o) return null;
+    const out = {};
+    for (const k of keys) if (o[k] !== undefined) out[k] = o[k];
+    return Object.keys(out).length ? out : null;
+  };
+  return JSON.stringify({
+    steps: (result.steps || []).filter((s) => !s.ok).map((s) => `${s.name}: ${String(s.error || '').slice(0, 160)}`),
+    card: pick(result.settingsCardBeforeClick, ['present', 'count', 'visible', 'insideSheet', 'lastCard', 'rect']),
+    cardPos: result.settingsCardPosition || null,
+    drawer: pick(result.drawer, ['present', 'visible', 'rect', 'sheetVisible']),
+    drawerAfterBack: pick(result.drawerAfterBack, ['present', 'visible', 'rect']),
+    back: result.backDiagnosis || null,
+    sheet: pick(result.engineSheetRows, ['present', 'count']),
+    pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
+    doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),
+    launch: pick(result.launch || {}, ['noticeShown', 'secondBootAlive']),
+  });
+}
+
 export function summaryAnnotations(result) {
   const lines = [annotation('notice', `CDP probe: ${summarize(result)}`)];
+  lines.push(annotation('notice', `CDP facts: ${factsLine(result)}`.slice(0, 6000)));
   const e = result.engineAfter || result.engine || {};
   if (e.engineMarkup) lines.push(annotation('notice', `CDP engine markup: ${JSON.stringify(e.engineMarkup)}`.slice(0, 3900)));
   if (e.composerControls) lines.push(annotation('notice', `CDP composer controls: ${JSON.stringify(e.composerControls)}`.slice(0, 3900)));

@@ -669,10 +669,10 @@ test('N0 acceptance gate rejects a missing skin target or Send overflow without 
   assert.ok(!acceptanceFailures(consentGate).includes('send-outside-composer'));
 });
 
-test('the default output is the readable summary, the engine’s own markup and the composer’s controls — no payload', async () => {
+test('the default output is the readable summary, the facts, the engine’s markup and the composer’s controls — no payload', async () => {
   const { result } = await runProbe();
   const lines = annotations(result);
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 4);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=no "Advanced [Ss]ettings"/i);
   assert.match(lines[0], /settingsCard\(present=yes last=yes inSheet=yes sourceRail=no title="Settings"\)/);
@@ -683,10 +683,10 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sheet settingsLabel=none\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=sheet backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
-  assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
-  assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
+  assert.match(lines[2], /^::notice::CDP engine markup: \{"mount":/);
+  assert.match(lines[3], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
   assert.ok(lines.every((l) => l.length < 4096), 'each fits an annotation');
-  assert.equal(summaryAnnotations(result).length, 3);
+  assert.equal(summaryAnnotations(result).length, 4);
 });
 
 test('chunkAnnotations(): the whole capture in at most ten annotations, each under 4096, decodable from the lines alone', async () => {
