@@ -413,6 +413,8 @@ jobs:
           name: cdp-capture-api-${{ matrix.api-level }}-arena
           path: |
             /tmp/emulator-smoke/cdp-capture.json
+            /tmp/emulator-smoke/cdp-attach-rows.json
+            /tmp/emulator-smoke/cdp-drawer-pages.json
             /tmp/emulator-smoke/cdp-*.png
           if-no-files-found: ignore
           retention-days: 14

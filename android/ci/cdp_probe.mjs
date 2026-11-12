@@ -1008,6 +1008,16 @@ export async function main() {
     const result = await probe(cdp, { kitSource, pageHost, wait });
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'cdp-capture.json'), JSON.stringify(result));
+    // The exact rows the page reported, so a failed row check can be diagnosed
+    // from the artifacts instead of guessed at from an annotation.
+    if (result.attachSheetRows) {
+      fs.writeFileSync(path.join(outDir, 'cdp-attach-rows.json'), JSON.stringify(result.attachSheetRows, null, 1));
+    }
+    if (result.drawerPagesBefore) {
+      fs.writeFileSync(path.join(outDir, 'cdp-drawer-pages.json'), JSON.stringify({
+        before: result.drawerPagesBefore, doctor: result.doctorPage, after: result.drawerPagesAfter,
+      }, null, 1));
+    }
     for (const line of annotations(result)) console.log(line);
     const failures = acceptanceFailures(result);
     if (required && failures.length) console.log(annotation('error', 'Runtime gate: ' + failures.join(', ')));
