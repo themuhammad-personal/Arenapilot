@@ -52,18 +52,16 @@ class FileChooserTest {
 
     @Test
     fun `buildFileChooserIntent never greys out files an extension list cannot classify`() {
-        // A code-extension list is mapped through the platform's MIME table when
-        // the table knows the extension, and left unfiltered when it does not —
-        // document providers label most code files application/octet-stream, so a
-        // filter would grey them out and they could not be picked at all.
+        // A code-extension list must never grey out files: document providers
+        // label most code files application/octet-stream. Here the `.py` token is
+        // not one the app can name, and the image family is, so the picker is
+        // narrowed to images and the unpickable token simply does not widen it.
         val mapped = buildFileChooserIntent(arrayOf(".png,.jpg", ".py"), allowMultiple = false)
 
-        // Both formats are named by the app's own table, so the result cannot
-        // depend on which extensions this device happens to know.
+        // (An extension the app cannot name must not drop the filter above.)
         assertArrayEquals(
                 arrayOf("image/png", "image/jpeg"),
                 mapped.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
-                "an extension the app cannot name must not drop the filter",
         )
         assertEquals("image/*", mapped.type, "one media family: the picker can be narrowed")
     }
