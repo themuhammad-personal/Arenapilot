@@ -255,7 +255,35 @@ async function startFakeCdp(opts = {}) {
             ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
             : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
-        if (marker === 'back') { state.drawerOpen = false; return value(true); }
+        if (marker === 'drawerpages') {
+          // The drawer's rendered rows. On arena the DeepSeek-API-only page is
+          // absent by rule; the doctor row is present and its page prints at
+          // least one passing line and one admitted limitation.
+          const open = state.drawerOpen && !opts.drawerNeverOpens;
+          const pages = ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+            'projects', 'chat', 'appearance', 'data', 'doctor'];
+          if (opts.apiRowBack) pages.push('api');
+          if (opts.noDoctorRow) pages.splice(pages.indexOf('doctor'), 1);
+          const onDoctor = state.onDoctorPage === true && !opts.doctorNeverOpens;
+          return value(JSON.stringify({
+            present: open,
+            headerTitle: 'Advanced settings',
+            pages: open ? pages : [],
+            rowCount: open ? pages.length : 0,
+            apiRowCount: open ? (opts.apiRowBack ? 1 : 0) : 0,
+            doctorRowCount: open && !opts.noDoctorRow ? 1 : 0,
+            doctorRowVisible: open && !opts.noDoctorRow,
+            apiRowVisible: open && opts.apiRowBack === true,
+            doctorLines: onDoctor ? (opts.thinDoctorPage ? 2 : 9) : 0,
+            doctorOkLines: onDoctor ? 4 : 0,
+            doctorOffLines: onDoctor ? (opts.doctorHidesLimits ? 0 : 3) : 0,
+            doctorWarnLines: onDoctor ? 1 : 0,
+            doctorFirstLine: onDoctor ? 'Message box found' : '',
+            pageTitle: onDoctor && !opts.doctorPageUntitled ? 'Check-up' : 'Advanced settings'
+          }));
+        }
+        if (marker === 'back') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
+        if (/bds-back-btn/.test(expr)) state.onDoctorPage = false; // Back, real or scripted
         if (marker === 'fillset') {
           if (opts.fillBroken) return value(JSON.stringify({ engine: true, set: false, valueMatches: false }));
           return value(JSON.stringify({ engine: true, set: true, valueMatches: true }));
@@ -271,6 +299,7 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
+          if (expr.includes("data-bds-page") && expr.includes('doctor')) return found(160, 420, 280, 52);
           if (expr.includes('sd-arena-settings-item')) {
             return state.sheetOpen && !opts.noCard && !opts.cardNeverOpens
               ? found(160, 560, 280, 52) : value(JSON.stringify({ found: false }));
@@ -279,6 +308,11 @@ async function startFakeCdp(opts = {}) {
             return value(JSON.stringify({ found: false }));
           }
           return value(JSON.stringify({ found: false }));
+        }
+        if (state.drawerOpen && !opts.doctorNeverOpens && expr.includes('scrollIntoView') && expr.includes('doctor')) {
+          // Reading the check-up row's box brings that page into view.
+          state.onDoctorPage = true;
+          return value(JSON.stringify({ x: 160, y: 420, w: 280, h: 52 }));
         }
         try {
           if (marker === 'snap') calls.at(-1).label = (/snap\("([^"]+)"/.exec(expr) || [])[1];
@@ -318,7 +352,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -337,7 +371,9 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
-  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, then tap its Settings card');
+    // then the check-up row inside the drawer
+    'mouseMoved@160,420', 'mousePressed@160,420', 'mouseReleased@160,420',
+  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, tap its Settings card, then the check-up row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
   assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
@@ -369,7 +405,7 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer', 'doctor-page']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
@@ -381,7 +417,7 @@ test('Arena’s original Plus is exercised only when the real button is present'
   const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer', 'doctor-page']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
@@ -498,8 +534,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560'],
-    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then click its Settings card');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560', '160,420'],
+    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, click its Settings card, then the check-up row');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {

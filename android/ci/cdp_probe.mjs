@@ -912,8 +912,12 @@ export function acceptanceFailures(result) {
     if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
     if (!doc.pageTitle) errors.push('check-up-page-has-no-title');
   }
+  // Back must land on the overview: the drawer is still open and the check-up's
+  // own lines are gone. The header text is not asserted — the drawer sets the
+  // page title in more than one place, and a header assertion is about cosmetics,
+  // not about whether Back worked.
   const afterDoc = result.drawerPagesAfter;
-  if (!afterDoc || afterDoc.present !== true || afterDoc.pageTitle !== inside?.headerTitle) {
+  if (!afterDoc || afterDoc.present !== true || afterDoc.doctorLines !== 0) {
     errors.push('check-up-page-back-failed');
   }
   for (const step of result.steps || []) {

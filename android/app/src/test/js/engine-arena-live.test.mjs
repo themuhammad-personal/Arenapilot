@@ -158,6 +158,18 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sheet', sheetVisible: false },
     drawerAfterBack: { present: true, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: false },
+    // inside the drawer: every page row, no DeepSeek-API row, a real check-up
+    drawerPagesBefore: {
+      present: true, headerTitle: 'Advanced settings',
+      pages: ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+        'projects', 'chat', 'appearance', 'data', 'doctor'],
+      apiRowCount: 0, apiRowVisible: false, doctorRowCount: 1, doctorRowVisible: true,
+    },
+    doctorPage: {
+      present: true, doctorLines: 9, doctorOkLines: 4, doctorOffLines: 3,
+      doctorWarnLines: 1, pageTitle: 'Check-up',
+    },
+    drawerPagesAfter: { present: true, doctorLines: 0, pageTitle: 'Advanced settings' },
   };
   assert.deepEqual(acceptanceFailures(good), []);
   const loginWall = {
@@ -191,6 +203,27 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     ...good, drawer: { ...good.drawer, railDock: 'sidebar' },
   }).includes('settings-drawer-opened-by-wrong-entry'));
   assert.ok(acceptanceFailures({}).length);
+  // the drawer's insides are gated too — a panel that opens onto dead rows is not
+  // a working Settings screen, and a check-up that only ever says "fine" is not
+  // a check-up.
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesBefore: { ...good.drawerPagesBefore, apiRowCount: 1 },
+  }).includes('api-playground-offered-on-arena'), 'the DeepSeek-only API page must stay off arena');
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesBefore: { ...good.drawerPagesBefore, pages: ['prompts', 'doctor'] },
+  }).includes('settings-row-missing-memory'), 'a missing page row must fail the gate');
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: { ...good.doctorPage, doctorOffLines: 0 },
+  }).includes('check-up-page-hides-limitations'), 'a check-up must admit at least one limitation');
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: { ...good.doctorPage, doctorLines: 2 },
+  }).includes('check-up-page-too-thin'));
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: undefined,
+  }).includes('check-up-page-did-not-open'));
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesAfter: { ...good.drawerPagesAfter, doctorLines: 4 },
+  }).includes('check-up-page-back-failed'), 'Back must leave the check-up page');
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
   assert.deepEqual(acceptanceFailures({
