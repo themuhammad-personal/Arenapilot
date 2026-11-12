@@ -814,3 +814,14 @@ test('CLI: no page in the WebView, or nothing listening, is a warning and exit 0
   assert.equal(r2.status, 0);
   assert.match(r2.stdout, /::warning::CDP probe could not run/);
 });
+
+test('a gate that needs the drawer closed presses Back until it is', async () => {
+  // One press is not the contract: from a settings sub-page it steps back to the
+  // list and the drawer legitimately stays open. The CI capture showed exactly
+  // that (diag: {back:1, top:drawer, forwarded:1}) while the gate failed.
+  const { result } = await runProbe();
+  assert.ok(Array.isArray(result.backPresses) && result.backPresses.length >= 1,
+    'the probe must record every press, so a sub-page step is visible in the capture');
+  assert.equal(result.backPresses[result.backPresses.length - 1].visible, false,
+    'the drawer must be closed by the end');
+});

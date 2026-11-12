@@ -826,7 +826,22 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         return JSON.stringify({ closed: !b || !(b.width > 0 && b.height > 0) });
       })()`);
     });
-    const backHandled = await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+    // Back is a repeatable action, and that is the whole point of a stack: from a
+    // settings sub-page the first press returns to the list, the next closes the
+    // drawer. The counter capture proved exactly this was happening (the wrapper
+    // forwarded, content stepped out of a sub-page, drawer still open) while the
+    // gate demanded closure after ONE press. Press until the drawer is gone, and
+    // fail only if it never closes.
+    const backPresses = [];
+    for (let i = 0; i < 3; i += 1) {
+      const handled = await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+      await pause(320);
+      const state = await evalJson(cdp, DRAWER_FACTS);
+      backPresses.push({ handled: String(handled), visible: !!(state && state.visible) });
+      if (!state || state.visible === false) break;
+    }
+    result.backPresses = backPresses;
+    const backHandled = backPresses.length ? backPresses[backPresses.length - 1].handled : 'false';
     // Three moments, because "still visible after Back" has two very different
     // causes: the close never ran, or it ran and something reopened the drawer.
     // The slide-out is 210ms, so +120ms shows it mid-flight and +600ms the end.
@@ -1034,6 +1049,7 @@ export function factsLine(result) {
     back: result.backDiagnosis || null,
     at120: result.drawerAt120 || null,
     at600: result.drawerAt600 || null,
+    presses: result.backPresses || null,
     diag: (result.backDiagnosis && result.backDiagnosis.diag) || null,
     exp: result.backExperiment || null,
     sheet: pick(result.engineSheetRows, ['present', 'count']),
