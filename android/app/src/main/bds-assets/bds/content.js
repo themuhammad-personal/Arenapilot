@@ -4044,8 +4044,6 @@ ${i}`)}r.textContent=i}})();
   function closeDrawerByIntent(d) {
     try {
       window.dispatchEvent(new CustomEvent("bds:close-drawer"));
-      if (!shown(d) || !d.classList.contains("bds-open")) return true;
-      // Let the framework paint, then decide whether the click is still needed.
       return true;
     } catch (e) {
       return false;
@@ -4095,10 +4093,15 @@ ${i}`)}r.textContent=i}})();
           var sub0 = d0.querySelector(".bds-back-btn");
           if (shown(sub0)) { sub0.click(); return true; }
         }
-        if (closeDrawerByIntent(d0)) {
-          var still0 = document.getElementById("bds-drawer");
-          if (!still0 || !still0.classList.contains("bds-open")) return true;
-        }
+        // Intent ONLY — never an immediate click as well.
+        //
+        // The two levers are not additive: the drawer's state updates on the
+        // framework's next tick, so "still open?" is always true in this same
+        // turn, and a click fired then acts on a drawer that is already closing.
+        // CI proved the combination is worse than either alone: the intent closed
+        // it (open=false at +60ms in the in-page experiment) and the follow-up
+        // click brought it back (open=true at +600ms with a click, false without).
+        if (closeDrawerByIntent(d0)) return true;
         return closeDrawer(d0);
       }
       // 3. Topmost engine overlay under the finger area.
