@@ -15,6 +15,9 @@ on:
       # Roadmap 3 (docs/arena/ROADMAP-3-BN.md): privacy defaults flip + inline
       # file delivery — same build + unit tests only policy as above.
       - arena/0e0268d7-super-deepseek
+      # Reliability rebuild (v2.0): this is the working branch the owner's
+      # install is built from, so it must build, test and publish like main.
+      - arena/e90647be-arenapilot
     tags:
       - "v*"
   pull_request:
