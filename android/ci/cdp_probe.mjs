@@ -872,6 +872,7 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         subpageBack: !!back,
         wrappedBySheets: !!(window.__sdHandleBack && window.__sdHandleBack.__sdSheets),
         branch: window.__sdBackBranch || '',
+        diag: window.__sdSheetsDiag || null,
       });
     })()`);
     // Experiment: WHY it stays. If the drawer flashes closed and comes back,
@@ -1033,6 +1034,7 @@ export function factsLine(result) {
     back: result.backDiagnosis || null,
     at120: result.drawerAt120 || null,
     at600: result.drawerAt600 || null,
+    diag: (result.backDiagnosis && result.backDiagnosis.diag) || null,
     exp: result.backExperiment || null,
     sheet: pick(result.engineSheetRows, ['present', 'count']),
     pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,

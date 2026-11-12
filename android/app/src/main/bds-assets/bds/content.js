@@ -4043,6 +4043,7 @@ ${i}`)}r.textContent=i}})();
    */
   function closeDrawerByIntent(d) {
     try {
+      try { window.__sdSheetsDiag = window.__sdSheetsDiag || {}; window.__sdSheetsDiag.contentIntent = (window.__sdSheetsDiag.contentIntent || 0) + 1; } catch (_) {}
       window.dispatchEvent(new CustomEvent("bds:close-drawer"));
       return true;
     } catch (e) {

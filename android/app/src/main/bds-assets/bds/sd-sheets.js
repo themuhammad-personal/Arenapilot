@@ -240,8 +240,10 @@
    * An animation may be skipped; a close may not.
    */
   function closeSheet(sheet, fromDy) {
+    mark('closeSheet');
     var c = closeTarget(sheet);
     if (sheet.kind.intent) {
+      mark('intent:' + sheet.kind.intent);
       try {
         window.dispatchEvent(new CustomEvent(sheet.kind.intent));
       } catch (_) {
@@ -364,12 +366,27 @@
 
   // ── Back ───────────────────────────────────────────────────────────────────
 
+  /**
+   * Which layer handled the last Back press. Permanent, small, and the only way to
+   * tell "the wrapper closed it" from "the wrapper forwarded it" from a capture —
+   * six emulator runs were spent guessing between those.
+   */
+  function mark(step) {
+    try {
+      var d = window.__sdSheetsDiag || (window.__sdSheetsDiag = {});
+      d[step] = (d[step] || 0) + 1;
+      d.sheets = openSheets().length;
+    } catch (_) {}
+  }
+
   function wrapBack() {
     var inner = window.__sdHandleBack;
     if (typeof inner !== 'function' || inner.__sdSheets) return;
     var wrapped = function () {
+      mark('back');
       try {
         var top = openSheets()[0];
+        mark(top ? ('top:' + top.kind.sel.slice(0, 24)) : 'top:none');
         // The agent's "Allow?" sheet is ours, the engine knows nothing about
         // it: Back answers "Skip" (and never leaves the chat behind it).
         if (top && top.kind.sel === '#sd-agent-confirm .sd-card') {
@@ -382,12 +399,14 @@
             // Capture the close control BEFORE moving the sheet offscreen.
             // The legacy handler uses elementFromPoint: after the animation it
             // sees the page behind the sheet and cannot close Svelte's state.
-            if (!top.kind.close(top.el)) return inner();
+            if (!top.kind.close(top.el)) { mark('no-close-control'); return inner(); }
+            mark('wrapper-closes');
             closeSheet(top, 0);
             return true;
           }
         }
       } catch (_) {}
+      mark('forwarded');
       return inner();
     };
     wrapped.__sdSheets = true;
