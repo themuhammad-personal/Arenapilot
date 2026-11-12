@@ -272,9 +272,15 @@ fact() { grep -aq "$1" "$OUT/logcat.txt" && echo yes || echo no; }
 UI_READY=$(fact "Engine UI ready")
 CAP=$(fact "Launch screen cap reached")
 INJ=$(fact "injected.js done")
-echo "engine UI ready: $UI_READY | launch-screen cap reached: $CAP | injected.js done: $INJ"
-echo "::notice::ArenaPilot runtime: engine UI ready=$UI_READY, launch-screen cap reached=$CAP, injected.js done=$INJ"
-if [ "$UI_READY" = "no" ] && [ "$CAP" = "yes" ]; then
+# Only a cap the engine's readiness never beat is a problem. Both markers can be
+# present on a cold start (the cap is armed before the page commits, the ready
+# signal arrives later), so "cap=yes" alone says nothing about the launch. When
+# the ready marker is there, the cap never became the reason the screen lifted.
+CAP_HIT=no
+if [ "$CAP" = "yes" ] && [ "$UI_READY" = "no" ]; then CAP_HIT=yes; fi
+echo "engine UI ready: $UI_READY | launch-screen cap reached: $CAP_HIT | injected.js done: $INJ"
+echo "::notice::ArenaPilot runtime: engine UI ready=$UI_READY, launch-screen cap reached=$CAP_HIT, injected.js done=$INJ"
+if [ "$CAP_HIT" = "yes" ]; then
   echo "::warning::ArenaPilot: the launch screen only lifted at its 18 s cap — the engine UI never signalled ready on the page"
 fi
 

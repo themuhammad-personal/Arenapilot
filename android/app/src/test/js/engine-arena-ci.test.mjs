@@ -543,6 +543,19 @@ test("runtime facts: engine UI ready and injected, no cap → plain notices, no 
   assert.ok(!/only lifted at its 18 s cap/.test(r.out));
 });
 
+test("runtime facts: a cap the engine's ready signal beat is not a failure signal", () => {
+  // A cold start arms the cap before the page commits; the ready signal then
+  // arrives later. Both markers end up in logcat even though the launch was
+  // healthy, so the cap alone must never be reported as "the engine never came up".
+  const r = runSmoke({ noticeFirst: true, engineReady: true, cap: true, injected: true });
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /::notice::ArenaPilot runtime: engine UI ready=yes, launch-screen cap reached=no, injected\.js done=yes/,
+  );
+  assert.ok(!/only lifted at its 18 s cap/.test(r.out), r.out);
+});
+
 test("runtime facts: a launch screen that only lifted at its cap is called out", () => {
   const r = runSmoke({ noticeFirst: true, cap: true, injected: true });
   assert.equal(r.code, 0, "informational: it never fails the run");
