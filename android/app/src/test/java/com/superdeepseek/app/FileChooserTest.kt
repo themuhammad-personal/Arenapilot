@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
-import android.webkit.MimeTypeMap
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,15 +13,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows
 
 @RunWith(RobolectricTestRunner::class)
 class FileChooserTest {
 
     @Before
     fun setUp() {
-        Shadows.shadowOf(MimeTypeMap.getSingleton())
-                .addExtensionMimeTypeMapping("txt", "text/plain")
+        // Nothing to set up: the accept-list mapping must not depend on which
+        // extensions the device (or this JVM) happens to know. See mapAcceptTypes.
     }
 
     @Test
@@ -52,18 +50,22 @@ class FileChooserTest {
 
     @Test
     fun `buildFileChooserIntent never greys out files an extension list cannot classify`() {
-        // A code-extension list must never grey out files: document providers
-        // label most code files application/octet-stream. Here the `.py` token is
-        // not one the app can name, and the image family is, so the picker is
-        // narrowed to images and the unpickable token simply does not widen it.
-        val mapped = buildFileChooserIntent(arrayOf(".png,.jpg", ".py"), allowMultiple = false)
+        // An extension list is filtered only when every token is a format the app
+        // can name. A `.py` token cannot be named, and the page wants code files
+        // too, so the picker stays open — otherwise document providers (which
+        // label code as application/octet-stream) would grey those files out.
+        val code = buildFileChooserIntent(arrayOf(".py", ".png"), allowMultiple = false)
+        assertNull(code.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+        assertEquals("*/*", code.type)
 
-        // (An extension the app cannot name must not drop the filter above.)
+        // The same list without the unpickable token is filtered, and being one
+        // media family it also narrows the base type.
+        val media = buildFileChooserIntent(arrayOf(".png", ".jpg"), allowMultiple = false)
         assertArrayEquals(
                 arrayOf("image/png", "image/jpeg"),
-                mapped.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
+                media.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
         )
-        assertEquals("image/*", mapped.type, "one media family: the picker can be narrowed")
+        assertEquals("image/*", media.type)
     }
 
     @Test
@@ -75,8 +77,9 @@ class FileChooserTest {
         assertNull(extensionOfAcceptToken("."))
         assertEquals("image/webp", mimeForExtension("webp"))
         assertEquals("image/png", mimeForExtension(".PNG"))
-        assertEquals("image/heic", mimeForExtension("heic"), "even where the platform table lacks it")
+        assertEquals("image/heic", mimeForExtension("heic"), "even where a device table lacks it")
         assertEquals("audio/ogg", mimeForExtension("oga"))
+        assertNull(mimeForExtension("py"), "unknown means unknown, not octet-stream")
         assertNull(mimeForExtension(""), "an empty extension is not a type")
     }
 
@@ -95,7 +98,10 @@ class FileChooserTest {
         // handful of types compiled into the app.
         val intent = buildFileChooserIntent(arrayOf("image/*", ".heic", ".dng"), allowMultiple = false)
 
-        assertArrayEquals(arrayOf("image/*"), intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+        assertArrayEquals(
+                arrayOf("image/*"),
+                intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
+        )
         assertEquals("image/*", intent.type)
     }
 

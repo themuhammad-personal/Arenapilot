@@ -281,16 +281,15 @@ internal fun parseFileChooserResult(resultCode: Int, data: Intent?): Array<Uri>?
 private fun mapAcceptTypes(acceptTypes: Array<String>?): List<String> {
     val tokens = acceptTypes?.flatMap { it.split(',') }?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
     if (tokens.isEmpty()) return emptyList()
-    // Families the page listed as a wildcard. `image/*` already accepts every
-    // image format — including ones this build has never heard of — so a
-    // per-format token adds nothing, and an extension this device cannot classify
-    // does not need to kill the whole filter.
-    val wildcards = tokens
-            .filter { MIME_TOKEN.matches(it) && it != "*/*" }
-            .map { it.lowercase() }
-            .filter { it.endsWith("/*") }
-            .toSet()
     val mapped = linkedSetOf<String>()
+    // Families the page listed as a wildcard. `image/*` already covers every
+    // image format, including ones released after this build.
+    val wildcards = HashSet<String>()
+    for (token in tokens) {
+        if (MIME_TOKEN.matches(token) && token != "*/*" && token.endsWith("/*")) {
+            wildcards.add(token.lowercase())
+        }
+    }
     for (token in tokens) {
         if (MIME_TOKEN.matches(token)) {
             // A bare wildcard means "anything": there is nothing to filter by.
@@ -301,11 +300,13 @@ private fun mapAcceptTypes(acceptTypes: Array<String>?): List<String> {
         val extension = extensionOfAcceptToken(token) ?: return emptyList()
         val type = mimeForExtension(extension)
         if (type == null) {
-            // This device cannot name the format. With a family wildcard present
-            // the picker still shows what the page accepts; without one, keeping
-            // the filter would hide files the page takes, so it is dropped.
-            if (wildcards.isNotEmpty()) continue
-            return emptyList()
+            // The page also wants file types Android cannot express as a MIME
+            // filter (code and config extensions, which providers label
+            // application/octet-stream). Filtering now would hide exactly those
+            // files, so the picker stays open and the page decides after the pick.
+            // A listed family wildcard still restricts when every listable token
+            // belongs to it.
+            return if (wildcards.isNotEmpty()) wildcards.toList().sorted() else emptyList()
         }
         if ("${type.substringBefore('/')}/*" in wildcards) continue
         mapped.add(type)
@@ -360,19 +361,18 @@ private val MEDIA_EXTENSION_MIME = mapOf(
 )
 
 /**
- * MIME type for a file extension: the built-in media table first, then Android's
- * own.
+ * MIME type for a file extension, from this app's own table only.
  *
- * Returns null when neither knows the extension, so the caller can leave the
- * picker unfiltered instead of filtering by the types it happens to recognise.
+ * Deliberately NOT `MimeTypeMap`: its contents depend on the device's WebView /
+ * AOSP build, so the same accept list produced a different picker on different
+ * phones (and in tests) — and a null from it silently dropped the whole filter.
+ * An extension the app cannot name is reported as unknown, which is a fact the
+ * caller can act on; see [mapAcceptTypes].
  */
 internal fun mimeForExtension(extension: String): String? {
     val key = extension.trim().lowercase().removePrefix(".")
     if (key.isEmpty()) return null
-    MEDIA_EXTENSION_MIME[key]?.let { return it }
-    val known = runCatching { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(key) }
-            .getOrNull()
-    return known?.lowercase()?.takeIf { MIME_TOKEN.matches(it) }
+    return MEDIA_EXTENSION_MIME[key]
 }
 
 private val CHROME_VERSION_REGEX = Regex("""\bChrome/(\d+(?:\.\d+)*)""")
