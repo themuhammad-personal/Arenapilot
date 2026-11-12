@@ -748,9 +748,30 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       return 'Settings card is outside the viewport, so a tap cannot land on it: ' +
         JSON.stringify(result.settingsCardPosition);
     }
-    await realClick(cdp, t.x, t.y);
+    // HOW the card is pressed matters: the probe clicks at the rect's centre, and
+    // the sheet is a scroll container whose visible box can be shorter than the
+    // card's rect (CI measured rect y=941 on a 616px screen while the hit-test at
+    // that same point still landed inside the card). A JS click runs the row's own
+    // handler with no coordinates, which is what a finger does after scrolling.
+    const usedJsClick = await evalValue(cdp, `/*sdp:cardclick*/(function () {
+      var el = document.querySelector('#sd-arena-settings-item');
+      if (!el) return false;
+      el.click();
+      return true;
+    })()`);
+    if (usedJsClick !== true) {
+      await realClick(cdp, t.x, t.y);
+    }
+    result.settingsCardClick = { js: usedJsClick === true, at: [Math.round(t.x), Math.round(t.y)] };
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
+    // The sheet must be gone before the next step taps "+", or that tap lands on
+    // the sheet instead of the page and every later fact is measured wrong.
+    if (result.drawer && result.drawer.sheetVisible !== false) {
+      await evalValue(cdp, '/*sdp:attachclose*/(function () { try { window.dispatchEvent(new CustomEvent("bds:close-attach")); return true; } catch (e) { return false; } })()');
+      await pause(400);
+      result.sheetClosedAfterCard = await evalJson(cdp, DRAWER_FACTS);
+    }
     if (kitOk) await evalJson(cdp, snapExpr('settings-drawer'));
 
     // What is INSIDE the drawer: the page rows it actually rendered, the

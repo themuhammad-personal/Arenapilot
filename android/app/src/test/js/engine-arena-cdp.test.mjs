@@ -337,6 +337,13 @@ async function startFakeCdp(opts = {}) {
           }));
         }
         if (marker === 'attachopen') { state.sheetOpen = true; return value(true); }
+        if (marker === 'attachclose') { state.sheetOpen = false; return value(true); }
+        if (marker === 'cardclick') {
+          if (!state.sheetOpen) return value(false);
+          state.clickedSettingsCard = true; state.sheetOpen = false;
+          if (!opts.drawerNeverOpens && !opts.cardNeverOpens) state.drawerOpen = true;
+          return value(true);
+        }
         if (marker === 'back') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
         if (/bds-back-btn/.test(expr)) state.onDoctorPage = false; // Back, real or scripted
         if (marker === 'fillset') {
@@ -425,8 +432,9 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
-    'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
-    // then the check-up row inside the drawer
+    // the Settings card is pressed by running the row's own handler (a JS click, no
+    // coordinates): its rect can sit below the fold of the scroll container, and CI
+    // measured exactly that while the hit-test at the same point still landed on it
     'mouseMoved@160,420', 'mousePressed@160,420', 'mouseReleased@160,420',
     // then one more tap on the engine's own "+" to read its own sheet
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
@@ -575,8 +583,13 @@ test('Settings is clicked as the last card in Add to chat, closes that sheet, an
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes Settings');
   assert.equal(result.drawerAfterBack.railDock, 'sheet');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
-  assert.ok(fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed' && c.params.x === 160 && c.params.y === 560),
-    'the Settings card receives a physical click');
+  // The card is pressed by running its own handler (a JS click, no coordinates):
+  // its rect can sit below the fold of the scrollable sheet, where a coordinate
+  // click is clipped — CI measured rect y=941 on a 616px screen. A real pointer is
+  // still what opens the sheet and what presses the row inside the drawer.
+  assert.equal(result.settingsCardClick && result.settingsCardClick.js, true,
+    'the Settings card is pressed through its own handler, not a clipped coordinate');
+  assert.ok(fake.calls.some((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:cardclick*/')));
   const noCard = await runProbe({ noCard: true });
   assert.equal(noCard.result.drawer.present, false);
   assert.ok(noCard.result.steps.find((s) => s.name === 'settings-drawer').ok, 'missing card is reported rather than throwing');
@@ -593,8 +606,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560', '160,420', '60,700'],
-    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, click its Settings card, then the check-up row');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,420', '60,700'],
+    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then the check-up row');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {

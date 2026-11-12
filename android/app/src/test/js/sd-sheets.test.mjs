@@ -13,6 +13,7 @@ function boot({ reduced = false, subpage = false, drawer = false } = {}) {
   const sheet = {
     isConnected: true, style: {}, previousElementSibling: backdrop,
     classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+    addEventListener() {},
     getClientRects: () => [{}], getBoundingClientRect: () => ({ height: 300 }),
     querySelector: (s) => s === '.bds-sheet-close' || s === '.bds-drawer-header button' ||
       (!drawer && subpage && s.includes('bds-back-btn')) ? button : null,
@@ -75,6 +76,7 @@ test('a drawer left open but unmeasurable is still closed by Back', () => {
   const drawer = {
     isConnected: true, style: {}, id: 'bds-drawer', previousElementSibling: backdrop,
     classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+    addEventListener() {},
     // Present, but translated away: nothing to measure.
     getClientRects: () => [], getBoundingClientRect: () => ({ width: 0, height: 0, top: 0 }),
     querySelector: (s) => (s === '.bds-drawer-header button' ? closeButton : s.includes('bds-back-btn') ? null : null),
@@ -122,6 +124,7 @@ test('a sheet closes even when the animation frame never arrives', () => {
   const drawer = {
     isConnected: true, style: {}, previousElementSibling: backdrop,
     classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+    addEventListener() {},
     getClientRects: () => [{}], getBoundingClientRect: () => ({ height: 300, width: 320 }),
     querySelector: (s) => (s === '.bds-drawer-header button' ? closeButton : null),
   };

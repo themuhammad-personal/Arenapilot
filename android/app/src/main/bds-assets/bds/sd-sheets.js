@@ -446,6 +446,14 @@
         d.classList.remove('sd-sheet-in');
         void d.offsetWidth; // restart the animation
         d.classList.add('sd-sheet-in');
+        // The class adds an animation, and an animation that runs must not decide
+        // whether the sheet exists: a paused animation keeps transform:none and
+        // `hit-testable: no` for everything inside it (the emulator measured rows
+        // with correct rects, reachable:false, for the whole 7-row sheet). Retire
+        // the class when the slide is over, in both cases.
+        var done = function () { d.classList.remove('sd-sheet-in'); };
+        d.addEventListener('animationend', done, { once: true });
+        setTimeout(done, 600);
       }
       wasOpen = open;
     };
