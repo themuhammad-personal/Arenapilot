@@ -57,7 +57,8 @@ function drawer({ subpage = false } = {}) {
   };
   const root = {
     id: 'bds-drawer',
-    className: 'bds-drawer',
+    className: 'bds-drawer bds-open',
+    classList: { contains: (c) => String(root.className).includes(c) },
     tagName: 'DIV',
     nodeType: 1,
     parentElement: null,
@@ -111,8 +112,17 @@ function boot({ subpage = false, visible = true } = {}) {
       transform: 'none', zIndex: '10', pointerEvents: 'auto',
     }),
   };
+  const listeners = new Map();
+  const eventTarget = {
+    addEventListener(type, fn) { (listeners.get(type) || listeners.set(type, []).get(type)).push(fn); },
+    dispatchEvent(evt) { for (const fn of listeners.get(evt.type) || []) fn(evt); return true; },
+  };
   const ctx = vm.createContext({
     window, document, console,
+    // The handler closes the drawer by dispatching a CustomEvent on window.
+    addEventListener: eventTarget.addEventListener,
+    dispatchEvent: eventTarget.dispatchEvent,
+    CustomEvent: class { constructor(type) { this.type = type; } },
     // In a browser these are globals (the handler reads them bare).
     innerWidth: window.innerWidth,
     innerHeight: window.innerHeight,
@@ -130,7 +140,7 @@ function boot({ subpage = false, visible = true } = {}) {
   ctx.window = ctx;
   vm.runInContext(BACK_BLOCK, ctx);
   assert.equal(typeof ctx.window.__sdHandleBack, 'function', 'the block must install the handler');
-  return { ctx, d };
+  return { ctx, d, listeners };
 }
 
 test('Back closes the settings drawer when its header has no back button', () => {
@@ -150,6 +160,20 @@ test('Back inside a settings subpage returns to the list, and only then closes',
 test('Back on a closed drawer is not consumed (the page keeps its own back)', () => {
   const { ctx } = boot({ visible: false });
   assert.equal(ctx.window.__sdHandleBack(), false);
+});
+
+test('Back closes the drawer through the engine event, not only a click', () => {
+  // The click is not the contract: the drawer's state is closed by `bds:close-drawer`.
+  // A click can land while Svelte re-renders — visible, sized, and ignored — which
+  // is exactly the state CI captured (handled=true, drawer still visible).
+  const { ctx, d } = boot();
+  let events = 0;
+  // Like the drawer's own Svelte code: the event removes the open class, which is
+  // what tells the fallback click it is no longer needed.
+  ctx.addEventListener('bds:close-drawer', () => { events += 1; d.state.closed += 1; d.root.className = 'bds-drawer'; });
+  assert.equal(ctx.window.__sdHandleBack(), true);
+  assert.equal(events, 1, 'Back must dispatch the intent the drawer listens for');
+  assert.equal(d.state.closed, 1);
 });
 
 test('another component’s #bds-close is never mistaken for the drawer’s', () => {

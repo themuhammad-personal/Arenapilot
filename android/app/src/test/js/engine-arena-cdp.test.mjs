@@ -247,6 +247,10 @@ async function startFakeCdp(opts = {}) {
           // element at its centre is the card itself.
           return value(JSON.stringify({ y: 530, h: 52, vh: 616, inViewport: true, hitInsideCard: true }));
         }
+        if (marker === 'drawerstate') {
+          return value(JSON.stringify({ open: false, box: [0, 0], transform: 'none', display: 'none',
+            opacity: '1', inlineTransform: '', closeButtons: 2 }));
+        }
         if (marker === 'rowhit') {
           return value(JSON.stringify({ hitInsideRow: true, vh: 800, y: 420 }));
         }

@@ -827,8 +827,27 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       })()`);
     });
     const backHandled = await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+    // Three moments, because "still visible after Back" has two very different
+    // causes: the close never ran, or it ran and something reopened the drawer.
+    // The slide-out is 210ms, so +120ms shows it mid-flight and +600ms the end.
+    const drawerAt = async () => evalValue(cdp, `/*sdp:drawerstate*/(function () {
+      var d = document.getElementById('bds-drawer');
+      if (!d) return '';
+      var b = d.getBoundingClientRect();
+      var cs = getComputedStyle(d);
+      return JSON.stringify({ open: d.classList.contains('bds-open'),
+        box: [Math.round(b.width), Math.round(b.height)],
+        transform: String(cs.transform || '').slice(0, 40), display: cs.display, opacity: cs.opacity,
+        inlineTransform: String(d.style.transform || ''),
+        closeButtons: document.querySelectorAll('#bds-close').length });
+    })()`);
+    await pause(120);
+    const at120 = await drawerAt();
+    result.drawerAt120 = at120 ? JSON.parse(at120) : null;
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
+    const at600 = await drawerAt();
+    result.drawerAt600 = at600 ? JSON.parse(at600) : null;
     // WHY Back did nothing, when it does nothing. Two layers wrap it (content.js,
     // then sd-sheets.js for the slide-out), and the drawer is driven by Svelte
     // state: the facts below separate "the handler never ran", "it ran and
@@ -970,6 +989,8 @@ export function factsLine(result) {
     drawer: pick(result.drawer, ['present', 'visible', 'rect', 'sheetVisible']),
     drawerAfterBack: pick(result.drawerAfterBack, ['present', 'visible', 'rect']),
     back: result.backDiagnosis || null,
+    at120: result.drawerAt120 || null,
+    at600: result.drawerAt600 || null,
     sheet: pick(result.engineSheetRows, ['present', 'count']),
     pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
     doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),

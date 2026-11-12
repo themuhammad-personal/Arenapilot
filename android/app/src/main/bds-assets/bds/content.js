@@ -4031,6 +4031,27 @@ ${i}`)}r.textContent=i}})();
     return false;
   }
   /**
+   * Close the settings drawer through the engine's INTENT, not its DOM.
+   *
+   * `bds:close-drawer` is the event the drawer's own code listens for; it sets the
+   * open state directly. Clicking the header button does not always reach it — the
+   * click can land while Svelte is re-rendering (the button exists and is sized,
+   * yet the handler that owns the state has been replaced), and the result is the
+   * state CI captured: handled=true, button clicked, drawer still visible. The
+   * event is what every other engine surface uses to close it, and it carries no
+   * such race.
+   */
+  function closeDrawerByIntent(d) {
+    try {
+      window.dispatchEvent(new CustomEvent("bds:close-drawer"));
+      if (!shown(d) || !d.classList.contains("bds-open")) return true;
+      // Let the framework paint, then decide whether the click is still needed.
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  /**
    * True when the drawer is on its OVERVIEW (the settings list), not on a
    * sub-page. A sub-page's header has a back control; the overview's does not.
    */
@@ -4074,6 +4095,13 @@ ${i}`)}r.textContent=i}})();
         if (!drawerOnOverview(root)) {
           var sub = root.querySelector(".bds-back-btn");
           if (shown(sub)) { sub.click(); return true; }
+        }
+        // Intent first (it owns the state), the button as the fallback for a page
+        // where the event has no listener.
+        if (closeDrawerByIntent(root)) {
+          var still = document.getElementById("bds-drawer");
+          if (!still || !still.classList.contains("bds-open")) return true;
+          return closeDrawer(root);
         }
         return closeDrawer(root);
       }
