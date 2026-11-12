@@ -929,6 +929,8 @@ class MainActivity : ComponentActivity() {
         const val KEY_ASKED_NOTIFICATIONS = "sd_asked_notifications"
         const val KEY_CHAT_URL = "sd_chat_url"
         const val LIVENESS_TIMEOUT_MS = 8_000L
+        /** Second, longer window before a silent page is treated as dead. */
+        const val LIVENESS_RETRY_MS = 12_000L
         /** The page URL when the renderer died; read by the recreated activity. */
         @Volatile var rendererLostUrl: String? = null
         /** Hard cap on the launch screen, however slow the network is. */
@@ -1302,10 +1304,20 @@ class MainActivity : ComponentActivity() {
         val token = ++livenessToken
         var answered = false
         runCatching { officialWebView.evaluateJavascript("1") { answered = true } }
+        // A page that is merely slow to wake (a long agent reply, a cold WebView
+        // process after minutes in the background) must not be reloaded: that
+        // throws away the composer draft and any streaming answer, and on a
+        // metered connection costs the user a full page load. Only a page that
+        // still cannot answer after a second, longer window is treated as dead.
         handler.postDelayed({
             if (token != livenessToken || answered || !isForeground || isFinishing) return@postDelayed
-            Log.w("SuperDeepSeek", "Page did not answer within ${LIVENESS_TIMEOUT_MS}ms after resume; reloading")
-            runCatching { officialWebView.reload() }
+            Log.w("SuperDeepSeek", "Page did not answer within ${LIVENESS_TIMEOUT_MS}ms after resume; asking again")
+            runCatching { officialWebView.evaluateJavascript("1") { answered = true } }
+            handler.postDelayed({
+                if (token != livenessToken || answered || !isForeground || isFinishing) return@postDelayed
+                Log.w("SuperDeepSeek", "Page is still unresponsive after ${LIVENESS_TIMEOUT_MS + LIVENESS_RETRY_MS}ms; reloading")
+                runCatching { officialWebView.reload() }
+            }, LIVENESS_RETRY_MS)
         }, LIVENESS_TIMEOUT_MS)
     }
 
