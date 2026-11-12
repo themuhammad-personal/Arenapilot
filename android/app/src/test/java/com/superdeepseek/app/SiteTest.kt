@@ -128,12 +128,23 @@ class SiteTest {
     }
 
     @Test
-    fun `only the profile with a release channel self-updates`() {
-        // The updater reads this repo's releases, which carry the Super DeepSeek
-        // APK (applicationId com.superdeepseek.app) — installing that over
-        // com.arenadeck.app would not be an update at all.
-        assertTrue(Sites.DEEPSEEK.selfUpdateEnabled)
-        assertFalse(Sites.ARENA.selfUpdateEnabled)
+    fun `the shipped site profile can update itself`() {
+        // build.gradle.kts builds SITE_ID="arena" (applicationId com.arenadeck.app)
+        // and CI publishes that APK as arenapilot-latest.apk in this repo's
+        // releases. arena's profile therefore MUST be allowed to check: this was
+        // false, so the updater was dead in the only app that ships — the release
+        // job was fixed and the flag that gates it still said no.
+        assertTrue(Sites.ARENA.selfUpdateEnabled)
+        assertEquals("arena", BuildConfig.SITE_ID)
+    }
+
+    @Test
+    fun `updates are resolved from this repository, not from the app's old name`() {
+        // The check is repository-based: one repo, one asset name, whatever the
+        // installed package used to be called.
+        assertEquals("themuhammad-personal", UpdateChecker.DEFAULT_REPO_OWNER)
+        assertEquals("Arenapilot", UpdateChecker.DEFAULT_REPO_NAME)
+        assertTrue(UpdateChecker.DEFAULT_REPO_NAME.startsWith("Arena"))
     }
 
     @Test

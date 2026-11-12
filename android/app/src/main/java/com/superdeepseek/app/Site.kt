@@ -106,7 +106,13 @@ internal object Sites {
         // React controlled input — the engine sets it through the native value
         // setter, as it already does on DeepSeek).
         composerSelectors = listOf("textarea[name=\"message\"]", "main textarea"),
-        selfUpdateEnabled = false,
+        // The app that wraps arena.ai IS ArenaPilot (com.arenadeck.app), and CI
+        // publishes its APK as `arenapilot-latest.apk` in this repo's releases.
+        // This used to be false because the releases were assumed to belong to
+        // the old com.superdeepseek.app channel — which made the updater dead in
+        // the app people actually install. Updating by repo, not by name, is the
+        // part that has to be true; see UpdateCheckerTest.
+        selfUpdateEnabled = true,
     )
 
     /** The site this app wraps, chosen by BuildConfig.SITE_ID. */

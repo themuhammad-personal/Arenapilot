@@ -478,8 +478,8 @@ internal class UpdateChecker(
         private const val TAG = "BdsUpdateChecker"
 
         private const val DEFAULT_API_BASE_URL = "https://api.github.com"
-        private const val DEFAULT_REPO_OWNER = "themuhammad-personal"
-        private const val DEFAULT_REPO_NAME = "Arenapilot"
+        internal const val DEFAULT_REPO_OWNER = "themuhammad-personal"
+        internal const val DEFAULT_REPO_NAME = "Arenapilot"
 
         /**
          * GitHub's API rejects requests without a User-Agent and asks integrators to identify
