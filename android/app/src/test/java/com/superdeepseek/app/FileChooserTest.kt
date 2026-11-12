@@ -72,15 +72,15 @@ class FileChooserTest {
     fun `extension tokens are resolved by a table that does not depend on the device`() {
         assertEquals("webp", extensionOfAcceptToken(".webp"))
         assertEquals("webp", extensionOfAcceptToken("WEBP"))
-        assertEquals("webp", extensionOfAcceptToken("webp"), "a bare extension is an extension")
+        assertEquals("a bare extension is an extension", "webp", extensionOfAcceptToken("webp"))
         assertNull(extensionOfAcceptToken("image/webp"))
         assertNull(extensionOfAcceptToken("."))
         assertEquals("image/webp", mimeForExtension("webp"))
         assertEquals("image/png", mimeForExtension(".PNG"))
-        assertEquals("image/heic", mimeForExtension("heic"), "even where a device table lacks it")
+        assertEquals("a format the app names itself", "image/heic", mimeForExtension("heic"))
         assertEquals("audio/ogg", mimeForExtension("oga"))
-        assertNull(mimeForExtension("py"), "unknown means unknown, not octet-stream")
-        assertNull(mimeForExtension(""), "an empty extension is not a type")
+        assertNull("unknown means unknown, not octet-stream", mimeForExtension("py"))
+        assertNull("an empty extension is not a type", mimeForExtension(""))
     }
 
     @Test

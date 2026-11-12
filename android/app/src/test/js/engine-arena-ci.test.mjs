@@ -830,3 +830,64 @@ test("kotlin sources have no block comment that closes early", () => {
   }
   assert.deepEqual(problems, []);
 });
+
+// ── JUnit assertions must put the message FIRST ────────────────────────────
+// JUnit 4's assertX(message, expected, actual) takes the message first. Writing
+// assertX(expected, actual, "why") compiles happily and compares `actual`
+// against the *string* — the test then fails forever with no useful output, or
+// passes for the wrong reason. Two CI rounds were spent on exactly that.
+
+test("JUnit assertions do not carry the message in the last position", () => {
+  const root = path.join(REPO, "android/app/src/test/java");
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".kt")) files.push(full);
+    }
+  };
+  walk(root);
+
+  const splitArgs = (body) => {
+    const parts = [];
+    let depth = 0;
+    let cur = "";
+    for (const ch of body) {
+      if ("([{".includes(ch)) depth++;
+      else if (")]}".includes(ch)) depth--;
+      if (ch === "," && depth === 0) {
+        parts.push(cur.trim());
+        cur = "";
+      } else cur += ch;
+    }
+    parts.push(cur.trim());
+    return parts;
+  };
+
+  const problems = [];
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8");
+    // local helpers may legitimately differ; only JUnit's own names are checked
+    const re = /\b(assertEquals|assertArrayEquals|assertTrue|assertFalse|assertNull|assertNotNull)\(/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      let i = re.lastIndex;
+      let depth = 1;
+      const start = i;
+      while (i < src.length && depth > 0) {
+        if ("([{".includes(src[i])) depth++;
+        else if (")]}".includes(src[i])) depth--;
+        i++;
+      }
+      const parts = splitArgs(src.slice(start, i - 1));
+      if (parts.length < 3) continue;
+      const last = parts[parts.length - 1];
+      if (/^".*"$/.test(last)) {
+        const line = src.slice(0, m.index).split("\n").length;
+        problems.push(`${path.relative(REPO, file)}:${line}: ${m[1]}() has its message last`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+});
