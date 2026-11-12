@@ -345,6 +345,7 @@ async function startFakeCdp(opts = {}) {
           return value(true);
         }
         if (marker === 'back') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
+        if (marker === 'drawerclose') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
         if (/bds-back-btn/.test(expr)) state.onDoctorPage = false; // Back, real or scripted
         if (marker === 'fillset') {
           if (opts.fillBroken) return value(JSON.stringify({ engine: true, set: false, valueMatches: false }));
@@ -593,6 +594,19 @@ test('Settings is clicked as the last card in Add to chat, closes that sheet, an
   const noCard = await runProbe({ noCard: true });
   assert.equal(noCard.result.drawer.present, false);
   assert.ok(noCard.result.steps.find((s) => s.name === 'settings-drawer').ok, 'missing card is reported rather than throwing');
+});
+
+test('the drawer is closed by intent before the sheet is measured through the “+”', async () => {
+  // Measured on the emulator (run 43331807615): the Settings card worked, the
+  // drawer stayed open, its backdrop lay over the "+" corner, and the tap that was
+  // meant to open Add to chat was swallowed — reported as 'add-to-chat-sheet-empty'
+  // while the sheet had never been asked. The sheet step now closes the drawer by
+  // intent first and records that it is gone.
+  const { fake, result } = await runProbe();
+  assert.deepEqual(result.drawerClosedBeforeSheet, { sent: true, visible: false });
+  const marks = fake.calls.filter((c) => c.method === 'Runtime.evaluate').map((c) => (/^\/\*sdp:([a-z]+)\*\//.exec(c.params.expression) || [])[1]);
+  assert.ok(marks.indexOf('drawerclose') < marks.indexOf('attachopen') || !marks.includes('attachopen'),
+    'the drawer is closed before the sheet is opened by intent');
 });
 
 test('the composer fill is captured without ever sending: fill, settle, read, clear', async () => {

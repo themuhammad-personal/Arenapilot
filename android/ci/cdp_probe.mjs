@@ -823,6 +823,19 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     // Research / Settings). The first read above may hit arena's own sheet, which
     // cannot be distinguished by class name; this one switches the toggle first.
     result.engineSheetRows = await step('engine-sheet-rows', async () => {
+      // The Settings card opened the drawer and it is still on screen: its
+      // backdrop is over the "+" corner, so a tap there lands on the drawer and
+      // an empty sheet would be measured through no fault of the sheet. Close the
+      // drawer by intent (not by tapping around it) and prove it is gone.
+      const closed = await evalValue(cdp, '/*sdp:drawerclose*/(function () { try { window.dispatchEvent(new CustomEvent("bds:close-drawer")); return true; } catch (e) { return false; } })()');
+      await pause(600);
+      let drawerNow = await evalJson(cdp, DRAWER_FACTS);
+      if (drawerNow && drawerNow.visible) {
+        await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+        await pause(600);
+        drawerNow = await evalJson(cdp, DRAWER_FACTS);
+      }
+      result.drawerClosedBeforeSheet = { sent: closed === true, visible: !!(drawerNow && drawerNow.visible) };
       const toggle = await evalJson(cdp, rectExpr('.bds-plus-btn'));
       if (!toggle.found) throw new Error('no engine toggle to open Add to chat with');
       // Nothing may be lying on top of the "+" — a tap through a drawer opens no
@@ -1253,6 +1266,11 @@ export function acceptanceFailures(result) {
   }
   if (result.engineSheetFacts && result.engineSheetFacts.closed !== true) {
     errors.push('add-to-chat-sheet-never-closes');
+  }
+  // A drawer left open puts its backdrop over the "+" corner: an empty sheet is
+  // then a measurement of the drawer, not of the sheet. Never let that pass.
+  if (result.drawerClosedBeforeSheet && result.drawerClosedBeforeSheet.visible === true) {
+    errors.push('drawer-still-open-before-sheet');
   }
 
   const doc = result.doctorPage;
