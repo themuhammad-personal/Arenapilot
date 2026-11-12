@@ -93,13 +93,34 @@ jobs:
         working-directory: android
         run: |
           set -o pipefail
-          if ! ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee /tmp/gradle-unit.log; then
-            # Surface compile errors and failed tests as annotations (readable
-            # from the run page and the checks API without downloading logs).
-            grep -E '^e: |FAILED$|Error|Exception|expected' /tmp/gradle-unit.log | head -60 | while IFS= read -r line; do
-              line="${line//'%'/'%25'}"; echo "::error::${line}"
-            done
-            exit 1
+          # Robolectric downloads its instrumented android-all jars from Maven on
+          # first use. A CDN hiccup there fails a test that never ran
+          # ("AssertionError at MavenArtifactFetcher", FileNotFoundException at
+          # HttpURLConnection) — invisible, because the job log is only readable
+          # through annotations. One retry, and the failure is reported as an
+          # infrastructure error rather than a test failure. A real assertion
+          # failure is never retried silently: the second run reports it.
+          infra_flake() {
+            grep -qE 'MavenArtifactFetcher|Expected an SDK|Failed to fetch|Could not resolve all files' /tmp/gradle-unit.log
+          }
+          run_tests() { ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee /tmp/gradle-unit.log; }
+          if ! run_tests; then
+            if infra_flake; then
+              echo "::warning::unit tests could not fetch a Robolectric/Maven artifact — retrying once (infrastructure, not a test failure)"
+              if ! run_tests; then
+                grep -E '^e: |FAILED$|Error|Exception|expected' /tmp/gradle-unit.log | head -60 | while IFS= read -r line; do
+                  line="${line//'%'/'%25'}"; echo "::error::${line}"
+                done
+                exit 1
+              fi
+            else
+              # Surface compile errors and failed tests as annotations (readable
+              # from the run page and the checks API without downloading logs).
+              grep -E '^e: |FAILED$|Error|Exception|expected' /tmp/gradle-unit.log | head -60 | while IFS= read -r line; do
+                line="${line//'%'/'%25'}"; echo "::error::${line}"
+              done
+              exit 1
+            fi
           fi
 
       - name: Upload unit-test reports on failure
