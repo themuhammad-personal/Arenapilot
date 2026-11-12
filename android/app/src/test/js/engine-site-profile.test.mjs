@@ -27,7 +27,7 @@ const bds = path.join(here, '../../main/bds-assets/bds');
 const CONTENT = fs.readFileSync(path.join(bds, 'content.js'), 'utf8');
 const SITE = fs.readFileSync(path.join(bds, 'sd-site.js'), 'utf8');
 const MAIN_ACTIVITY = fs.readFileSync(
-  path.join(here, '../../main/java/com/superdeepseek/app/MainActivity.kt'), 'utf8');
+  path.join(here, '../../main/java/com/arenadeck/app/MainActivity.kt'), 'utf8');
 const HARNESS = fs.readFileSync(path.join(here, '../../../../../tools/harness/harness.mjs'), 'utf8');
 
 // ── The built-in config object, lifted out of the real bundle ────────────────

@@ -157,7 +157,7 @@ release channel. What is verified and what is still unknown is in
 
 | Path | What lives there |
 |---|---|
-| `android/app/src/main/java/com/superdeepseek/app/` | Kotlin shell: `MainActivity`, `WebViewBridge`, the sandbox (`Sandbox`, `SandboxTools`, `SandboxService`) and Linux Studio (`StudioActivity`, `StudioPreview`). The Kotlin namespace is historical; the app's id is `com.arenadeck.app`. |
+| `android/app/src/main/java/com/arenadeck/app/` | Kotlin shell: `MainActivity`, `WebViewBridge`, the sandbox (`Sandbox`, `SandboxTools`, `SandboxService`) and Linux Studio (`StudioActivity`, `StudioPreview`). The Kotlin package is `com.arenadeck.app`, the same as the app id. |
 | `android/app/src/main/bds-assets/bds/` | The engine bundle (`content.js`, `injected.js`, `sd-agent.js`, styles, sandbox pages) |
 | `android/app/src/test/` | JVM unit tests (`java/`) and engine tests (`js/`) |
 | `docs/` | Architecture notes, the roadmap and third-party licenses |

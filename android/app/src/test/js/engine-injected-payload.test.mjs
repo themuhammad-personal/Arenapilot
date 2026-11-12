@@ -106,7 +106,7 @@ const GOLDEN = {
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":null,\"prompt\":\"<SuperDeepSeek>\\nSYS\\n</SuperDeepSeek>\\n\\n<SuperDeepSeek>\\n<SDS:memory_calls importance=\\\"always\\\">name: Muhammad</SDS:memory_calls>\\n</SuperDeepSeek>\\n\\nhello\",\"ref_file_ids\":[]}"
+      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":null,\"prompt\":\"<ArenaPilot>\\nSYS\\n</ArenaPilot>\\n\\n<ArenaPilot>\\n<APH:memory_calls importance=\\\"always\\\">name: Muhammad</APH:memory_calls>\\n</ArenaPilot>\\n\\nhello\",\"ref_file_ids\":[]}"
     }
   ],
   "G2_followup": [
@@ -115,7 +115,7 @@ const GOLDEN = {
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":7,\"message_id\":8,\"prompt\":\"<SuperDeepSeek>\\n<SDS:memory_calls importance=\\\"always\\\">name: Muhammad</SDS:memory_calls>\\n</SuperDeepSeek>\\n\\nand then?\",\"ref_file_ids\":[]}"
+      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":7,\"message_id\":8,\"prompt\":\"<ArenaPilot>\\n<APH:memory_calls importance=\\\"always\\\">name: Muhammad</APH:memory_calls>\\n</ArenaPilot>\\n\\nand then?\",\"ref_file_ids\":[]}"
     }
   ],
   "G3_always": [
@@ -124,7 +124,7 @@ const GOLDEN = {
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":7,\"prompt\":\"<SuperDeepSeek>\\nSYS\\n</SuperDeepSeek>\\n\\n<SuperDeepSeek>\\n<SDS:memory_calls importance=\\\"always\\\">name: Muhammad</SDS:memory_calls>\\n</SuperDeepSeek>\\n\\nagain\",\"ref_file_ids\":[]}"
+      "body": "{\"chat_session_id\":\"S1\",\"parent_message_id\":7,\"prompt\":\"<ArenaPilot>\\nSYS\\n</ArenaPilot>\\n\\n<ArenaPilot>\\n<APH:memory_calls importance=\\\"always\\\">name: Muhammad</APH:memory_calls>\\n</ArenaPilot>\\n\\nagain\",\"ref_file_ids\":[]}"
     }
   ],
   "G4_messages": [
@@ -133,7 +133,7 @@ const GOLDEN = {
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"model\":\"deepseek-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"<SuperDeepSeek>\\nSYS\\n</SuperDeepSeek>\\n\\n<SuperDeepSeek>\\n<SDS:memory_calls importance=\\\"always\\\">name: Muhammad</SDS:memory_calls>\\n</SuperDeepSeek>\\n\\nhi\"}]}"
+      "body": "{\"model\":\"deepseek-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"<ArenaPilot>\\nSYS\\n</ArenaPilot>\\n\\n<ArenaPilot>\\n<APH:memory_calls importance=\\\"always\\\">name: Muhammad</APH:memory_calls>\\n</ArenaPilot>\\n\\nhi\"}]}"
     }
   ],
   "G5_ctype": [
@@ -142,7 +142,7 @@ const GOLDEN = {
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"chat_session_id\":\"S2\",\"parent_message_id\":null,\"prompt\":\"<SuperDeepSeek>\\nSYS\\n</SuperDeepSeek>\\n\\n<SuperDeepSeek>\\n<SDS:memory_calls importance=\\\"always\\\">name: Muhammad</SDS:memory_calls>\\n</SuperDeepSeek>\\n\\nx\"}"
+      "body": "{\"chat_session_id\":\"S2\",\"parent_message_id\":null,\"prompt\":\"<ArenaPilot>\\nSYS\\n</ArenaPilot>\\n\\n<ArenaPilot>\\n<APH:memory_calls importance=\\\"always\\\">name: Muhammad</APH:memory_calls>\\n</ArenaPilot>\\n\\nx\"}"
     }
   ],
   "G6_other": [
@@ -228,8 +228,8 @@ function turn(id, content, extra = {}) {
   };
 }
 
-const SYS_BLOCK = '<SuperDeepSeek>\nSYS\n</SuperDeepSeek>';
-const MEM_BLOCK = '<SuperDeepSeek>\n<SDS:memory_calls importance="always">name: Muhammad</SDS:memory_calls>\n</SuperDeepSeek>';
+const SYS_BLOCK = '<ArenaPilot>\nSYS\n</ArenaPilot>';
+const MEM_BLOCK = '<ArenaPilot>\n<APH:memory_calls importance="always">name: Muhammad</APH:memory_calls>\n</ArenaPilot>';
 
 async function arenaRun(cfg, calls) {
   const run = boot({ host: 'arena.ai', config: { ...BASE, disableSystemPrompt: false, disableMemory: false, ...cfg } });
@@ -327,7 +327,7 @@ test('arena: an over-long message is truncated to the profile’s input limit', 
   const { out } = await arenaRun(cfg, [[CREATE, turn('E1', 'x'.repeat(2000))]]);
   const content = JSON.parse(out[0].body).userMessage.content;
   assert.equal(content.length, 400);
-  assert.ok(content.endsWith('...[truncated by Super DeepSeek]...'));
+  assert.ok(content.endsWith('...[truncated by ArenaPilot]...'));
 });
 
 test('arena: with nothing to inject the body is passed through untouched', async () => {

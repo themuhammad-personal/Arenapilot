@@ -2,7 +2,7 @@
 // extension verified working on arena.ai today (2026-10). The previous scanner
 // knew only two list selectors, always reversed its result and had never heard
 // of arena's zero-height spacer rows; on the real site that combination yields
-// zero or misclassified rows, which is exactly "raw SDS code in the chat, no
+// zero or misclassified rows, which is exactly "raw APH code in the chat, no
 // widgets, no sandbox". These tests run the REAL scanner functions against
 // fake pages shaped like the live DOM ground truth:
 //

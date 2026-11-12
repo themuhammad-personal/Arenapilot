@@ -18,8 +18,17 @@ val bdsBuildId: Long = (project.findProperty("bdsBuildId") as String?)?.toLongOr
 // Falls back to this literal for a local build without the property.
 val bdsVersionName: String = (project.findProperty("bdsVersionName") as String?)?.takeIf { it.isNotBlank() } ?: "2.0.0"
 
+// The model list is DATA, not code: published as a release asset of this repo and
+// shipped in the APK so the very first launch works offline. Staged from the
+// repository root so the app and the published file can never disagree.
+val stageModelList by tasks.registering(Copy::class) {
+    from(rootProject.file("../models.json"))
+    into(layout.projectDirectory.dir("src/main/assets/models"))
+}
+tasks.named("preBuild") { dependsOn(stageModelList) }
+
 android {
-    namespace = "com.superdeepseek.app"
+    namespace = "com.arenadeck.app"
     compileSdk = 34
 
     buildFeatures {
@@ -44,12 +53,10 @@ android {
     }
 
     // ── One app: ArenaPilot ─────────────────────────────────────────────────
-    // The app began life as the Super DeepSeek engine wrapped around
-    // chat.deepseek.com, with a product flavor for the arena.ai build. The
-    // owner decision of 2026-10-15 made arena.ai the only site: the flavor
-    // system is gone, applicationId stays com.arenadeck.app so existing
-    // installs update in place, and the package/class names below are
-    // historical (com.superdeepseek.app.* is the code namespace, not the app).
+    // One site (arena.ai), one applicationId, one name. The app id is unchanged
+    // since the first release on purpose: it is what makes an update install over
+    // the app people already have. Nothing else about the identity is inherited —
+    // package, theme, assets, strings and the model list are ArenaPilot's own.
 
     buildTypes {
         debug {

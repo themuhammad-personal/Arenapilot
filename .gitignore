@@ -24,6 +24,7 @@ android/app/src/main/assets/sandbox/
 
 # Staged at build time from android/app/src/main/bds-assets (CI does this)
 android/app/src/main/assets/bds/
+android/app/src/main/assets/models/
 
 # Python bytecode
 __pycache__/

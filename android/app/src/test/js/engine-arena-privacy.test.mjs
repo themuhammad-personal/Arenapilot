@@ -54,14 +54,14 @@ test('Arena default prompt is model-neutral, self-aware and honest about the new
   assert.match(prompt, /ABOUT ARENAPILOT/);
   assert.match(prompt, /third-party Android client/);
   assert.match(prompt, /say you do not know rather than guessing/);
-  assert.match(prompt, /SDS:VISUALIZER/);
-  assert.match(prompt, /SDS:AUTO:MCP/);
+  assert.match(prompt, /APH:VISUALIZER/);
+  assert.match(prompt, /APH:AUTO:MCP/);
   assert.match(prompt, /Wait for their results/);
   // privacy wording matches the shipped behaviour: instructions on and sent
   // with the first message, memory a separate off-by-default opt-in
   assert.match(prompt, /sent with the first message of each conversation/);
   assert.match(prompt, /Stored memory is a separate opt-in and is off by default/);
-  assert.doesNotMatch(prompt, /You are Super DeepSeek|built on DeepSeek|IS available to you|App instructions and stored memory are separate opt-ins and off by default/);
+  assert.doesNotMatch(prompt, /You are ArenaPilot|built on DeepSeek|IS available to you|App instructions and stored memory are separate opt-ins and off by default/);
   assert.ok(content.includes('du=sdsIsArena()?window.__sdSite.arenaPrompt:sdsLegacyPrompt'));
   // engine defaults: instructions ON for everyone, memory OFF only in Arena
   assert.ok(content.includes('disableSystemPrompt:!1,disableMemory:sdsIsArena()'));

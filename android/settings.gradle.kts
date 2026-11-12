@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SuperDeepSeek"
+rootProject.name = "ArenaPilot"
 include(":app")

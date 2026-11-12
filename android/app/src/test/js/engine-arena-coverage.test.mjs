@@ -347,7 +347,7 @@ test('the bundle reads the site surfaces instead of hardcoding DeepSeek', () => 
 
 test('the injected order still puts sd-site.js first', () => {
   const main = fs.readFileSync(
-    path.join(here, '../../main/java/com/superdeepseek/app/MainActivity.kt'), 'utf8');
+    path.join(here, '../../main/java/com/arenadeck/app/MainActivity.kt'), 'utf8');
   const harness = fs.readFileSync(
     path.join(here, '../../../../../tools/harness/harness.mjs'), 'utf8');
   assert.ok(main.indexOf('readAsset("sd-site.js")') < main.indexOf('readAsset("injected.js")'),

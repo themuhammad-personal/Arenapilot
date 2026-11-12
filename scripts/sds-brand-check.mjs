@@ -20,8 +20,8 @@ const ALLOW_PATTERNS = [
   '.grok/',
   'scripts/',
   'src/lib/tool-tags.ts',
-  'android/app/src/main/java/com/superdeepseek/app/MainActivity.kt',
-  'android/app/src/main/java/com/superdeepseek/app/WebViewBridge.kt',
+  'android/app/src/main/java/com/arenadeck/app/MainActivity.kt',
+  'android/app/src/main/java/com/arenadeck/app/WebViewBridge.kt',
 ];
 let fails = [];
 

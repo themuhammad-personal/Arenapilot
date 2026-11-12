@@ -38,9 +38,9 @@ export function requestFacts(request) {
     promptExact: body?.userMessage?.content === PROMPT,
     // v2 defaults: the engine's app instructions ride in front of the prompt,
     // so an exact match is no longer the only clean delivery. The engine's own
-    // <SuperDeepSeek> block is allowed; any other leading text is not.
+    // <ArenaPilot> block is allowed; any other leading text is not.
     promptDelivered: ((content) => content === PROMPT
-      || (typeof content === 'string' && content.endsWith(PROMPT) && content.startsWith('<SuperDeepSeek>')))(body?.userMessage?.content),
+      || (typeof content === 'string' && content.endsWith(PROMPT) && content.startsWith('<ArenaPilot>')))(body?.userMessage?.content),
   };
 }
 

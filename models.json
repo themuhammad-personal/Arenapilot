@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "updated": "2026-11-12",
+  "note": "The model list this app serves to the site's picker. Published as the 'models.json' asset of this repository's 'models' release and shipped inside the APK (so the first launch works offline). Keep it sorted newest-first within a provider. id = what the site is sent, name = what the user reads.",
+  "models": [
+    { "id": "arena-default", "name": "Arena default", "provider": "arena.ai", "contextTokens": 0, "note": "Whatever Direct Chat selects when no model is named." }
+  ]
+}

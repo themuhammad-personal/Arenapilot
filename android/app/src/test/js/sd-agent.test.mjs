@@ -80,9 +80,9 @@ test('parses MCP tags: body JSON, args attribute, base64Args, self-closing', () 
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[2])), { command: 'echo "hi"' });
 });
 
-test('SDS tags (the current spelling) are parsed like BDS ones', () => {
+test('APH tags (the current spelling) are parsed like BDS ones', () => {
   const { win } = load();
-  const tags = win.__sdAgent._parseTags('<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"echo a_b"}</SDS:AUTO:MCP>');
+  const tags = win.__sdAgent._parseTags('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo a_b"}</APH:AUTO:MCP>');
   assert.equal(tags.length, 1);
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo a_b' });
 });
@@ -97,7 +97,7 @@ test('a ">" inside a quoted attribute does not end the tag', () => {
 test('backtick-quoted attributes accept JSON containing ">" and preserve tool arguments', () => {
   const { win } = load();
   const tick = String.fromCharCode(96);
-  const text = '<SDS:AUTO:MCP url=' + tick + 'sandbox://linux' + tick +
+  const text = '<APH:AUTO:MCP url=' + tick + 'sandbox://linux' + tick +
     ' tool=' + tick + 'run' + tick +
     ' args=' + tick + '{"command":"echo 1 > f"}' + tick + '/>';
   const tags = win.__sdAgent._parseTags(text);
@@ -114,8 +114,8 @@ test('JSON fences and response fragments do not break a tool tag', () => {
     role: 'ASSISTANT',
     fragments: [
       { type: 'THINK', content: 'do not inspect this fragment' },
-      { type: 'RESPONSE', content: 'Example tag:\n' + fence + 'xml\n<SDS:AUTO:MCP url="sandbox" tool="run">' },
-      { type: 'RESPONSE', content: fence + 'json\n{"command":"echo split > result.txt"}\n' + fence + '</SDS:AUTO:MCP>\n' + fence },
+      { type: 'RESPONSE', content: 'Example tag:\n' + fence + 'xml\n<APH:AUTO:MCP url="sandbox" tool="run">' },
+      { type: 'RESPONSE', content: fence + 'json\n{"command":"echo split > result.txt"}\n' + fence + '</APH:AUTO:MCP>\n' + fence },
     ],
   }]);
   assert.equal(messages.length, 1);
@@ -127,7 +127,7 @@ test('JSON fences and response fragments do not break a tool tag', () => {
 test('an incomplete backtick-quoted opener is ignored rather than becoming an executable call', () => {
   const { win } = load();
   const tick = String.fromCharCode(96);
-  const incomplete = '<SDS:AUTO:MCP url=' + tick + 'sandbox' +
+  const incomplete = '<APH:AUTO:MCP url=' + tick + 'sandbox' +
     ' tool=' + tick + 'run' + tick +
     ' args=' + tick + '{"command":"must-not-run"}';
   assert.deepEqual(plain(win.__sdAgent._parseTags(incomplete)), []);
@@ -294,7 +294,7 @@ test('tool-call spinners stop once a later message exists, or when all is idle',
   assert.ok(current.cls.has('sd-done'));
 });
 
-const mcpResult = (tool) => '<SuperDeepSeek>\n[SDS:AUTO] MCP Result for ' + tool + ' @ sandbox://linux\n[SDS:AUTO_MCP_RESULT]\n{}\n[/SDS:AUTO_MCP_RESULT]\n</SuperDeepSeek>';
+const mcpResult = (tool) => '<ArenaPilot>\n[APH:AUTO] MCP Result for ' + tool + ' @ sandbox://linux\n[APH:AUTO_MCP_RESULT]\n{}\n[/APH:AUTO_MCP_RESULT]\n</ArenaPilot>';
 
 test('continuity: replies that announce more work are recognised', () => {
   const { win } = load();
@@ -320,8 +320,8 @@ test('continuity: nudge only inside a tool chain', () => {
   assert.match(n(chain('Now I will install the packages:')), /without a tool call/);
   assert.equal(n(chain('All done, tests pass.')), null);
   assert.equal(n([{ role: 'USER', content: 'hi' }, { role: 'ASSISTANT', content: 'Let me think:' }]), null);
-  assert.equal(n(chain('<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</SDS:AUTO:MCP>')), null);
-  assert.match(n(chain('<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</SDS:AUTO:MCP>')), /valid JSON/);
+  assert.equal(n(chain('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>')), null);
+  assert.match(n(chain('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>')), /valid JSON/);
   assert.equal(n([...chain('ok'), { role: 'USER', content: 'thanks' }]), null);
 });
 
@@ -348,7 +348,7 @@ test('continuity: after a reply the engine re-checks it and an unfinished chain 
   assert.ok(reprocessed.length >= 3, 'engine asked to look at the reply again');
   assert.equal(sent.length, 1);
   assert.equal(sent[0].label, 'Agent continue');
-  assert.match(sent[0].text, /^<SuperDeepSeek>\n\[SDS:AUTO\] Agent continue\n[\s\S]*<\/SuperDeepSeek>$/);
+  assert.match(sent[0].text, /^<ArenaPilot>\n\[APH:AUTO\] Agent continue\n[\s\S]*<\/ArenaPilot>$/);
 });
 
 test('prompt context: live sandbox state for the tool instructions', () => {
@@ -609,7 +609,7 @@ test('scroll guard: the agent UI and small or editable scrollers are left alone'
 test('stall detection: a tool call with no result is the missing-result case', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
-  const call = '<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</SDS:AUTO:MCP>';
+  const call = '<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>';
   assert.equal(s([{ role: 'USER', content: 'do it' }, { role: 'ASSISTANT', content: call }]), 'missing-result');
   assert.equal(s([{ role: 'USER', content: 'do it' }, { role: 'ASSISTANT', content: 'Running:\n' + call }]), 'missing-result');
   // A result arrived after the call: the chain moved on — nothing owed.
@@ -624,7 +624,7 @@ test('stall detection: a tool call with no result is the missing-result case', (
 test('stall detection: unreadable tool tags and unfinished prose', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
-  assert.equal(s([{ role: 'ASSISTANT', content: '<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</SDS:AUTO:MCP>' }]), 'unreadable');
+  assert.equal(s([{ role: 'ASSISTANT', content: '<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>' }]), 'unreadable');
   assert.equal(s([{ role: 'USER', content: 'go' }, { role: 'ASSISTANT', content: 'Files are written. Now I will run the tests:' }]), 'unfinished');
   assert.equal(s([{ role: 'ASSISTANT', content: 'Here is the app: https://x/app.apk. Let me know if you need a dark theme.' }]), null);
   assert.equal(s([{ role: 'USER', content: 'thanks' }]), null);
@@ -635,7 +635,7 @@ test('stall detection: unreadable tool tags and unfinished prose', () => {
 test('stall detection: a non-sandbox tool call is not our stalled chain', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
-  assert.equal(s([{ role: 'ASSISTANT', content: '<SDS:AUTO:MCP url="https://other.example/mcp" tool="run">{"command":"x"}</SDS:AUTO:MCP>' }]), null);
+  assert.equal(s([{ role: 'ASSISTANT', content: '<APH:AUTO:MCP url="https://other.example/mcp" tool="run">{"command":"x"}</APH:AUTO:MCP>' }]), null);
 });
 
 test('continue bodies tell the model to never repeat finished work', () => {
@@ -653,7 +653,7 @@ test('continue bodies tell the model to never repeat finished work', () => {
 test('continue chip: after a reload stall the user is offered the next step', async () => {
   const history = [
     { role: 'USER', content: 'make an app' },
-    { role: 'ASSISTANT', content: 'Building first:\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</SDS:AUTO:MCP>' },
+    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
   ];
   const { win } = load({ history });
   win.__sdEngine = { isGenerating: () => false, reprocess: () => {}, sendQuiet: () => {} };
@@ -666,7 +666,7 @@ test('continue chip: after a reload stall the user is offered the next step', as
 test('continue chip: no offer while the model is still writing or the agent is stopped', async () => {
   const history = [
     { role: 'USER', content: 'make an app' },
-    { role: 'ASSISTANT', content: 'Building first:\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</SDS:AUTO:MCP>' },
+    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
   ];
   const { win } = load({ history });
   win.__sdEngine = { isGenerating: () => true, reprocess: () => {}, sendQuiet: () => {} };

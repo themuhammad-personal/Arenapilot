@@ -1,5 +1,5 @@
 /**
- * Super DeepSeek — DeepSeek DOM health check.
+ * ArenaPilot — DeepSeek DOM health check.
  *
  * The engine leans on DeepSeek's DOM, including hashed class names that can
  * change with any site update. When one of them drifts, features must NOT
@@ -100,7 +100,7 @@
     sendProvesChat: true,
     notice: function (names) {
       return {
-        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in Super DeepSeek until the next update. Your chat keeps working. ' + HOW,
+        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working. ' + HOW,
         bn: 'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে। ' + HOW_BN,
       };
     },

@@ -8,7 +8,7 @@
 //
 // Since the 2026-10-15 cleanup this repo builds ONE app: ArenaPilot
 // (com.arenadeck.app). There is no flavor dimension anymore — the old
-// Super DeepSeek flavor jobs and their branches are gone by design.
+// ArenaPilot flavor jobs and their branches are gone by design.
 //
 // Run: npm run test:engine
 import { test } from "node:test";
@@ -75,6 +75,12 @@ case "$cmd" in
         fi
         exit 0 ;;
       pidof) if [ -f "$S/dead" ]; then exit 1; fi; echo 4242; exit 0 ;;
+      dumpsys)
+        if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/renderer-kill" ]; then
+          echo "  process=com.google.android.webview:sandboxed_process0 reason=13 (OTHER KILLS BY SYSTEM)"
+          echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED)"
+        fi
+        exit 0 ;;
       input)
         if [ "$1" = "tap" ]; then
           echo "$2 $3" >> "$S/taps"
@@ -157,6 +163,7 @@ function runSmoke(world = {}) {
     ["dead", "dead"],
     ["uiBroken", "ui-broken"],
     ["forwardFails", "forward-fails"],
+    ["rendererKill", "renderer-kill"],
   ]) {
     if (world[flag]) fs.writeFileSync(path.join(state, file), "");
   }
@@ -164,21 +171,21 @@ function runSmoke(world = {}) {
   const lines = [];
   if (site === "arena")
     lines.push(
-      "D SuperDeepSeek: Official WebView loaded: https://arena.ai/text/direct",
+      "D ArenaPilot: Official WebView loaded: https://arena.ai/text/direct",
     );
   if (site === "deepseek")
     lines.push(
-      "D SuperDeepSeek: Official WebView loaded: https://chat.deepseek.com/",
+      "D ArenaPilot: Official WebView loaded: https://chat.deepseek.com/",
     );
   if (world.crash)
     lines.push(
       `E AndroidRuntime: FATAL EXCEPTION: main\nE AndroidRuntime: Process: ${pkg}`,
     );
   if (world.engineReady)
-    lines.push("D SuperDeepSeek: Engine UI ready — releasing launch screen");
+    lines.push("D ArenaPilot: Engine UI ready — releasing launch screen");
   if (world.cap)
     lines.push(
-      "W SuperDeepSeek: Launch screen cap reached — revealing the page",
+      "W ArenaPilot: Launch screen cap reached — revealing the page",
     );
   if (world.injected) lines.push("D BDS: injected.js done");
   for (const l of world.logLines || []) lines.push(l);
@@ -256,7 +263,7 @@ test("ArenaPilot is launched by its FULL class name — `.MainActivity` would re
   for (const line of r.amStart) {
     assert.match(
       line,
-      /-n com\.arenadeck\.app\/com\.superdeepseek\.app\.MainActivity/,
+      /-n com\.arenadeck\.app\/com\.arenadeck\.app\.MainActivity/,
     );
     assert.ok(!/\/\.MainActivity/.test(line));
   }
@@ -346,6 +353,23 @@ test("a dead process fails the run", () => {
   assert.match(r.out, /::error::app process is not alive/);
 });
 
+test("a WebView renderer the SYSTEM killed gets one relaunch, then the run continues", () => {
+  // Android reclaims the renderer under memory pressure; a WebView app goes with
+  // it before onRenderProcessGone can recreate the Activity. That is not a defect
+  // in this app, and failing the run on it hides every real failure behind it.
+  const r = runSmoke({ noticeFirst: true, dead: true, rendererKill: true });
+  assert.match(r.out, /renderer killed by the system on the second launch, relaunched once/);
+  assert.ok(r.launches >= 3, `expected a relaunch, saw ${r.launches} launches`);
+});
+
+test("a crash or ANR still fails the run — a relaunch is never a way out", () => {
+  const crash = runSmoke({ noticeFirst: true, dead: true, crash: true, rendererKill: true });
+  assert.equal(crash.code, 1);
+  assert.match(crash.out, /crash or ANR detected/);
+  const noEvidence = runSmoke({ noticeFirst: true, dead: true });
+  assert.equal(noEvidence.code, 1, "no renderer-kill evidence, no relaunch");
+});
+
 test("a failing static APK check fails the run, whatever the runtime did", () => {
   const r = runSmoke({ noticeFirst: true, apkCheckExit: 1 });
   assert.equal(r.code, 1);
@@ -390,7 +414,7 @@ test("the emulator matrix is ArenaPilot on API 34 — one app, one job", () => {
     job.includes("api-level: 34, flavor: ArenaDeck"),
     "the single matrix entry",
   );
-  assert.ok(!job.includes("flavor: Deepseek"), "no Super DeepSeek jobs remain");
+  assert.ok(!job.includes("flavor: Deepseek"), "no ArenaPilot jobs remain");
   assert.ok(job.includes("fail-fast: false"));
   assert.ok(
     job.includes("continue-on-error: false"),
@@ -450,11 +474,11 @@ test("the repository releases one versioned APK channel that the updater can rea
   assert.ok(WORKFLOW.includes("APK_NAME=\"arenapilot-latest.apk\""));
   assert.ok(
     !WORKFLOW.includes("name: super-deepseek-apk"),
-    "the old Super DeepSeek artifact is gone",
+    "the old ArenaPilot artifact is gone",
   );
   assert.ok(
-    !/Publish Release[\s\S]*Super DeepSeek v/.test(WORKFLOW),
-    "no Super DeepSeek release job remains",
+    !/Publish Release[\s\S]*ArenaPilot v/.test(WORKFLOW),
+    "no ArenaPilot release job remains",
   );
 });
 
@@ -575,7 +599,7 @@ test("runtime facts: page console errors are reported, long opaque strings maske
     noticeFirst: true,
     logLines: [
       `I chromium: [INFO:CONSOLE(12)] "Uncaught TypeError: x is not a function ${secret}", source: https://arena.ai/_next/x.js (12)`,
-      'I chromium: [INFO:CONSOLE(7)] "[SDS] Guard check: something", source: (7)',
+      'I chromium: [INFO:CONSOLE(7)] "[APH] Guard check: something", source: (7)',
       'I chromium: [INFO:CONSOLE(3)] "an ordinary page log", source: https://arena.ai/y.js (3)',
     ],
   });
@@ -587,7 +611,7 @@ test("runtime facts: page console errors are reported, long opaque strings maske
   );
   assert.ok(!r.out.includes(secret), "the raw string never reaches the log");
   assert.ok(
-    r.out.includes("[SDS] Guard check"),
+    r.out.includes("[APH] Guard check"),
     "the engine warning is included",
   );
   assert.ok(

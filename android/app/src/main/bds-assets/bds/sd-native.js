@@ -1,5 +1,5 @@
 /*
- * Super DeepSeek — native glue (injected after content.js).
+ * ArenaPilot — native glue (injected after content.js).
  *
  * Connects the Android side to the engine without touching its internals more
  * than a few one-line hooks in content.js:
@@ -618,7 +618,7 @@
 
   function bridgeFetch(payload) {
     var b = bridge();
-    if (!b) return Promise.resolve({ ok: false, error: '[SDS] window.AndroidBridge is not available.' });
+    if (!b) return Promise.resolve({ ok: false, error: '[APH] window.AndroidBridge is not available.' });
     var body = JSON.stringify(payload || {});
     if (typeof b.fetchAsync !== 'function') {
       // Older native side: the blocking call.

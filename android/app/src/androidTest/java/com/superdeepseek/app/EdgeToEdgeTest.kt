@@ -1,4 +1,4 @@
-package com.superdeepseek.app
+package com.arenadeck.app
 
 import android.graphics.Color
 import android.view.WindowManager

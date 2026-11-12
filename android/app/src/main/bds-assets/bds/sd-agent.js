@@ -1,11 +1,11 @@
 /*
- * Super DeepSeek — agent glue for the built-in Linux sandbox (loaded after
+ * ArenaPilot — agent glue for the built-in Linux sandbox (loaded after
  * sd-native.js).
  *
  * The sandbox is exposed to the engine as an MCP server named "sandbox"
  * (url sandbox://linux) that the native side implements. The engine then
  * does the agent loop by itself: the model writes
- *   <SDS:AUTO:MCP url="sandbox" tool="run">{"command":"…"}</SDS:AUTO:MCP>
+ *   <APH:AUTO:MCP url="sandbox" tool="run">{"command":"…"}</APH:AUTO:MCP>
  * the engine calls the tool and sends the result back as the next message.
  *
  * This file adds what the loop needs on a phone:
@@ -102,11 +102,11 @@
     return a;
   }
 
-  /** Every <SDS:AUTO:MCP …>body</SDS:AUTO:MCP> (or self-closing) tag, in order. */
+  /** Every <APH:AUTO:MCP …>body</APH:AUTO:MCP> (or self-closing) tag, in order. */
   function parseTags(text) {
     var out = [];
     var s = String(text || '');
-    var re = /<[BS]DS:(?:AUTO:)?MCP\b/gi;
+    var re = /<(?:APH|[BS]DS):(?:AUTO:)?MCP\b/gi;
     var m;
     while ((m = re.exec(s))) {
       var i = m.index + m[0].length;
@@ -124,7 +124,7 @@
       var body = '';
       var end = i + 1;
       if (!selfClosing) {
-        var close = /<\/[BS]DS:(?:AUTO:)?MCP\s*>/gi;
+        var close = /<\/(?:APH|[BS]DS):(?:AUTO:)?MCP\s*>/gi;
         close.lastIndex = i + 1;
         var cm = close.exec(s);
         if (cm) { body = s.slice(i + 1, cm.index); end = cm.index + cm[0].length; }
@@ -543,7 +543,7 @@
 
   /** Last line of the prose, without code blocks. */
   function tailLine(text) {
-    var s = String(text || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/<[BS]DS:[\s\S]*$/i, ' ');
+    var s = String(text || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/<(?:APH|[BS]DS):[\s\S]*$/i, ' ');
     var lines = s.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
     return lines.length ? lines[lines.length - 1].slice(-300) : '';
   }
@@ -557,7 +557,7 @@
 
   /** The reply (before any tool tag) ends with a code block. */
   function endsWithBlock(text) {
-    var s = String(text || '').replace(/<[BS]DS:[\s\S]*$/i, '').trim();
+    var s = String(text || '').replace(/<(?:APH|[BS]DS):[\s\S]*$/i, '').trim();
     return /```\s*$/.test(s);
   }
 
@@ -574,7 +574,7 @@
 
   function isToolResultMessage(m) {
     var text = messageText(m);
-    return /\[[BS]DS:AUTO_MCP_(RESULT|ERROR)\]|\[[BS]DS:AUTO\] Agent continue/.test(text);
+    return /\[(?:APH|[BS]DS):AUTO_MCP_(RESULT|ERROR)\]|\[(?:APH|[BS]DS):AUTO\] Agent continue/.test(text);
   }
 
   /** What to tell the model, or null when the reply is fine as it is. */
@@ -608,7 +608,7 @@
     if (!e || typeof e.sendQuiet !== 'function') return;
     // A user-tapped Continue never spends the automatic keep-going budget.
     if (countBudget !== false) flow.nudges++;
-    e.sendQuiet(['<SuperDeepSeek>', '[SDS:AUTO] Agent continue', body, '</SuperDeepSeek>'].join('\n'), 'Agent continue');
+    e.sendQuiet(['<ArenaPilot>', '[APH:AUTO] Agent continue', body, '</ArenaPilot>'].join('\n'), 'Agent continue');
   }
 
   function maybeNudge(callsAtEnd) {

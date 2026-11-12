@@ -19,9 +19,10 @@ OUT=${SMOKE_OUT:-/tmp/emulator-smoke}
 mkdir -p "$OUT"
 
 PKG=com.arenadeck.app
-# The Kotlin lives in the historical `com.superdeepseek.app` namespace:
-# `.MainActivity` would resolve against the *package* and miss it.
-ACTIVITY=com.superdeepseek.app.MainActivity
+# The Kotlin package and the application id are both com.arenadeck.app now, so
+# `.MainActivity` would resolve — but the full class name is used on purpose: it
+# keeps working if the two ever diverge again (they did for years).
+ACTIVITY=com.arenadeck.app.MainActivity
 BOOT_WAIT="${SMOKE_BOOT_WAIT:-25}"
 NOTICE_WAIT="${SMOKE_NOTICE_WAIT:-40}"
 RETRY_SLEEP="${SMOKE_UI_RETRY_SLEEP:-2}"
@@ -123,6 +124,23 @@ launch() {
   cp "$OUT/launch-$LAUNCH_NO.log" "$OUT/launch.log"
 }
 
+# Android kills the WebView renderer to reclaim memory (exit reason 13, "other
+# kills by system"), and a WebView app whose renderer died has no window left to
+# draw — the process goes with it, before onRenderProcessGone can recreate the
+# Activity. That is routine under CI's memory pressure, not a defect in this app.
+# One relaunch, and only when the evidence says the SYSTEM killed the renderer;
+# a Java crash, an ANR or a failed am-start still fails the run.
+renderer_kill_evidence() {
+  adb shell dumpsys activity exit-info "$PKG" 2>/dev/null \
+    | grep -aiE 'webview[^ ]*sandboxed_process|reason=13|reason=12' >/dev/null 2>&1
+}
+
+alive() {
+  local pid
+  pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')
+  [[ "$pid" =~ ^[0-9]+([[:space:]][0-9]+)*$ ]]
+}
+
 snapshot_launch() {
   local phase="$1" pid
   adb logcat -d > "$OUT/$phase-logcat.txt" 2>/dev/null || true
@@ -212,6 +230,13 @@ adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
 launch
 sleep "$BOOT_WAIT"
 snapshot_launch second-boot
+if ! alive && renderer_kill_evidence; then
+  echo "::warning::the system killed the WebView renderer on the second launch — relaunching once"
+  echo "::notice::ArenaPilot: renderer killed by the system on the second launch, relaunched once"
+  launch
+  sleep "$BOOT_WAIT"
+  snapshot_launch second-boot-retry
+fi
 if [ -s "$OUT/second-boot-pid.txt" ] && grep -qE "[0-9]" "$OUT/second-boot-pid.txt" && dump2=$(ui_dump); then
   printf '%s' "$dump2" > "$OUT/ui-second.xml"
   if grep -q "$NOTICE_TEXT" <<<"$dump2"; then
@@ -285,7 +310,7 @@ if [ "$CAP_HIT" = "yes" ]; then
 fi
 
 # Page JavaScript errors, first few distinct ones, long opaque strings masked.
-ERRS=$(grep -a "CONSOLE" "$OUT/logcat.txt" 2>/dev/null | grep -aE "Uncaught|\[SDS|\[SuperDeepSeek|\[BDS" \
+ERRS=$(grep -a "CONSOLE" "$OUT/logcat.txt" 2>/dev/null | grep -aE "Uncaught|\[APH|\[ArenaPilot|\[BDS" \
   | sed -E 's/[A-Za-z0-9_-]{30,}/<opaque>/g' | cut -c1-230 | sort -u | head -5)
 if [ -n "$ERRS" ]; then
   echo "page console errors / engine warnings:"; echo "$ERRS"
@@ -302,7 +327,8 @@ fi
 echo "== CDP probe =="
 DEVTOOLS_PID=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' | awk '{print $1}')
 if [ -n "$DEVTOOLS_PID" ] && adb forward tcp:9222 "localabstract:webview_devtools_remote_$DEVTOOLS_PID" >/dev/null 2>&1; then
-  if ! timeout 240 node android/ci/cdp_probe.mjs --port 9222 --out "$OUT" --capture tools/arena-capture/capture.js --required "$STRICT"; then
+  if ! timeout 240 node android/ci/cdp_probe.mjs --port 9222 --out "$OUT" --capture tools/arena-capture/capture.js --required "$STRICT" 2> "$OUT/cdp-probe.err"; then
+    [ -s "$OUT/cdp-probe.err" ] && { echo "cdp probe stderr:"; tail -20 "$OUT/cdp-probe.err"; }
     echo "::warning::the CDP probe did not finish or its runtime gate failed"
     [ "$STRICT" = "1" ] && STATUS=1
   fi

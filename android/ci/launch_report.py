@@ -44,7 +44,7 @@ def summarize(folder, package):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('folder')
-    parser.add_argument('--package', required=True, choices=['com.arenadeck.app', 'com.superdeepseek.app'])
+    parser.add_argument('--package', required=True, choices=['com.arenadeck.app'])
     args = parser.parse_args()
     rows = summarize(args.folder, args.package)
     for row in rows[:6]:

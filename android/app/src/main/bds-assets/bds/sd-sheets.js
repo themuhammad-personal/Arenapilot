@@ -1,5 +1,5 @@
 /*
- * Super DeepSeek — bottom sheets that behave like real phone sheets.
+ * ArenaPilot — bottom sheets that behave like real phone sheets.
  *
  * The engine's sheets (+ menu, project panel, settings, slash-command help)
  * and our own confirm sheet slide up when they open. This file adds what they

@@ -67,6 +67,7 @@ jobs:
         run: |
           npm run test:template
           npm run test:engine
+          npm run test:models
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Stage engine assets
@@ -74,8 +75,12 @@ jobs:
           mkdir -p android/app/src/main/assets
           rm -rf android/app/src/main/assets/bds
           cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds
+          # The model list is a release asset elsewhere, but it is also shipped in
+          # the APK so the first launch has a working picker with no network.
+          mkdir -p android/app/src/main/assets/models
+          cp models.json android/app/src/main/assets/models/models.json
           echo "=== Engine assets staged ==="
-          ls -lh android/app/src/main/assets/bds/
+          ls -lh android/app/src/main/assets/bds/ android/app/src/main/assets/models/
       - name: Install pinned NDK for sandbox runtime
         run: sdkmanager 'ndk;27.2.12479018'
       - name: Build required Linux sandbox runtime
@@ -141,11 +146,14 @@ jobs:
         env:
           BDS_KEYSTORE: ${{ secrets.BDS_KEYSTORE }}
         run: |
+          # The key ALIAS below is part of the existing keystore and cannot be
+          # renamed without generating a new key — which would make Android
+          # refuse to install the update over the app people already have.
           if [ -n "$BDS_KEYSTORE" ]; then
             echo "Decoding release keystore from secrets..."
             echo "$BDS_KEYSTORE" | base64 --decode > ci-release.jks
           elif [ -f "app/superdeepseek-release.jks" ]; then
-            echo "Using permanent Super DeepSeek release keystore..."
+            echo "Using the permanent release keystore (same key every build, so updates install over the old app)..."
             cp app/superdeepseek-release.jks ci-release.jks
           else
             echo "Generating fallback release keystore..."
@@ -412,12 +420,45 @@ jobs:
         with:
           name: cdp-capture-api-${{ matrix.api-level }}-arena
           path: |
-            /tmp/emulator-smoke/cdp-capture.json
-            /tmp/emulator-smoke/cdp-attach-rows.json
-            /tmp/emulator-smoke/cdp-drawer-pages.json
+            /tmp/emulator-smoke/cdp-*
             /tmp/emulator-smoke/cdp-*.png
           if-no-files-found: ignore
           retention-days: 14
+
+  publish-models:
+    # The model list the site's picker reads. It is a file, not code: published as
+    # the `models` release of THIS repository, which is where the app checks first
+    # (then its cache, then the copy inside the APK). Separate from the versioned
+    # APK release on purpose — a model shipping must not require a new app version.
+    name: Publish the model list
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate models.json before publishing
+        run: |
+          node --test models/models.test.mjs
+          node -e "const m=require('./models.json'); if(!Array.isArray(m.models)||m.models.length===0){console.error('::error::models.json has no models'); process.exit(1)} console.log('models:', m.models.length)"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: models
+          name: Model list (live)
+          body: |
+            The model list ArenaPilot serves to arena.ai's picker.
+
+            This release holds one asset, `models.json`, and it is rebuilt from
+            `models.json` at the root of the repository on every push to this
+            branch — so the file always matches the code that ships it. The app
+            also carries this exact file inside the APK, which is why the picker
+            works on the first launch with no network.
+
+            Do not edit this release by hand: change `models.json` in the
+            repository instead.
+          files: models.json
+          prerelease: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-arena:
     # ArenaPilot's continuous channel. ONE tag per version (`v1.9.0`), rebuilt
@@ -468,7 +509,7 @@ jobs:
             সম্পর্ক নেই। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট ও শর্তাবলির অধীনেই এটি ব্যবহার করছেন।
 
             #### What is inside
-            - The Super DeepSeek engine on top of arena.ai Direct Chat: an AI agent
+            - The ArenaPilot engine on top of arena.ai Direct Chat: an AI agent
               with its own Linux sandbox (run code, files, export results), Deep
               Research, personas, projects, skills, MCP tools and widgets
             - **+ menu file cards**: text-like files are delivered through the chat

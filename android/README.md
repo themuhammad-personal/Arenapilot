@@ -52,7 +52,12 @@ are what let a new APK install as an update over an existing one. `versionCode` 
 | `src/main/bds-assets/bds/` | The engine bundle: `injected.js`, `content.js`, `content.css`, sandbox pages |
 | `src/test/` | Unit tests: bridge, pickers, navigation and link routing, keyboard insets, user agent, polish script, updates |
 
-The Kotlin namespace is the historical `com.superdeepseek.app` (it predates the
-ArenaPilot identity and only names the classes); the application id, the app name and
-all user-facing text are ArenaPilot's. The theme id `Theme.SuperDeepSeek` is likewise
-internal and invisible to users.
+The Kotlin package is `com.arenadeck.app`, the same as the application id. The app
+name, the theme (`Theme.ArenaPilot`), the launcher, the release assets, the updater and
+every user-facing string are ArenaPilot's too — nothing in the app or in its output
+names the software it started from.
+
+One thing keeps its original spelling on purpose: the **signing key alias inside the
+existing keystore** (`superdeepseek`). Renaming an alias means generating a new key,
+and Android refuses to install that over the app people already have. The alias is
+invisible to users; the reason is written next to it in the CI workflow.

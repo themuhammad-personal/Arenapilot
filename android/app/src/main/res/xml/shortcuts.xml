@@ -8,8 +8,8 @@
         android:shortcutLongLabel="@string/shortcut_new_chat">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.superdeepseek.app"
-            android:targetClass="com.superdeepseek.app.MainActivity">
+            android:targetPackage="com.arenadeck.app"
+            android:targetClass="com.arenadeck.app.MainActivity">
             <extra android:name="bds_action" android:value="new_chat" />
         </intent>
     </shortcut>
@@ -21,8 +21,8 @@
         android:shortcutLongLabel="@string/shortcut_deep_research">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.superdeepseek.app"
-            android:targetClass="com.superdeepseek.app.MainActivity">
+            android:targetPackage="com.arenadeck.app"
+            android:targetClass="com.arenadeck.app.MainActivity">
             <extra android:name="bds_action" android:value="deep_research" />
         </intent>
     </shortcut>

@@ -19,7 +19,7 @@ test('live request capture is exact, origin-bound, and structural: no tokens/con
   assert.equal(requestFacts(request({ userMessage: { content: PROMPT + 'EXTRA PRIVATE MEMORY' } })).promptDelivered, false);
   // v2 defaults: the engine's own instruction block in front of the prompt is
   // still a clean delivery — but only the engine's block, never other text
-  const injected = requestFacts(request({ userMessage: { content: '<SuperDeepSeek>\nENGINE INSTRUCTIONS\n</SuperDeepSeek>\n\n' + PROMPT } }));
+  const injected = requestFacts(request({ userMessage: { content: '<ArenaPilot>\nENGINE INSTRUCTIONS\n</ArenaPilot>\n\n' + PROMPT } }));
   assert.equal(injected.promptExact, false);
   assert.equal(injected.promptDelivered, true);
   assert.equal(requestFacts(request({ userMessage: { content: 'SOMETHING ELSE\n\n' + PROMPT } })).promptDelivered, false);

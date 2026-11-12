@@ -1,5 +1,5 @@
 {
-  "name": "super-deepseek",
+  "name": "arenapilot",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -7,15 +7,18 @@
     "nf3": "0.3.17"
   },
   "scripts": {
-    "test": "npm run test:template && npm run test:engine",
+    "test": "npm run test:template && npm run test:engine && npm run test:models",
     "test:template": "node --test scripts/*.test.mjs",
     "test:engine": "node --test android/app/src/test/js/*.test.mjs",
+    "test:models": "node --test models/*.test.mjs",
     "test:harness": "node tools/harness/run.mjs",
     "test:harness:arena": "node tools/harness/arena.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "android:assemble:release": "cd android && ./gradlew assembleRelease",
-    "android:stage-engine": "rm -rf android/app/src/main/assets/bds && mkdir -p android/app/src/main/assets && cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds"
+    "android:stage-engine": "rm -rf android/app/src/main/assets/bds && mkdir -p android/app/src/main/assets && cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds",
+    "android:stage-models": "mkdir -p android/app/src/main/assets/models && cp models.json android/app/src/main/assets/models/models.json",
+    "models:serve": "node scripts/serve-models.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
