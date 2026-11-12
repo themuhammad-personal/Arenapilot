@@ -825,3 +825,13 @@ test('a gate that needs the drawer closed presses Back until it is', async () =>
   assert.equal(result.backPresses[result.backPresses.length - 1].visible, false,
     'the drawer must be closed by the end');
 });
+
+test('opening the engine sheet is idempotent, and the taps are recorded', async () => {
+  // The toggle toggles. A tap that lands while the engine still thinks the sheet is
+  // open closes it, and the gate then reports 'add-to-chat-sheet-empty' with rows
+  // that were never read. The probe retries once and says how many taps it took.
+  const { result } = await runProbe();
+  assert.ok(Array.isArray(result.sheetTaps) && result.sheetTaps.length >= 1,
+    'the capture must show how the sheet got opened');
+  assert.equal(result.sheetTaps[result.sheetTaps.length - 1].present, true);
+});

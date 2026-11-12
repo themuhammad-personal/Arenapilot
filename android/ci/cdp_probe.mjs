@@ -810,10 +810,22 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       if (coversControl(top)) {
         throw new Error('something covers the + control: ' + String(top).slice(0, 120));
       }
-      await realClick(cdp, toggle.x, toggle.y);
-      await pause(900);
+      // The toggle is a toggle. After the Settings card closed the sheet, one tap
+      // can land while the engine still considers it open, and closes it again —
+      // 'add-to-chat-sheet-empty' while the sheet works perfectly. Make sure it is
+      // open, and record how many taps that took.
+      const taps = [];
+      let rows = null;
+      for (let i = 0; i < 2; i += 1) {
+        await realClick(cdp, toggle.x, toggle.y);
+        await pause(900);
+        rows = await evalJson(cdp, ATTACH_SHEET_ROWS);
+        taps.push({ tap: i + 1, present: !!(rows && rows.present), count: (rows && rows.count) || 0 });
+        if (rows && rows.present === true) break;
+      }
+      result.sheetTaps = taps;
       if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
-      return evalJson(cdp, ATTACH_SHEET_ROWS);
+      return rows;
     });
     result.engineSheetFacts = await step('engine-sheet-close', async () => {
       await pressEscape(cdp);
@@ -1050,6 +1062,7 @@ export function factsLine(result) {
     at120: result.drawerAt120 || null,
     at600: result.drawerAt600 || null,
     presses: result.backPresses || null,
+    sheetTaps: result.sheetTaps || null,
     diag: (result.backDiagnosis && result.backDiagnosis.diag) || null,
     exp: result.backExperiment || null,
     sheet: pick(result.engineSheetRows, ['present', 'count']),
