@@ -246,10 +246,14 @@ test('DeepSeek keeps its contracts, ids and wording exactly', () => {
   assert.ok(!checks.slice(0, 4).some((c) => c.advisory), 'on DeepSeek only the sidebar is advisory');
 
   const text = health._noticeText({ failed: ['composer'] });
+  // The wording is pinned exactly, and it ends with the step the user can take.
+  // A warning that only says "may be paused" leaves them with nothing to do.
   assert.equal(text.en,
-    'DeepSeek updated their page, so the message box may be paused in Super DeepSeek until the next update. Your chat keeps working.');
+    'DeepSeek updated their page, so the message box may be paused in Super DeepSeek until the next update. ' +
+    'Your chat keeps working. Pull down to reload once; if it stays like this, open Settings → About and check for an update.');
   assert.equal(text.bn,
-    'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ মেসেজ বক্স পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে।');
+    'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ মেসেজ বক্স পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। ' +
+    'আপনার চ্যাট চলতেই থাকবে। একবার নিচে টেনে রিলোড করুন; তাতেও না হলে Settings → About-এ গিয়ে আপডেট দেখুন।');
 });
 
 test('a build without sd-site.js, and an unknown host, both keep the DeepSeek contracts', () => {

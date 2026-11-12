@@ -100,8 +100,8 @@
     sendProvesChat: true,
     notice: function (names) {
       return {
-        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in Super DeepSeek until the next update. Your chat keeps working.',
-        bn: 'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে।',
+        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in Super DeepSeek until the next update. Your chat keeps working. ' + HOW,
+        bn: 'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে। ' + HOW_BN,
       };
     },
   };
@@ -181,8 +181,8 @@
       sendProvesChat: false,
       notice: function (names) {
         return {
-          en: 'arena.ai may have changed its page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working.',
-          bn: 'arena.ai তাদের পেজ বদলে থাকতে পারে, তাই ArenaPilot-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে।',
+          en: 'arena.ai may have changed its page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working. ' + HOW,
+          bn: 'arena.ai তাদের পেজ বদলে থাকতে পারে, তাই ArenaPilot-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে। ' + HOW_BN,
         };
       },
     };
@@ -208,6 +208,18 @@
   }
 
   function t(en, bn) { return isBn() ? bn : en; }
+
+  /**
+   * What the user can DO about a health warning.
+   *
+   * The warning used to end at "may be paused", which leaves a non-technical
+   * user with nothing to act on — and the app has no in-app store listing where
+   * they could find a newer version. The real advice is: reload once, then pull
+   * the update from the app's own settings row (which exists on both sites), and
+   * the version to look for is printed by that row.
+   */
+  var HOW = 'Pull down to reload once; if it stays like this, open Settings → About and check for an update.';
+  var HOW_BN = 'একবার নিচে টেনে রিলোড করুন; তাতেও না হলে Settings → About-এ গিয়ে আপডেট দেখুন।';
 
   function firstMatch(selectors) {
     for (var i = 0; i < selectors.length; i++) {
@@ -313,6 +325,10 @@
   function showNotice(report) {
     var text = noticeText(report);
     lastNotice = isBn() ? text.bn : text.en;
+    // A notice nothing rendered is not a notice. Recording "shown" before this
+    // point made a broken page look like a delivered warning: the toast may not
+    // exist and the banner needs document.body. Only the last success records it.
+    var rendered = false;
     try {
       if (window.__sdEngine && typeof window.__sdEngine.toast === 'function') {
         window.__sdEngine.toast(lastNotice);
@@ -354,7 +370,9 @@
       el.appendChild(msg);
       el.appendChild(x);
       document.body.appendChild(el);
+      rendered = true;
     } catch (_) {}
+    if (!rendered) return;
     try {
       var b = window.AndroidBridge;
       if (b && typeof b.setStorage === 'function') b.setStorage(NOTICE_SHOWN_KEY, String(Date.now()));

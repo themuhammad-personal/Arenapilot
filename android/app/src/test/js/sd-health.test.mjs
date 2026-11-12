@@ -289,3 +289,41 @@ test('a recovered page retracts a stale warning', () => {
   ctx.__sdHealth.check();
   assert.equal(noticeCount(), 0, 'a recovered page retracts the stale warning');
 });
+
+// The fixture the existing tests use: a page whose every strict contract holds.
+function healthyMap() {
+  const sendButton = { querySelector: (sel) => (sel === '.ds-icon-send' ? {} : null),
+    getAttribute: () => null, closest: () => null };
+  return {
+    'textarea#chat-input': [{}],
+    'div.ds-message': [{ textContent: 'a reply' }],
+    'div.ds-message._63c77b1': [{ textContent: 'a reply' }],
+    '._4f9bf79._43c05b5': [{ textContent: 'a reply' }],
+    'div[role="button"], button': [sendButton],
+  };
+}
+
+test('a warning tells the user what to do, not just what broke', () => {
+  const map = healthyMap();
+  const { ctx, body } = loadDom(map);
+  // A route change: the composer is gone, the conversation rows are still there.
+  delete map['textarea#chat-input'];
+  ctx.__sdHealth.check();
+  const notice = body.children.find((n) => n.id === 'sd-health-notice');
+  assert.ok(notice, 'a notice is shown');
+  const text = (notice.children || []).map((c) => c.textContent || '').join(' ');
+  assert.match(text, /reload/i, 'the reload step is spelled out');
+  assert.match(text, /About/, 'and where the update lives');
+});
+
+test('an undeliverable warning is not recorded as delivered', () => {
+  const map = healthyMap();
+  const { ctx } = loadDom(map);
+  let recorded = 0;
+  ctx.AndroidBridge = { setStorage: () => { recorded += 1; } };
+  delete map['textarea#chat-input'];
+  // Nothing can hold a banner: this is a page with no body yet.
+  ctx.document.body = null;
+  ctx.__sdHealth.check();
+  assert.equal(recorded, 0, 'nothing rendered, nothing recorded');
+});
