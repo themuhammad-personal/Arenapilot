@@ -108,3 +108,43 @@ test('closing the drawer dispatches the engine intent that owns its state', () =
   assert.ok(b.dispatched.includes('bds:close-drawer'),
     'the intent must be dispatched; got ' + JSON.stringify(b.dispatched));
 });
+
+test('a sheet closes even when the animation frame never arrives', () => {
+  // A WebView throttles requestAnimationFrame while the page is not painting. The
+  // close used to live inside the slide-out's frame callback, so on a stalled
+  // frame the drawer simply stayed open (CI: handled=true, drawer visible,
+  // transform none, no bds:close-drawer dispatched). State must not wait for paint.
+  let frames = 0;
+  const dispatched = [];
+  const classes = new Set(['bds-open']);
+  const closeButton = { isConnected: true, getClientRects: () => [{}], click: () => dispatched.push('click') };
+  const backdrop = { style: {}, matches: (s) => s === '.bds-attach-backdrop' };
+  const drawer = {
+    isConnected: true, style: {}, previousElementSibling: backdrop,
+    classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+    getClientRects: () => [{}], getBoundingClientRect: () => ({ height: 300, width: 320 }),
+    querySelector: (s) => (s === '.bds-drawer-header button' ? closeButton : null),
+  };
+  const document = {
+    body: {}, documentElement: {}, head: { appendChild() {} },
+    getElementById: (id) => (id === 'bds-drawer' ? drawer : null),
+    querySelector: () => null,
+    querySelectorAll: (s) => (s === '#bds-drawer.bds-open' ? [drawer] : []),
+    createElement: () => ({}), addEventListener() {},
+  };
+  const window = { innerWidth: 412, matchMedia: () => ({ matches: false }),
+    dispatchEvent: (e) => { dispatched.push(e.type); return true; },
+    __sdHandleBack: () => false };
+  vm.runInNewContext(source, {
+    window, document, console, WeakSet, Node: { DOCUMENT_POSITION_FOLLOWING: 4 },
+    CustomEvent: class { constructor(t) { this.type = t; } },
+    getComputedStyle: () => ({ display: 'block', visibility: 'visible', zIndex: '10' }),
+    // The stalled frame: never calls back.
+    requestAnimationFrame: () => { frames += 1; },
+    setTimeout: () => 0, setInterval: () => 1, clearInterval() {},
+    MutationObserver: class { observe() {} },
+  });
+  assert.equal(window.__sdHandleBack(), true);
+  assert.ok(dispatched.includes('bds:close-drawer'),
+    'the intent must be dispatched before any frame: got ' + JSON.stringify(dispatched));
+});

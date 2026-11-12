@@ -173,6 +173,18 @@
   var closing = typeof WeakSet === 'function' ? new WeakSet() : null;
 
   /** Slides the sheet down, then runs `then` (which really closes it). */
+  /** Run [fn] on the next frame — or on a timer if the frame never comes. */
+  function nextFrame(fn) {
+    var ran = false;
+    var once = function () {
+      if (ran) return;
+      ran = true;
+      fn();
+    };
+    try { requestAnimationFrame(once); } catch (_) {}
+    setTimeout(once, 32);
+  }
+
   function slideOut(sheet, fromDy, then) {
     if (closing && closing.has(sheet.el)) return;
     if (closing) closing.add(sheet.el);
@@ -191,7 +203,7 @@
     if (reducedMotion()) { finish(); return; }
     if (fromDy) setOffset(sheet, fromDy, 0, '');
     // Next frame, so the start position is committed before the transition.
-    requestAnimationFrame(function () {
+    nextFrame(function () {
       setOffset(sheet, h, OUT_MS, 'cubic-bezier(.4,0,1,1)');
       setTimeout(finish, OUT_MS);
     });
@@ -218,17 +230,28 @@
     return null;
   }
 
+  /**
+   * Close a sheet: the STATE first, the animation second.
+   *
+   * This used to happen inside the slide-out, which waits for a frame. A WebView
+   * throttles requestAnimationFrame while the page is not painting, and the close
+   * then never ran at all — the drawer stayed on screen with `transform: none`
+   * and no event dispatched, which is the state the emulator captured every time.
+   * An animation may be skipped; a close may not.
+   */
   function closeSheet(sheet, fromDy) {
     var c = closeTarget(sheet);
-    slideOut(sheet, fromDy || 0, function () {
-      // Intent first: it is what actually closes the drawer's state. The click
-      // stays as the fallback for a surface whose state the event does not own.
-      var closed = false;
-      if (sheet.kind.intent) {
-        try { window.dispatchEvent(new CustomEvent(sheet.kind.intent)); closed = true; } catch (_) {}
+    if (sheet.kind.intent) {
+      try {
+        window.dispatchEvent(new CustomEvent(sheet.kind.intent));
+      } catch (_) {
+        if (c && c.isConnected) c.click();
       }
-      if (!closed && c && c.isConnected) c.click();
-    });
+    } else if (c && c.isConnected) {
+      c.click();
+    }
+    // Decorative only: the sheet slides away (or does not, on a stalled frame).
+    slideOut(sheet, fromDy || 0, function () {});
   }
 
   // ── Taps on close / backdrop ───────────────────────────────────────────────
