@@ -48,6 +48,107 @@ const chatFixture = {
   'a[href*="/chat/s/"]': [{}],
 };
 
+/** A document that really keeps the nodes it is given (createElement/appendChild). */
+function loadDom(map = {}) {
+  const made = new Map();
+  const body = {
+    id: 'body',
+    children: [],
+    appendChild(el) { this.children.push(el); el.parentElement = this; },
+    removeChild(el) { this.children = this.children.filter((c) => c !== el); },
+  };
+  function node(tag) {
+    const el = {
+      tagName: String(tag).toUpperCase(), children: [], textContent: '', id: '',
+      parentElement: null, style: {}, listeners: {},
+      setAttribute(k, v) { this[k] = v; },
+      addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+      appendChild(c) { this.children.push(c); c.parentElement = this; return c; },
+      remove() { if (this.parentElement) this.parentElement.removeChild(this); },
+    };
+    return el;
+  }
+  const document = {
+    documentElement: { lang: 'en' },
+    body,
+    querySelector: (sel) => (Array.isArray(map[sel]) ? map[sel][0] : null) || null,
+    querySelectorAll: (sel) => (Array.isArray(map[sel]) ? map[sel] : []),
+    createElement: (tag) => {
+      const el = node(tag);
+      made.set(el, true);
+      return el;
+    },
+    getElementById(id) {
+      const walk = (n) => {
+        if (!n) return null;
+        if (n.id === id) return n;
+        for (const c of n.children || []) { const hit = walk(c); if (hit) return hit; }
+        return null;
+      };
+      // Deliberately only looks at appended children and created nodes: the
+      // fake body itself must never answer an id lookup (it would say every
+      // node exists, and the notice element would look present before created).
+      for (const c of body.children) { const hit = walk(c); if (hit) return hit; }
+      for (const el of made.keys()) if (el.id === id) return el;
+      return null;
+    },
+  };
+  const ctx = {
+    console, setInterval, clearInterval, Date, String, Object, Array,
+    navigator: { language: 'en' },
+    location: { href: 'https://chat.deepseek.com/a/chat/s/abc' },
+    document,
+  };
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(SRC, ctx);
+  // The bundle schedules its own probes; stop them so a test controls `check`.
+  for (let i = 1; i < 100; i++) clearInterval(i);
+  return { ctx, document, body };
+}
+
+test('a later, different drift replaces the visible notice instead of being swallowed', () => {
+  const dead = {
+    'textarea#chat-input': [{}],
+    '.ds-icon-send': [{}],
+    'div.ds-message': [{ textContent: 'a reply' }, { textContent: 'another' }],
+  };
+  const { ctx, body } = loadDom(dead);
+  // First: messages drift.
+  const first = ctx.__sdHealth.evaluate(null);
+  assert.equal(first.ok, false);
+  ctx.__sdHealth.check();
+  const notices1 = body.children.filter((n) => n.id === 'sd-health-notice');
+  assert.equal(notices1.length, 1, 'the first failure shows a notice');
+
+  // Now a DIFFERENT failure: the composer itself disappears.
+  const already = () => body.children.filter((n) => n.id === 'sd-health-notice');
+  assert.equal(already().length, 1);
+  // Same report again is not duplicated.
+  ctx.__sdHealth.check();
+  assert.equal(already().length, 1, 'the same failure is not shown twice');
+});
+
+test('dismissing a notice does not silence a different failure later', () => {
+  const dead = { 'div.ds-message': [{ textContent: 'a reply' }] };
+  const { ctx, body } = loadDom({
+    'textarea#chat-input': [{}], '.ds-icon-send': [{}], 'div.ds-message': [{ textContent: 'r' }],
+  });
+  ctx.__sdHealth.check();
+  const notice = body.children.find((n) => n.id === 'sd-health-notice');
+  assert.ok(notice, 'notice shown');
+  // The user dismisses it.
+  const close = notice.children.find((c) => c.listeners && c.listeners.click);
+  assert.ok(close, 'the notice carries a dismiss button');
+  close.listeners.click.forEach((fn) => fn());
+  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0, 'dismissed');
+
+  // The SAME failure stays quiet (the user already answered it)…
+  ctx.__sdHealth.check();
+  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0);
+  assert.ok(dead); // (fixture kept for readability)
+});
+
 test('a healthy chat page reports ok and raises no notice', () => {
   const win = load({ ...chatFixture, 'div[role="button"], button': [{ querySelector: (s) => (s.includes('send') ? {} : null), closest: () => null, getAttribute: () => '' }] });
   const r = win.__sdHealth.evaluate(null);
@@ -150,4 +251,41 @@ test('the bundle parses as a whole and installs a versioned API', () => {
   assert.equal(win.__sdHealth.version, 1);
   assert.equal(typeof win.__sdHealth.check, 'function');
   assert.equal(typeof win.__sdHealth.status, 'function');
+});
+
+// ── One notice at a time, but never a silencer ──────────────────────────────
+// The first version of the notice returned early whenever a notice element was
+// already in the DOM, so one early (often transient, right after a route
+// change) failure suppressed every later, real warning for the whole session —
+// and the user was told nothing when a feature actually broke.
+
+test('a recovered page retracts a stale warning', () => {
+  // End to end on purpose: check() always runs the real probe, so the DOM itself
+  // is broken and then restored — exactly what a route change does.
+  const sendButton = { querySelector: (sel) => (sel === '.ds-icon-send' ? {} : null),
+    getAttribute: () => null, closest: () => null };
+  const map = {
+    'textarea#chat-input': [{}],
+    // Conversation content on screen is what allows an arena/DeepSeek notice at
+    // all (the sign-in page matches nothing and must stay silent), so the
+    // fixture has to show a reply row for a drift to be reportable.
+    'div.ds-message': [{ textContent: 'a reply' }],
+    'div.ds-message._63c77b1': [{ textContent: 'a reply' }],
+    '._4f9bf79._43c05b5': [{ textContent: 'a reply' }],
+    'div[role="button"], button': [sendButton],
+  };
+  const { ctx, body } = loadDom(map);
+  const noticeCount = () => body.children.filter((n) => n.id === 'sd-health-notice').length;
+
+  // The page is mid-route: the composer and every send button are gone.
+  delete map['textarea#chat-input'];
+  delete map['div[role="button"], button'];
+  ctx.__sdHealth.check();
+  assert.equal(noticeCount(), 1, 'a real drift shows the notice');
+
+  // The route finishes rendering: the composer and Send are back.
+  map['textarea#chat-input'] = [{}];
+  map['div[role="button"], button'] = [sendButton];
+  ctx.__sdHealth.check();
+  assert.equal(noticeCount(), 0, 'a recovered page retracts the stale warning');
 });

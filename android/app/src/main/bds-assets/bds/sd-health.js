@@ -301,6 +301,10 @@
 
   var last = null;
   var lastNotice = null;
+  /** The failure set the on-screen notice is about, so a LATER drift still speaks. */
+  var noticeFor = null;
+  /** Set when the user dismisses a notice; only that exact failure set stays quiet. */
+  var dismissedFor = null;
 
   function noticeText(report) {
     return SITE.notice(namesFor(report.failed));
@@ -316,8 +320,16 @@
     } catch (_) {}
     try {
       if (!document.body) return;
+      var key = report.failed.slice().sort().join(',');
+      if (dismissedFor === key) return; // this exact drift was dismissed by the user
       var old = document.getElementById('sd-health-notice');
-      if (old) return; // one notice at a time, shown once per session
+      // One notice at a time — but a DIFFERENT drift replaces the visible one
+      // instead of being swallowed by it. The old `if (old) return;` meant the
+      // first (often transient, right after a route change) failure hid every
+      // later, real one for the rest of the session.
+      if (old && noticeFor === key) return;
+      if (old) { try { old.remove(); } catch (_) {} }
+      noticeFor = key;
       var el = document.createElement('div');
       el.id = 'sd-health-notice';
       el.setAttribute('role', 'status');
@@ -335,7 +347,10 @@
       x.textContent = '✕';
       x.style.cssText = 'flex:none;border:0;background:transparent;color:#f1f1f3;opacity:.7;' +
         'font:600 14px/1 system-ui;padding:4px 6px';
-      x.addEventListener('click', function () { el.remove(); });
+      x.addEventListener('click', function () {
+        dismissedFor = noticeFor;
+        el.remove();
+      });
       el.appendChild(msg);
       el.appendChild(x);
       document.body.appendChild(el);
@@ -349,7 +364,17 @@
   function check() {
     var report = evaluate(null);
     last = report;
-    if (!report.ok && report.visible) showNotice(report);
+    if (!report.ok && report.visible) {
+      showNotice(report);
+    } else if (report.ok) {
+      // Recovered (the route rendered, the composer is back): retract the
+      // warning instead of leaving a stale "paused" notice over a working page.
+      try {
+        var stale = document.getElementById('sd-health-notice');
+        if (stale) stale.remove();
+      } catch (_) {}
+      noticeFor = null;
+    }
     return report;
   }
 

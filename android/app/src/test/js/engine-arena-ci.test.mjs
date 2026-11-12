@@ -427,9 +427,27 @@ test("the unit tests and lint run the single-variant tasks", () => {
   );
 });
 
-test("the repository releases exactly one APK channel: arena-latest / ArenaPilot", () => {
-  assert.ok(WORKFLOW.includes("tag_name: arena-latest"));
+test("the repository releases one versioned APK channel that the updater can read", () => {
+  // This test used to pin `tag_name: arena-latest` — the ROLLING tag. That was
+  // the bug, not the contract: UpdateChecker reads the release `tag_name` as the
+  // remote version, so a rolling tag ("arena-latest") never parses, and no
+  // install could ever be offered an update. The tag must be the version.
+  assert.match(
+    WORKFLOW,
+    /tag_name: \$\{\{\s*steps\.rel_cfg\.outputs\.tag\s*\}\}/,
+    "the release tag comes from package.json's version",
+  );
+  assert.match(WORKFLOW, /echo "tag=v\$VERSION"/, "the tag is v<version>");
+  assert.ok(
+    !/tag_name:\s*arena-latest/.test(WORKFLOW),
+    "no rolling tag: the in-app updater reads tag_name as a version",
+  );
+  // `/releases/latest` is the updater's default channel, so the published
+  // release must actually be the latest one.
+  assert.match(WORKFLOW, /make_latest:\s*true/);
+  // One APK, one name — the updater's asset picker looks for `arenapilot`.
   assert.ok(WORKFLOW.includes("name: arenapilot-apk"));
+  assert.ok(WORKFLOW.includes("APK_NAME=\"arenapilot-latest.apk\""));
   assert.ok(
     !WORKFLOW.includes("name: super-deepseek-apk"),
     "the old Super DeepSeek artifact is gone",
@@ -437,6 +455,50 @@ test("the repository releases exactly one APK channel: arena-latest / ArenaPilot
   assert.ok(
     !/Publish Release[\s\S]*Super DeepSeek v/.test(WORKFLOW),
     "no Super DeepSeek release job remains",
+  );
+});
+
+test("the release job can actually run on the branches this workflow builds", () => {
+  // It was gated on `refs/heads/arena/0e0268d7-super-deepseek`, a branch that no
+  // longer exists — so the job was skipped on every push and nothing was ever
+  // published, while the README linked to the release it would have created.
+  const job = WORKFLOW.slice(WORKFLOW.indexOf("release-arena:"));
+  const gate = /if: ([^\n]+)/.exec(job);
+  assert.ok(gate, "the release job has an explicit if:");
+  const condition = gate[1];
+  const built = [...WORKFLOW.matchAll(/^\s+- (\S+)\s*$/gm)].map((m) => m[1]);
+  for (const branch of ["main", "arena/e90647be-arenapilot"]) {
+    assert.ok(
+      condition.includes(`refs/heads/${branch}`),
+      `the release job must run on ${branch}, which this workflow builds`,
+    );
+    assert.ok(built.includes(branch), `${branch} is in the build trigger list`);
+  }
+  assert.ok(
+    !condition.includes("0e0268d7"),
+    "not gated on the deleted branch",
+  );
+});
+
+test("the APK's versionName and the release tag come from one source", () => {
+  const gradle = fs.readFileSync(path.join(REPO, "android/app/build.gradle.kts"), "utf8");
+  assert.ok(
+    gradle.includes('project.findProperty("bdsVersionName")'),
+    "Gradle reads the version from the build property",
+  );
+  assert.ok(
+    !/versionName\s*=\s*"\d/.test(gradle),
+    "no hard-coded versionName next to package.json's version",
+  );
+  assert.match(
+    WORKFLOW,
+    /-PbdsVersionName=/,
+    "CI passes a version into the build",
+  );
+  assert.match(
+    WORKFLOW,
+    /bdsVersionName=.*package\.json/,
+    "and that version is package.json's, not a second literal",
   );
 });
 
