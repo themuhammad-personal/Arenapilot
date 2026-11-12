@@ -173,12 +173,12 @@ internal fun buildFileChooserIntent(acceptTypes: Array<String>?, allowMultiple: 
     val mimeTypes = mapAcceptTypes(acceptTypes)
     return Intent(Intent.ACTION_GET_CONTENT).apply {
         addCategory(Intent.CATEGORY_OPENABLE)
-        /* The base type is what most pickers actually honour; EXTRA_MIME_TYPES is
-           only advisory and several system pickers ignore it when the base is
-           `*/*`. When the page accepts one family only (arena's composer accepts
-           images and nothing else), the base type must say so — otherwise the
-           picker offers PDFs, the user waits through a failed upload, and the app
-           has promised something the page will refuse. */
+        // The base type is what most pickers actually honour; EXTRA_MIME_TYPES is
+        // only advisory and several system pickers ignore it when the base type is
+        // the unrestricted default. When the page accepts one family only (arena's
+        // composer accepts images and nothing else), the base type must say so —
+        // otherwise the picker offers PDFs, the user waits through a failed upload,
+        // and the app has promised something the page will refuse.
         type = singleFamilyType(mimeTypes) ?: "*/*"
         if (allowMultiple) putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         if (mimeTypes.isNotEmpty()) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
@@ -190,9 +190,10 @@ private val NARROWABLE_FAMILIES = setOf("image", "video", "audio")
 
 /**
  * The base type to hand the picker: the one media family every accepted type
- * belongs to, else null (meaning `*/*`).
+ * belongs to, else null (which means "no restriction").
  *
- * `image/png,image/jpeg` → `image/*`; `image/png,text/plain` → null.
+ * image/png + image/jpeg gives the image family; image/png + text/plain gives
+ * null, because no single family covers both.
  */
 internal fun singleFamilyType(mimeTypes: List<String>): String? {
     if (mimeTypes.isEmpty()) return null

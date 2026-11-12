@@ -742,3 +742,91 @@ test("uiautomator fatal is not attributed to a healthy APK (observed Android CI 
   assert.equal(r.code, 0, r.out);
   assert.doesNotMatch(r.out, /crash or ANR detected/);
 });
+
+// ── Kotlin sources must stay lexically valid ───────────────────────────────
+// A CI build caught `*/*` written inside a Kotlin block comment: the `*/` closed
+// the comment and the file stopped parsing — a whole release lost to a comment.
+// Kotlin only compiles in CI (no JVM in the local harness), so a cheap scanner
+// keeps this class of mistake from reaching a push.
+
+test("kotlin sources have no block comment that closes early", () => {
+  const root = path.join(REPO, "android/app/src");
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".kt")) files.push(full);
+    }
+  };
+  walk(root);
+  assert.ok(files.length > 20, `found ${files.length} Kotlin files`);
+
+  // A real (small) lexer: string and char literals and line comments must not be
+  // mistaken for comment markers, and Kotlin block comments nest.
+  const problems = [];
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8");
+    let i = 0;
+    let line = 1;
+    let depth = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === "\n") {
+        line++;
+        i++;
+        continue;
+      }
+      if (depth > 0) {
+        if (src.startsWith("*/", i)) {
+          depth--;
+          i += 2;
+          continue;
+        }
+        if (src.startsWith("/*", i)) {
+          depth++;
+          i += 2;
+          continue;
+        }
+        // A glob written inside a comment ends it: `*/*` is `*/` + `*`.
+        if (src.startsWith("*/*", i)) {
+          problems.push(`${path.relative(REPO, file)}:${line}: a glob inside a block comment closes it early`);
+        }
+        i++;
+        continue;
+      }
+      if (src.startsWith("//", i)) {
+        while (i < src.length && src[i] !== "\n") i++;
+        continue;
+      }
+      if (src.startsWith("/*", i)) {
+        depth = 1;
+        i += 2;
+        continue;
+      }
+      if (src.startsWith('"""', i)) {
+        i += 3;
+        while (i < src.length && !src.startsWith('"""', i)) {
+          if (src[i] === "\n") line++;
+          i++;
+        }
+        i += 3;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        i++;
+        while (i < src.length && src[i] !== quote) {
+          if (src[i] === "\\") i++;
+          else if (src[i] === "\n") line++;
+          i++;
+        }
+        i++;
+        continue;
+      }
+      i++;
+    }
+    if (depth !== 0) problems.push(`${path.relative(REPO, file)}: unclosed block comment`);
+  }
+  assert.deepEqual(problems, []);
+});

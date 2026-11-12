@@ -169,9 +169,10 @@ class FileChooserTest {
 
     @Test
     fun `an images-only accept list narrows the base type to images`() {
-        // arena's composer advertises image accept tokens only. A `*/*` base
-        // type made the system picker offer PDFs and videos, so the user chose a
-        // file, the upload failed, and the app had promised something false.
+        // arena's composer advertises image accept tokens only. An unrestricted
+        // base type made the system picker offer PDFs and videos, so the user
+        // chose a file, the upload failed, and the app had promised something
+        // false.
         val intent =
                 buildFileChooserIntent(
                         arrayOf("image/png,.png,image/jpeg,.jpg,.jpeg,image/webp,.webp"),
