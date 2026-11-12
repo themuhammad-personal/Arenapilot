@@ -302,9 +302,9 @@ private fun mapAcceptTypes(acceptTypes: Array<String>?): List<String> {
 }
 
 private val MIME_TOKEN = Regex("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+*-]+$")
-private val EXTENSION_TOKEN = Regex("^\\.[A-Za-z0-9]+$")
+private val EXTENSION_TOKEN = Regex("^\\.?[A-Za-z0-9]+$")
 
-/** `.png` or `png` → `png`; null when the token is not an extension. */
+/** `.png` or `png` → `png`; null when the token is not an extension at all. */
 internal fun extensionOfAcceptToken(token: String): String? {
     val trimmed = token.trim().lowercase()
     if (!EXTENSION_TOKEN.matches(trimmed)) return null

@@ -57,14 +57,18 @@ class FileChooserTest {
         // document providers label most code files application/octet-stream, so a
         // filter would grey them out and they could not be picked at all.
         Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("py", "text/x-python")
+        Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("ts", "text/x-typescript")
+        Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("md", "text/markdown")
         val mapped = buildFileChooserIntent(arrayOf(".py,.ts,.md", "text/plain"), allowMultiple = false)
 
         assertArrayEquals(
-                arrayOf("text/x-python", "text/plain"),
+                arrayOf("text/x-python", "text/x-typescript", "text/markdown", "text/plain"),
                 mapped.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
         )
         assertEquals("*/*", mapped.type, "several families: the base type must stay wide")
 
+        // One unknown extension leaves the picker open rather than filtering by
+        // the types it happens to recognise (that would grey files out).
         val unmappable = buildFileChooserIntent(arrayOf(".py,.nomime", "text/plain"), allowMultiple = false)
         assertNull(unmappable.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
         assertEquals("*/*", unmappable.type)
@@ -76,10 +80,11 @@ class FileChooserTest {
 
         assertEquals("webp", extensionOfAcceptToken(".webp"))
         assertEquals("webp", extensionOfAcceptToken("WEBP"))
+        assertEquals("webp", extensionOfAcceptToken("webp"), "a bare extension is an extension")
         assertNull(extensionOfAcceptToken("image/webp"))
         assertNull(extensionOfAcceptToken("."))
         assertEquals("image/webp", mimeForExtension("webp"))
-        assertNull(mimeForExtension("nomime"))
+        assertNull(mimeForExtension("nomime"), "unknown extensions are not guessed")
     }
 
     @Test
@@ -151,6 +156,7 @@ class FileChooserTest {
     fun `the real arena accept list narrows the picker to images`() {
         // The exact list arena's composer hands to the file input, extensions and
         // all, as the emulator capture showed it.
+        Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("png", "image/png")
         Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("jpg", "image/jpeg")
         Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("jpeg", "image/jpeg")
         Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("webp", "image/webp")
@@ -169,13 +175,13 @@ class FileChooserTest {
 
     @Test
     fun `an images-only accept list narrows the base type to images`() {
-        // arena's composer advertises image accept tokens only. An unrestricted
+        // A MIME-only image list needs no platform table at all. An unrestricted
         // base type made the system picker offer PDFs and videos, so the user
         // chose a file, the upload failed, and the app had promised something
         // false.
         val intent =
                 buildFileChooserIntent(
-                        arrayOf("image/png,.png,image/jpeg,.jpg,.jpeg,image/webp,.webp"),
+                        arrayOf("image/png,image/jpeg,image/webp"),
                         allowMultiple = true,
                 )
 
