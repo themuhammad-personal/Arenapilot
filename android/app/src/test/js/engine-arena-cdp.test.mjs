@@ -247,6 +247,10 @@ async function startFakeCdp(opts = {}) {
           // element at its centre is the card itself.
           return value(JSON.stringify({ y: 530, h: 52, vh: 616, inViewport: true, hitInsideCard: true }));
         }
+        if (marker === 'backexp') {
+          return value(JSON.stringify({ before: { tag: 'before', open: true, box: [320, 542] },
+            marks: [{ tag: 't700', open: false, box: [0, 0] }], events: ['bds:close-drawer'], headerButton: true }));
+        }
         if (marker === 'drawerstate') {
           return value(JSON.stringify({ open: false, box: [0, 0], transform: 'none', display: 'none',
             opacity: '1', inlineTransform: '', closeButtons: 2 }));

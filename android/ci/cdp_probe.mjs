@@ -873,6 +873,47 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         wrappedBySheets: !!(window.__sdHandleBack && window.__sdHandleBack.__sdSheets),
       });
     })()`);
+    // Experiment: WHY it stays. If the drawer flashes closed and comes back,
+    // something re-opens it; if it never closes, the event has no listener or the
+    // button is not the one that owns the state. One run answers all of it.
+    if (result.drawerAfterBack && result.drawerAfterBack.visible !== false) {
+      result.backExperiment = await evalJson(cdp, `/*sdp:backexp*/(function () {
+        var seen = [];
+        var realDispatch = window.dispatchEvent;
+        window.dispatchEvent = function (e) {
+          if (e && e.type && e.type.indexOf('bds:') === 0) seen.push(e.type);
+          return realDispatch.apply(this, arguments);
+        };
+        function state(tag) {
+          var d = document.getElementById('bds-drawer');
+          return { tag: tag, open: !!(d && d.classList.contains('bds-open')),
+            box: d ? [Math.round(d.getBoundingClientRect().width), Math.round(d.getBoundingClientRect().height)] : null };
+        }
+        var before = state('before');
+        realDispatch.call(window, new CustomEvent('bds:close-drawer'));
+        var out = { before: before, marks: [], events: seen };
+        out.marks.push(state('immediate'));
+        return new Promise(function (resolve) {
+          setTimeout(function () { out.marks.push(state('t60')); }, 60);
+          setTimeout(function () { out.marks.push(state('t250')); }, 250);
+          setTimeout(function () {
+            out.marks.push(state('t700'));
+            // Second lever: click the drawer's own header button, if the event did nothing.
+            var d = document.getElementById('bds-drawer');
+            var btn = d && d.querySelector('.bds-drawer-header button');
+            out.headerButton = !!btn;
+            if (btn) btn.click();
+            setTimeout(function () {
+              out.marks.push(state('afterClick'));
+              window.dispatchEvent = realDispatch;
+              out.events = seen;
+              resolve(JSON.stringify(out));
+            }, 400);
+          }, 700);
+        });
+      })()`);
+    }
+
     // A drawer that is still on screen covers the sheet's own controls. Tapping
     // "+" through it opened nothing, and the gate reported `add-to-chat-sheet-
     // empty` — a real defect (Back did not close the drawer) with a misleading
@@ -991,6 +1032,7 @@ export function factsLine(result) {
     back: result.backDiagnosis || null,
     at120: result.drawerAt120 || null,
     at600: result.drawerAt600 || null,
+    exp: result.backExperiment || null,
     sheet: pick(result.engineSheetRows, ['present', 'count']),
     pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
     doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),
