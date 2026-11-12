@@ -45,8 +45,10 @@ class ModelListTest {
                  {"id":"kept","name":"Kept","provider":"P"}
                ]}"""
         )
-        assertEquals(1, list?.size)
-        assertEquals("kept", list?.get(0)?.id)
+        // Two survive: "ok" has an id and no name — that is still pickable, and its
+        // id is shown instead of a blank row. Only entries without an id are dropped.
+        assertEquals(2, list?.size)
+        assertEquals(listOf("ok", "kept"), list?.map { it.id })
         // A name is what the user taps; without one the id is shown instead of a blank row.
         val noName = ModelList.parse("""[{"id":"only-id","provider":"P"}]""")
         assertEquals("only-id", noName?.get(0)?.name)
