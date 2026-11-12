@@ -383,8 +383,13 @@ export const DRAWER_PAGES_FACTS = `/*sdp:drawerpages*/(function () {
     doctorOffLines: document.querySelectorAll('.bds-doc-off').length,
     doctorWarnLines: document.querySelectorAll('.bds-doc-warn').length,
     doctorFirstLine: doctor ? String(doctor.textContent || '').trim().slice(0, 120) : '',
+    // A sub-page shows a Back button and its own label; the overview shows the
+    // drawer title. Both count as "the drawer still has a header" — asserting one
+    // specific node failed a build while the page was correct.
     pageTitle: (function () {
-      var t = d ? d.querySelector('.bds-ov-title') : null;
+      if (!d) return '';
+      var t = d.querySelector('.bds-ov-title') || d.querySelector('.bds-back-label') ||
+        d.querySelector('.bds-drawer-header');
       return t ? String(t.textContent || '').trim() : '';
     })()
   });
@@ -910,7 +915,7 @@ export function acceptanceFailures(result) {
     // Some line must admit a limitation — a page that only ever says "fine" is
     // not a check-up. On arena the API playground and the sandbox rows are off.
     if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
-    if (!doc.pageTitle) errors.push('check-up-page-has-no-title');
+    if (!doc.pageTitle) errors.push('check-up-page-has-no-header');
   }
   // Back must land on the overview: the drawer is still open and the check-up's
   // own lines are gone. The header text is not asserted — the drawer sets the

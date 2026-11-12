@@ -910,6 +910,9 @@ test('the smoke gate checks the drawers rows, not just that it opened', async ()
   );
   assert.match(src, /check-up-page-hides-limitations/, 'the gate accepts a check-up that only says "fine"');
   assert.match(src, /check-up-page-back-failed/, 'the gate never leaves the page again');
+  // The header may be the overview title or a sub-page's Back label; pinning one
+  // node failed a build while the page was correct.
+  assert.match(src, /bds-back-label/, 'the gate only accepts one header node');
 });
 
 test('the check-up probe reads live markers, not the page copy', async () => {
