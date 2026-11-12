@@ -159,10 +159,11 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sheet', sheetVisible: false },
     drawerAfterBack: { present: true, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: false },
     // the Add to chat sheet's rows, all on top and finger-sized
-    attachSheetRows: {
+    engineSheetFacts: { closed: true },
+    engineSheetRows: {
       present: true, count: 6,
       rows: ['Files', 'Add to chat', 'Camera', 'Photos', 'More tools', 'Deep Research']
-        .map((label, i) => ({ label, rect: [16, 300 + i * 56, 288, 48], toggle: label === 'Add to chat', onTop: true, disabled: false })),
+        .map((label, i) => ({ label, rect: [16, 300 + i * 56, 288, 48], toggle: label === 'Add to chat', onTop: true, reachable: true, disabled: false })),
     },
     // inside the drawer: every page row, no DeepSeek-API row, a real check-up
     drawerPagesBefore: {
@@ -215,27 +216,36 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   // The Add to chat sheet: rows that exist but cannot receive the tap (a backdrop
   // over them) look perfect in a screenshot and swallow every touch.
   assert.ok(acceptanceFailures({
-    ...good, attachSheetRows: { ...good.attachSheetRows, count: 0, rows: [] },
+    ...good, engineSheetRows: { ...good.engineSheetRows, count: 0, rows: [] },
   }).includes('add-to-chat-sheet-empty'), 'an empty Add to chat sheet must fail');
   assert.ok(acceptanceFailures({
-    ...good, attachSheetRows: {
-      ...good.attachSheetRows,
-      rows: good.attachSheetRows.rows.map((r) => (r.label === 'Camera' ? { ...r, onTop: false } : r)),
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => (r.label === 'Camera' ? { ...r, reachable: false } : r)),
     },
-  }).includes('add-to-chat-row-not-tappable'), 'a row under a backdrop must fail');
+  }).includes('add-to-chat-row-not-in-sheet'), 'a row the sheet does not own must fail');
   assert.ok(acceptanceFailures({
-    ...good, attachSheetRows: {
-      ...good.attachSheetRows,
-      rows: good.attachSheetRows.rows.map((r) => ({ ...r, rect: [0, 0, 20, 12] })),
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => ({ ...r, rect: [0, 0, 20, 12] })),
     },
   }).includes('add-to-chat-row-too-small'), 'a row too small for a finger must fail');
   assert.ok(acceptanceFailures({
-    ...good, attachSheetRows: {
-      ...good.attachSheetRows,
-      rows: good.attachSheetRows.rows.filter((r) => r.label !== 'Deep Research'),
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Deep Research'),
       count: 5,
     },
   }).includes('add-to-chat-row-missing-deep-research'), 'a missing sheet row must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => ({ ...r, onTop: false })),
+    },
+  }).includes('add-to-chat-sheet-covered-by-backdrop'), 'a sheet entirely under its backdrop must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetFacts: { closed: false },
+  }).includes('add-to-chat-sheet-never-closes'), 'a sheet that cannot be dismissed must fail');
   assert.ok(acceptanceFailures({
     ...good, drawerPagesBefore: { ...good.drawerPagesBefore, apiRowCount: 1 },
   }).includes('api-playground-offered-on-arena'), 'the DeepSeek-only API page must stay off arena');

@@ -417,11 +417,20 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
     if (b && b[2] > 0 && b[3] > 0) {
       try { hit = document.elementFromPoint(b[0] + b[2] / 2, b[1] + b[3] / 2); } catch (e) { hit = null; }
     }
+    var own = null;
+    if (b && b[2] > 0 && b[3] > 0) {
+      // The row's own content, also finger-sized (a scrollable sheet can clip it).
+      try { own = document.elementFromPoint(Math.min(b[0] + b[2] / 2, window.innerWidth - 2), Math.min(b[1] + b[3] / 2, window.innerHeight - 2)); } catch (e2) { own = null; }
+    }
     return {
-      label: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      label: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
       rect: b,
       toggle: !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
-      onTop: !!(hit && (el === hit || (el.contains && el.contains(hit)))),
+      // Two facts, not one: is the row inside the scrollable sheet, and is it on
+      // top of the page where a finger would land? A row below the fold is normal
+      // (the sheet scrolls); a row under the backdrop swallows every tap.
+      reachable: !!(hit && (el === hit || (el.contains && el.contains(hit)))),
+      onTop: !!(own && (el === own || (el.contains && el.contains(own)))),
       disabled: !!(el.disabled || el.getAttribute('aria-disabled') === 'true')
     };
   });
@@ -729,6 +738,30 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       return after;
     });
     result.drawerPagesAfter = await step('drawer-pages-after', () => evalJson(cdp, DRAWER_PAGES_FACTS));
+
+    // One more tap on "+" — the overview is back, so this lands on the sheet the
+    // ENGINE adds (Files / Add to chat / Camera / Photos / More tools / Deep
+    // Research / Settings). The first read above may hit arena's own sheet, which
+    // cannot be distinguished by class name; this one switches the toggle first.
+    result.engineSheetRows = await step('engine-sheet-rows', async () => {
+      const toggle = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+      if (!toggle.found) throw new Error('no engine toggle to open Add to chat with');
+      await realClick(cdp, toggle.x, toggle.y);
+      await pause(900);
+      if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
+      return evalJson(cdp, ATTACH_SHEET_ROWS);
+    });
+    result.engineSheetFacts = await step('engine-sheet-close', async () => {
+      await pressEscape(cdp);
+      await pause(400);
+      return evalJson(cdp, `/*sdp:enginesheet*/(function () {
+        function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+        var sheet = q('.bds-attach-dropdown');
+        var b = null;
+        try { b = sheet ? sheet.getBoundingClientRect() : null; } catch (e) { b = null; }
+        return JSON.stringify({ closed: !b || !(b.width > 0 && b.height > 0) });
+      })()`);
+    });
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
@@ -945,20 +978,31 @@ export function acceptanceFailures(result) {
   // The Add to chat sheet's rows: present, labelled, finger-sized, and actually
   // the element a tap would land on (a row behind the backdrop looks the same in
   // a screenshot and eats the tap).
-  const sheetRows = result.attachSheetRows;
+  // The sheet the ENGINE adds is the product surface: Files / Add to chat /
+  // Camera / Photos / More tools / Deep Research / Settings. It is read after a
+  // real tap that switches the toggle to the engine's own sheet.
+  const sheetRows = result.engineSheetRows;
   if (!sheetRows || sheetRows.present !== true || !(sheetRows.count >= 3)) {
     errors.push('add-to-chat-sheet-empty');
   } else {
     const labels = sheetRows.rows.map((x) => (x.label || '').toLowerCase());
-    for (const want of ['add to chat', 'deep research']) {
+    for (const want of ['add to chat', 'deep research', 'camera', 'photos']) {
       if (!labels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
     }
     for (const row of sheetRows.rows) {
       if (row.disabled) continue;
       const b = row.rect || [0, 0, 0, 0];
       if (!(b[2] >= 40 && b[3] >= 32)) errors.push('add-to-chat-row-too-small');
-      if (row.onTop !== true) errors.push('add-to-chat-row-not-tappable');
+      if (row.reachable !== true) errors.push('add-to-chat-row-not-in-sheet');
     }
+    // At least the first row must be on top of the page (the sheet scrolls, so
+    // rows further down are expected to be below the fold).
+    if (sheetRows.rows.filter((x) => x.onTop === true).length < 1) {
+      errors.push('add-to-chat-sheet-covered-by-backdrop');
+    }
+  }
+  if (result.engineSheetFacts && result.engineSheetFacts.closed !== true) {
+    errors.push('add-to-chat-sheet-never-closes');
   }
 
   const doc = result.doctorPage;
@@ -1010,8 +1054,10 @@ export async function main() {
     fs.writeFileSync(path.join(outDir, 'cdp-capture.json'), JSON.stringify(result));
     // The exact rows the page reported, so a failed row check can be diagnosed
     // from the artifacts instead of guessed at from an annotation.
-    if (result.attachSheetRows) {
-      fs.writeFileSync(path.join(outDir, 'cdp-attach-rows.json'), JSON.stringify(result.attachSheetRows, null, 1));
+    if (result.engineSheetRows || result.attachSheetRows) {
+      fs.writeFileSync(path.join(outDir, 'cdp-attach-rows.json'), JSON.stringify({
+        firstTap: result.attachSheetRows, engineSheet: result.engineSheetRows, closed: result.engineSheetFacts,
+      }, null, 1));
     }
     if (result.drawerPagesBefore) {
       fs.writeFileSync(path.join(outDir, 'cdp-drawer-pages.json'), JSON.stringify({

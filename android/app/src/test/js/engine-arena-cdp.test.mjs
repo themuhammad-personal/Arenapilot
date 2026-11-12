@@ -255,6 +255,9 @@ async function startFakeCdp(opts = {}) {
             ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
             : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
+        if (marker === 'enginesheet') {
+          return value(JSON.stringify({ closed: true }));
+        }
         if (marker === 'attachrows') {
           if (opts.emptySheet) return value(JSON.stringify({ present: true, count: 0, rows: [] }));
           const labels = ['Files', 'Add to chat', 'Camera', 'Photos', 'More tools', 'Deep Research'];
@@ -265,6 +268,7 @@ async function startFakeCdp(opts = {}) {
               label,
               rect: [16, 300 + i * 56, 288, 48],
               toggle: label === 'Add to chat',
+              reachable: true,
               onTop: !(opts.coveredRow && label === 'Camera'),
               disabled: false,
             })),
@@ -367,7 +371,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'attach-sheet-rows', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'attach-sheet-rows', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'engine-sheet-rows', 'engine-sheet-close', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -388,9 +392,13 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
     'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
     // then the check-up row inside the drawer
     'mouseMoved@160,420', 'mousePressed@160,420', 'mouseReleased@160,420',
+    // then one more tap on the engine's own "+" to read its own sheet
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
   ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, tap its Settings card, then the check-up row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
-  assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
+  // Every key this probe presses is Escape, and there are at least the two that
+  // close the sheet: no typing, nothing that could send a message.
+  assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
   assert.equal(result.engineSheet.dropdown, 1, 'after the click the sheet is on the page');
   assert.equal(result.engine.attach.dropdown, 0, 'and before it, it was not');
@@ -420,7 +428,7 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page', 'add-to-chat-sheet']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
@@ -432,7 +440,7 @@ test('Arena’s original Plus is exercised only when the real button is present'
   const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page', 'add-to-chat-sheet']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
@@ -549,7 +557,7 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560', '160,420'],
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560', '160,420', '60,700'],
     'tap the internal Plus, Arena’s original Plus, open Add to chat once more, click its Settings card, then the check-up row');
 });
 
