@@ -45,12 +45,28 @@ class UpdateCheckerTest {
     }
 
     @Test
-    fun `beta channel reads the latest tag endpoint`() {
-        // The `latest` tag is published with prerelease: true, so /releases/latest never returns
-        // it and the beta channel must address the tag directly.
+    fun `beta channel reads the releases list, never a fixed tag`() {
+        // There is no rolling `latest` tag any more: CI publishes one tag per
+        // version ("v2.0.0"), so a fixed tag would 404 the moment the version
+        // moved — which is exactly how the beta channel went dead. The list is
+        // the only address that keeps working across version bumps.
+        val path = releaseApiPath(UpdateChannel.BETA, "o", "r")
+        assertEquals("/repos/o/r/releases?per_page=1", path)
+        assertTrue("the beta channel must be a list read", isReleaseListPath(path))
+        assertFalse("no fixed tag", path.contains("/releases/tags/"))
+    }
+
+    @Test
+    fun `the channel CI actually publishes to resolves`() {
+        // CI publishes a normal (non-prerelease) versioned release with
+        // make_latest: true, so the default channel is the one that finds it.
         assertEquals(
-                "/repos/o/r/releases/tags/latest",
-                releaseApiPath(UpdateChannel.BETA, "o", "r"),
+                "/repos/o/r/releases/latest",
+                releaseApiPath(UpdateChannel.RELEASE, "o", "r"),
+        )
+        assertFalse(
+                "the release path must not be a list read",
+                isReleaseListPath(releaseApiPath(UpdateChannel.RELEASE, "o", "r")),
         )
     }
 
@@ -98,6 +114,30 @@ class UpdateCheckerTest {
                     ]
                     """.trimIndent()
             )
+
+    @Test
+    fun `asset selection picks the apk CI actually publishes`() {
+        val assets =
+                JSONArray(
+                        """
+                        [{"name":"arenapilot-latest.apk","state":"uploaded",
+                          "browser_download_url":"https://example.test/arenapilot-latest.apk"},
+                         {"name":"arenapilot-latest.apk.sha256","state":"uploaded",
+                          "browser_download_url":"https://example.test/arenapilot-latest.apk.sha256"}]
+                        """.trimIndent()
+                )
+
+        assertEquals("arenapilot-latest.apk", pickApkAsset(assets)?.optString("name"))
+    }
+
+    @Test
+    fun `the retired asset name is not what the updater looks for`() {
+        // APK_ASSET_PREFIX/SUFFIX described a channel that no longer exists
+        // (better-deepseek-android-*-signed.apk). Keeping them around is how the
+        // updater silently stopped matching the real asset.
+        assertTrue(APK_ASSET_PREFIX.startsWith("arenapilot"))
+        assertEquals(".apk", APK_ASSET_SUFFIX)
+    }
 
     @Test
     fun `asset selection picks the signed android apk and ignores the browser bundles`() {

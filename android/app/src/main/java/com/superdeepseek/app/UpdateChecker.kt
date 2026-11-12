@@ -499,8 +499,15 @@ internal class UpdateChecker(
     }
 }
 
-internal const val APK_ASSET_PREFIX = "better-deepseek-android-"
-internal const val APK_ASSET_SUFFIX = "-signed.apk"
+/**
+ * The name CI actually uploads (`APK_NAME` in build-and-release-apk.yml).
+ *
+ * These two constants used to describe `better-deepseek-android-*-signed.apk`,
+ * a channel that stopped existing in the 2026-10-15 cleanup — so the constants
+ * and the real asset disagreed, and nothing failed loudly when they did.
+ */
+internal const val APK_ASSET_PREFIX = "arenapilot-"
+internal const val APK_ASSET_SUFFIX = ".apk"
 internal const val SHA256_PREFIX = "sha256:"
 internal const val SHA256_HEX_LENGTH = 64
 
