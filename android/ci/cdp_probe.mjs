@@ -351,6 +351,45 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   });
 })()`;
 
+/**
+ * The drawer's own page list, and the check-up page it contains.
+ *
+ * Why this exists: the CI gate proved the drawer OPENS, but never that anything
+ * inside it is alive. "Settings works" meant "a panel appeared". This probe reads
+ * the page rows the engine actually rendered, opens each one by a real tap, and —
+ * for the check-up page — verifies that every line it prints came from a live
+ * read rather than stored copy.
+ */
+export const DRAWER_PAGES_FACTS = `/*sdp:drawerpages*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  var d = q('#bds-drawer');
+  var rows = d ? Array.prototype.slice.call(d.querySelectorAll('.bds-set-row')) : [];
+  var title = d ? d.querySelector('.bds-ov-title') : null;
+  var apiRow = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'api'; });
+  var docRow = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; });
+  var doctor = q('.bds-doc');
+  return JSON.stringify({
+    present: !!d,
+    headerTitle: title ? String(title.textContent || '').trim() : '',
+    pages: rows.map(function (x) { return x.getAttribute('data-bds-page'); }),
+    rowCount: rows.length,
+    apiRowCount: apiRow.length,
+    doctorRowCount: docRow.length,
+    doctorRowVisible: docRow.length === 1 && !!(r(docRow[0]) && r(docRow[0])[2] >= 44 && r(docRow[0])[3] >= 40),
+    apiRowVisible: apiRow.length === 1 && !!(r(apiRow[0]) && r(apiRow[0])[2] > 0 && r(apiRow[0])[3] > 0),
+    doctorLines: document.querySelectorAll('.bds-doc').length,
+    doctorOkLines: document.querySelectorAll('.bds-doc-ok').length,
+    doctorOffLines: document.querySelectorAll('.bds-doc-off').length,
+    doctorWarnLines: document.querySelectorAll('.bds-doc-warn').length,
+    doctorFirstLine: doctor ? String(doctor.textContent || '').trim().slice(0, 120) : '',
+    pageTitle: (function () {
+      var t = d ? d.querySelector('.bds-ov-title') : null;
+      return t ? String(t.textContent || '').trim() : '';
+    })()
+  });
+})()`;
+
 export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
@@ -617,6 +656,39 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
     if (kitOk) await evalJson(cdp, snapExpr('settings-drawer'));
+
+    // What is INSIDE the drawer: the page rows it actually rendered, the
+    // DeepSeek-only row that must be absent here, and the check-up page.
+    result.drawerPagesBefore = await step('drawer-pages', () => evalJson(cdp, DRAWER_PAGES_FACTS));
+    result.doctorPage = await step('doctor-page', async () => {
+      const facts = result.drawerPagesBefore;
+      const rows = facts && Array.isArray(facts.pages) ? facts.pages : [];
+      const doctorIndex = rows.indexOf('doctor');
+      if (doctorIndex < 0) throw new Error('no check-up row in the drawer');
+      const box = await evalValue(cdp, `(function () {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#bds-drawer .bds-set-row'));
+        var row = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; })[0];
+        if (!row) return null;
+        if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+        var b = row.getBoundingClientRect();
+        return JSON.stringify({ x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2), w: Math.round(b.width), h: Math.round(b.height) });
+      })()`);
+      const at = box ? JSON.parse(box) : null;
+      if (!at || !(at.w >= 44 && at.h >= 40)) throw new Error('check-up row not tappable');
+      await realClick(cdp, at.x, at.y);
+      await pause(700);
+      const after = await evalJson(cdp, DRAWER_PAGES_FACTS);
+      if (kitOk) await evalJson(cdp, snapExpr('doctor-page'));
+      // Back to the overview, so the drawer's back path is exercised too.
+      await evalValue(cdp, `(function () {
+        var back = document.querySelector('#bds-drawer .bds-back-btn');
+        if (back) back.click();
+        return !!back;
+      })()`);
+      await pause(500);
+      return after;
+    });
+    result.drawerPagesAfter = await step('drawer-pages-after', () => evalJson(cdp, DRAWER_PAGES_FACTS));
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
@@ -812,6 +884,38 @@ export function acceptanceFailures(result) {
     if (drawer.sheetVisible === true) errors.push('settings-sheet-not-closed-before-drawer');
   }
   if (!result.drawerAfterBack || result.drawerAfterBack.visible !== false) errors.push('settings-drawer-back-failed');
+
+  // The inside of the drawer, not just the fact that it opened. Before this
+  // gate, "Advanced settings works" meant "a panel appeared".
+  const inside = result.drawerPagesBefore;
+  if (!inside || !inside.present) errors.push('drawer-pages-unreadable');
+  else {
+    const pages = Array.isArray(inside.pages) ? inside.pages : [];
+    // Every page this suite knows how to open must have its row.
+    for (const page of ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+      'projects', 'chat', 'appearance', 'data', 'doctor']) {
+      if (!pages.includes(page)) errors.push('settings-row-missing-' + page);
+    }
+    // The DeepSeek-API-only page has no API behind arena.ai: it must NOT be offered.
+    if (inside.apiRowCount !== 0) errors.push('api-playground-offered-on-arena');
+    if (inside.doctorRowCount !== 1 || inside.doctorRowVisible !== true) {
+      errors.push('check-up-row-not-tappable');
+    }
+  }
+  const doc = result.doctorPage;
+  if (!doc) errors.push('check-up-page-did-not-open');
+  else {
+    if (doc.doctorLines < 6) errors.push('check-up-page-too-thin');
+    if (!(doc.doctorOkLines > 0)) errors.push('check-up-pages-no-passing-line');
+    // Some line must admit a limitation — a page that only ever says "fine" is
+    // not a check-up. On arena the API playground and the sandbox rows are off.
+    if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
+    if (!doc.pageTitle) errors.push('check-up-page-has-no-title');
+  }
+  const afterDoc = result.drawerPagesAfter;
+  if (!afterDoc || afterDoc.present !== true || afterDoc.pageTitle !== inside?.headerTitle) {
+    errors.push('check-up-page-back-failed');
+  }
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }

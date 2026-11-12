@@ -891,3 +891,30 @@ test("JUnit assertions do not carry the message in the last position", () => {
   }
   assert.deepEqual(problems, []);
 });
+
+// ── The CI gate must look INSIDE the settings drawer ────────────────────────
+// The previous gate proved the drawer opened; a drawer that opens onto dead
+// rows passed. These assertions keep the per-row checks in place.
+
+test('the smoke gate checks the drawers rows, not just that it opened', async () => {
+  const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
+  assert.match(src, /DRAWER_PAGES_FACTS/, 'the probe no longer reads the drawer rows');
+  assert.match(src, /data-bds-page/, 'the probe no longer identifies rows by page');
+  for (const page of ['doctor', 'deep_research', 'appearance']) {
+    assert.ok(src.includes(`'${page}'`), `the gate does not require the ${page} row`);
+  }
+  assert.match(
+    src,
+    /api-playground-offered-on-arena/,
+    'the gate would let the DeepSeek-only API page come back on arena',
+  );
+  assert.match(src, /check-up-page-hides-limitations/, 'the gate accepts a check-up that only says "fine"');
+  assert.match(src, /check-up-page-back-failed/, 'the gate never leaves the page again');
+});
+
+test('the check-up probe reads live markers, not the page copy', async () => {
+  const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
+  for (const marker of ['.bds-doc-ok', '.bds-doc-off', '.bds-doc-warn', 'doctorLines']) {
+    assert.ok(src.includes(marker), `the probe no longer reads ${marker}`);
+  }
+});
