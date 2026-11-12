@@ -4,35 +4,39 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../../main/bds-assets/bds/sd-sheets.js', import.meta.url), 'utf8');
 
-function boot({ reduced = false, subpage = false } = {}) {
+function boot({ reduced = false, subpage = false, drawer = false } = {}) {
   let closeClicks = 0;
   let innerCalls = 0;
-  const classes = new Set(subpage ? ['bds-open'] : []);
+  const classes = new Set(subpage || drawer ? ['bds-open'] : []);
   const button = { isConnected: true, getClientRects: () => [{}], click: () => { closeClicks++; } };
   const backdrop = { style: {}, matches: (s) => s === '.bds-attach-backdrop' };
   const sheet = {
     isConnected: true, style: {}, previousElementSibling: backdrop,
     classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
     getClientRects: () => [{}], getBoundingClientRect: () => ({ height: 300 }),
-    querySelector: (s) => s === '.bds-sheet-close' || (subpage && s.includes('bds-back-btn')) ? button : null,
+    querySelector: (s) => s === '.bds-sheet-close' || s === '.bds-drawer-header button' ||
+      (!drawer && subpage && s.includes('bds-back-btn')) ? button : null,
   };
   const document = {
     body: {}, documentElement: {}, head: { appendChild() {} },
-    getElementById: (id) => subpage && id === 'bds-drawer' ? sheet : null,
+    getElementById: (id) => (subpage || drawer) && id === 'bds-drawer' ? sheet : null,
     querySelector: () => null,
-    querySelectorAll: (s) => s === (subpage ? '#bds-drawer.bds-open' : '.bds-attach-dropdown') ? [sheet] : [],
+    querySelectorAll: (s) => s === (subpage || drawer ? '#bds-drawer.bds-open' : '.bds-attach-dropdown') ? [sheet] : [],
     createElement: () => ({}), addEventListener() {},
   };
+  const dispatched = [];
   const window = { innerWidth: 412, matchMedia: () => ({ matches: reduced }),
+    dispatchEvent: (e) => { dispatched.push(e.type); return true; },
     __sdHandleBack: () => { innerCalls++; return false; } };
   vm.runInNewContext(source, {
     window, document, console, WeakSet, Node: { DOCUMENT_POSITION_FOLLOWING: 4 },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     getComputedStyle: () => ({ display: 'block', visibility: 'visible', zIndex: '10' }),
     requestAnimationFrame: (fn) => fn(), setTimeout: (fn) => fn(),
     setInterval: () => 1, clearInterval() {},
     MutationObserver: class { observe() {} },
   });
-  return { window, sheet, closes: () => closeClicks, inners: () => innerCalls };
+  return { window, sheet, closes: () => closeClicks, inners: () => innerCalls, dispatched };
 }
 
 test('animated Back closes the captured control, not an offscreen hit-test', () => {
@@ -85,6 +89,7 @@ test('a drawer left open but unmeasurable is still closed by Back', () => {
   const window = { innerWidth: 412, matchMedia: () => ({ matches: false }), __sdHandleBack: () => false };
   vm.runInNewContext(source, {
     window, document, console, WeakSet, Node: { DOCUMENT_POSITION_FOLLOWING: 4 },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     getComputedStyle: () => ({ display: 'block', visibility: 'visible', zIndex: '10' }),
     requestAnimationFrame: (fn) => fn(), setTimeout: (fn) => fn(),
     setInterval: () => 1, clearInterval() {},
@@ -92,4 +97,14 @@ test('a drawer left open but unmeasurable is still closed by Back', () => {
   });
   assert.equal(window.__sdHandleBack(), true, 'Back must consume the press, not report "nothing open"');
   assert.deepEqual(closeClicks, ['close'], "the drawer's own close button closes it, not the backdrop");
+});
+
+test('closing the drawer dispatches the engine intent that owns its state', () => {
+  // The emulator proved the click alone is not enough: the button was visible,
+  // sized and connected, the click ran, and the drawer stayed open. The engine
+  // closes the drawer's state on 'bds:close-drawer'; that is the contract now.
+  const b = boot({ subpage: false, drawer: true });
+  b.window.__sdHandleBack();
+  assert.ok(b.dispatched.includes('bds:close-drawer'),
+    'the intent must be dispatched; got ' + JSON.stringify(b.dispatched));
 });

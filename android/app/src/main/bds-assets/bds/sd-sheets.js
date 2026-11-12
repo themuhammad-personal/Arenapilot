@@ -40,6 +40,10 @@
     {
       sel: '#bds-drawer.bds-open',
       mobileOnly: true,
+      // The engine's own close intent. The click below is a fallback: a click can
+      // land while Svelte is re-rendering (visible, sized, ignored), and the
+      // emulator captured exactly that — drawer still open, close button present.
+      intent: 'bds:close-drawer',
       backdrop: function () { return document.querySelector('.bds-drawer-backdrop'); },
       // Scoped to the drawer: three components emit id="bds-close", and the
       // document-wide lookup returned whichever one was in the DOM, not the
@@ -217,7 +221,13 @@
   function closeSheet(sheet, fromDy) {
     var c = closeTarget(sheet);
     slideOut(sheet, fromDy || 0, function () {
-      if (c && c.isConnected) c.click();
+      // Intent first: it is what actually closes the drawer's state. The click
+      // stays as the fallback for a surface whose state the event does not own.
+      var closed = false;
+      if (sheet.kind.intent) {
+        try { window.dispatchEvent(new CustomEvent(sheet.kind.intent)); closed = true; } catch (_) {}
+      }
+      if (!closed && c && c.isConnected) c.click();
     });
   }
 
