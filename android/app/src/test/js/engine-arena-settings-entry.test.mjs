@@ -445,25 +445,43 @@ test('the DeepSeek-only API playground is not offered on arena', () => {
     path.join(here, '../../main/bds-assets/bds/content.js'),
     'utf8',
   );
-  const row = content.indexOf('sdT("API playground"');
-  assert.ok(row > 0, 'the API playground row still exists');
-  // The call that adds the row must be guarded, and the guard must be the arena
-  // check — not a flag nothing reads. Walk back far enough to include the guard.
-  const guardStart = content.lastIndexOf('if(!sdsIsArena())', row);
-  const statement = guardStart >= 0 ? content.slice(guardStart, row) : '';
-  assert.match(
-    statement,
-    /if\s*\(\s*!\s*sdsIsArena\(\)\s*\)\s*sdRow\(/,
-    'the row must be omitted on arena',
+  // The ROW's own sub-label is the one place that describes what the page does.
+  const sub = 'sdT("Send raw requests to the DeepSeek API"';
+  assert.ok(content.includes(sub), 'the API playground row still exists');
+  const rowStart = content.lastIndexOf('sdRow(dev', content.indexOf(sub));
+  assert.ok(rowStart > 0, 'the row is added by sdRow(dev, …)');
+  // The adding call must sit behind the arena check the rest of the engine uses.
+  const guard = content.lastIndexOf('if(!sdsIsArena())', content.indexOf(sub));
+  assert.ok(
+    guard > rowStart - 200 && guard < content.indexOf(sub),
+    'the row must be guarded by if(!sdsIsArena())',
   );
-  // The flag itself may only appear in prose (the comment explaining why the row
-  // is guarded); the CODE must not rely on it.
-  const codeSinceGuard = content
-    .slice(guardStart, row)
-    .replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.doesNotMatch(
-    codeSinceGuard,
-    /features\.apiPlayground/,
-    'a flag the bundle never reads is not a guard',
+  // And the guard may not be a flag the bundle never reads.
+  const code = content.slice(guard, content.indexOf(sub)).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /features\.apiPlayground/);
+});
+
+// ── The settings check-up must be evidence, not reassurance ─────────────────
+// A "everything is fine" page is worse than none. Every check-up line has to
+// come from something that is actually read at runtime on this page, and the
+// page has to be reachable from the drawer.
+
+test('the check-up reads the live engine and is reachable from the drawer', () => {
+  const doctor = fnSource('sdBuildDoctor');
+  // Live signals, not stored copy:
+  for (const signal of ['__sdAgent', 'diagnose()', '__sdHealth', 'sdsIsArena()']) {
+    assert.ok(doctor.includes(signal), `the check-up never reads ${signal}`);
+  }
+  // It must be able to say "not on this site" — silence is the failure mode.
+  assert.match(doctor, /state:"off"/, 'the check-up cannot report an unusable feature');
+  assert.match(doctor, /state:"warn"/, 'the check-up cannot report a problem');
+
+  // Reachable: a drawer row and a page route.
+  assert.ok(
+    CONTENT.includes('onClick:function(){h.go("doctor")}'),
+    'no drawer row opens the check-up',
   );
+  assert.ok(CONTENT.includes('case"doctor":'), 'the check-up page has no title');
+  const route = CONTENT.slice(CONTENT.indexOf('sdDocPg'));
+  assert.ok(route.includes('sdBuildDoctor'), 'the doctor page is not wired to the builder');
 });

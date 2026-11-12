@@ -227,3 +227,16 @@
 #bds-root .bds-attach-menu-mount:has(.bds-attach-backdrop) .bds-attach-wrapper {
   pointer-events: auto !important;
 }
+
+/* Settings doctor (drawer → Data & developer). One row per check: a green tick
+   means the app proved this on THIS page/phone just now; a dash means it cannot
+   be used here, with the reason in the row. Aim: "is it working?" is answered by
+   the app instead of by guesswork. */
+.bds-doc{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--bds-border);border-radius:12px;margin:0 0 8px;font-size:12px;line-height:1.45}
+.bds-doc-dot{flex:0 0 8px;height:8px;margin-top:5px;border-radius:50%;background:var(--bds-text-tertiary)}
+.bds-doc-ok .bds-doc-dot{background:#22a06b}
+.bds-doc-warn .bds-doc-dot{background:#c98a00}
+.bds-doc-off .bds-doc-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--bds-text-tertiary)}
+.bds-doc-txt{min-width:0}
+.bds-doc-name{display:block;font-weight:600;color:var(--bds-text-primary)}
+.bds-doc-note{display:block;color:var(--bds-text-secondary)}
