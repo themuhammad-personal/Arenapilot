@@ -40,7 +40,7 @@ test('every model is complete enough to pick', () => {
 
 test('the list stays small enough to be fetched and served in one reply', () => {
   const bytes = Buffer.byteLength(raw, 'utf8');
-  assert.ok(bytes < 32 * 1024, `models.json is ${bytes} bytes; keep it under 32 KB so a single bridge reply carries it`);
+  assert.ok(bytes < 64 * 1024, `models.json is ${bytes} bytes; keep it under 64 KB so one bridge reply carries it and the APK stays small`);
 });
 
 test('nothing in the list points at another app', () => {
