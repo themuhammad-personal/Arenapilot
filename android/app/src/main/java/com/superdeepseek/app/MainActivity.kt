@@ -170,13 +170,41 @@ internal fun buildUserAgentMetadata(derivedUa: String): UserAgentMetadata {
 }
 
 internal fun buildFileChooserIntent(acceptTypes: Array<String>?, allowMultiple: Boolean): Intent {
+    val mimeTypes = mapAcceptTypes(acceptTypes)
     return Intent(Intent.ACTION_GET_CONTENT).apply {
         addCategory(Intent.CATEGORY_OPENABLE)
-        type = "*/*"
+        /* The base type is what most pickers actually honour; EXTRA_MIME_TYPES is
+           only advisory and several system pickers ignore it when the base is
+           `*/*`. When the page accepts one family only (arena's composer accepts
+           images and nothing else), the base type must say so — otherwise the
+           picker offers PDFs, the user waits through a failed upload, and the app
+           has promised something the page will refuse. */
+        type = singleFamilyType(mimeTypes) ?: "*/*"
         if (allowMultiple) putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        val mimeTypes = mapAcceptTypes(acceptTypes)
         if (mimeTypes.isNotEmpty()) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
     }
+}
+
+/** Families a system picker can safely use as a base type without hiding files. */
+private val NARROWABLE_FAMILIES = setOf("image", "video", "audio")
+
+/**
+ * The base type to hand the picker: the one media family every accepted type
+ * belongs to, else null (meaning `*/*`).
+ *
+ * `image/png,image/jpeg` → `image/*`; `image/png,text/plain` → null.
+ */
+internal fun singleFamilyType(mimeTypes: List<String>): String? {
+    if (mimeTypes.isEmpty()) return null
+    val families = mimeTypes.map { it.substringBefore('/') }.filter { it.isNotEmpty() }.toSet()
+    if (families.size != 1) return null
+    val family = families.first()
+    // Only media families are safe to turn into a base type. Document providers
+    // label most code and text files `application/octet-stream`, so a `text/*`
+    // base would grey out the very files a code-extension list asks for; a bare
+    // `*/*` is also not a restriction at all.
+    if (family !in NARROWABLE_FAMILIES) return null
+    return "$family/*"
 }
 
 /** Which Android picker serves an engine `AndroidBridge.pickFiles(mode)` request. */
@@ -254,10 +282,44 @@ private fun mapAcceptTypes(acceptTypes: Array<String>?): List<String> {
     if (tokens.isEmpty()) return emptyList()
     val mapped = linkedSetOf<String>()
     for (token in tokens) {
-        if (!Regex("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+*-]+$").matches(token) || token == "*/*") return emptyList()
-        mapped.add(token.lowercase())
+        if (MIME_TOKEN.matches(token)) {
+            // A bare `*/*` means "anything": there is nothing to filter by, and
+            // the picker stays wide open.
+            if (token == "*/*") return emptyList()
+            mapped.add(token.lowercase())
+            continue
+        }
+        // arena's composer advertises `image/png,.png,image/jpeg,.jpg,…` — MIME
+        // types AND bare extensions in one list. Refusing the whole list because
+        // of one extension token threw away the restriction entirely: the picker
+        // offered every file type, the user picked a PDF, and the page refused it.
+        val extension = extensionOfAcceptToken(token) ?: return emptyList()
+        val mime = mimeForExtension(extension) ?: return emptyList()
+        mapped.add(mime)
     }
     return mapped.toList()
+}
+
+private val MIME_TOKEN = Regex("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+*-]+$")
+private val EXTENSION_TOKEN = Regex("^\\.[A-Za-z0-9]+$")
+
+/** `.png` or `png` → `png`; null when the token is not an extension. */
+internal fun extensionOfAcceptToken(token: String): String? {
+    val trimmed = token.trim().lowercase()
+    if (!EXTENSION_TOKEN.matches(trimmed)) return null
+    return trimmed.removePrefix(".")
+}
+
+/**
+ * MIME type for a file extension, from Android's own table.
+ *
+ * Returns null when the platform does not know the extension, so the caller can
+ * leave the picker unfiltered instead of greying out files it cannot classify.
+ */
+internal fun mimeForExtension(extension: String): String? {
+    val known = runCatching { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) }
+            .getOrNull()
+    return known?.lowercase()?.takeIf { MIME_TOKEN.matches(it) }
 }
 
 private val CHROME_VERSION_REGEX = Regex("""\bChrome/(\d+(?:\.\d+)*)""")
