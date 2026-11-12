@@ -56,3 +56,40 @@ test('reduced-motion Back keeps the unanimated legacy path', () => {
   assert.equal(b.closes(), 0);
   assert.equal(b.inners(), 1);
 });
+
+// ── The state CI captured ───────────────────────────────────────────────────
+// After a Settings tap the drawer was in the document with class `bds-open`, no
+// measurable box, and `drawer.visible=false`. Back then found "nothing open"
+// (handled=false) and left the drawer in place; the next tap on "+" went to the
+// sheet *behind* the drawer's ghost. These pin the two facts that mattered.
+
+test('a drawer left open but unmeasurable is still closed by Back', () => {
+  const closeClicks = [];
+  const closeButton = { isConnected: true, getClientRects: () => [], click: () => closeClicks.push('close') };
+  const backdrop = { style: {}, matches: (s) => s === '.bds-drawer-backdrop', click: () => closeClicks.push('backdrop') };
+  const classes = new Set(['bds-open']);
+  const drawer = {
+    isConnected: true, style: {}, id: 'bds-drawer', previousElementSibling: backdrop,
+    classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+    // Present, but translated away: nothing to measure.
+    getClientRects: () => [], getBoundingClientRect: () => ({ width: 0, height: 0, top: 0 }),
+    querySelector: (s) => (s === '.bds-sheet-close' || s.includes('bds-back-btn') ? null : null),
+  };
+  const document = {
+    body: {}, documentElement: {}, head: { appendChild() {} },
+    getElementById: (id) => (id === 'bds-drawer' ? drawer : id === 'bds-close' ? closeButton : null),
+    querySelector: (s) => (s === '.bds-drawer-backdrop' ? backdrop : null),
+    querySelectorAll: (s) => (s === '#bds-drawer.bds-open' ? [drawer] : []),
+    createElement: () => ({}), addEventListener() {},
+  };
+  const window = { innerWidth: 412, matchMedia: () => ({ matches: false }), __sdHandleBack: () => false };
+  vm.runInNewContext(source, {
+    window, document, console, WeakSet, Node: { DOCUMENT_POSITION_FOLLOWING: 4 },
+    getComputedStyle: () => ({ display: 'block', visibility: 'visible', zIndex: '10' }),
+    requestAnimationFrame: (fn) => fn(), setTimeout: (fn) => fn(),
+    setInterval: () => 1, clearInterval() {},
+    MutationObserver: class { observe() {} },
+  });
+  assert.equal(window.__sdHandleBack(), true, 'Back must consume the press, not report "nothing open"');
+  assert.deepEqual(closeClicks, ['close'], "the drawer's own close button closes it, not the backdrop");
+});

@@ -242,6 +242,22 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'hit') {
           return value(JSON.stringify({ chain: ['button[aria-label=Add files]', 'div.flex.items-center', 'form'], viewport: [320, 616], mobileCss: true }));
         }
+        if (marker === 'cardpos') {
+          // What a real page reports for the Settings card: on screen, and the
+          // element at its centre is the card itself.
+          return value(JSON.stringify({ y: 530, h: 52, vh: 616, inViewport: true, hitInsideCard: true }));
+        }
+        if (marker === 'rowhit') {
+          return value(JSON.stringify({ hitInsideRow: true, vh: 800, y: 420 }));
+        }
+        if (marker === 'top') {
+          return value(['div.bds-sheet-section', 'div.bds-attach-dropdown', 'body'].join(' < '));
+        }
+        if (marker === 'backdiag') {
+          return value(JSON.stringify({ handled: 'true', drawer: true, drawerOpenClass: false, closeExists: true,
+            closeConnected: true, closeRects: 1, closeBox: [0, 0, 32, 32], headerButton: true,
+            headerButtonSame: true, subpageBack: false, wrappedBySheets: true }));
+        }
         if (marker === 'sheet') {
           const o = state.sheetOpen ? 1 : 0;
           return value(JSON.stringify({ dropdown: o, backdrop: o, header: o, items: o * 4, title: o, expanded: null, btnClass: 'bds-plus-btn' }));

@@ -96,13 +96,26 @@
     return null;
   }
 
-  /** Every open sheet, topmost (last in the document) first. */
+  /**
+   * Every open sheet, topmost (last in the document) first.
+   *
+   * A drawer that is present with no measurable box is treated as open: that is
+   * what a sheet translated off-screen looks like, and forgetting it there is
+   * how a Back press closed "nothing open" while the drawer was still up.
+   */
   function openSheets() {
     var out = [];
     KINDS.forEach(function (k) {
       if (k.mobileOnly && !mobile()) return;
       var list = document.querySelectorAll(k.sel);
-      for (var i = 0; i < list.length; i++) if (shown(list[i])) out.push({ el: list[i], kind: k });
+      for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (shown(el)) { out.push({ el: el, kind: k }); continue; }
+        if (k.sel === '#bds-drawer.bds-open' && el.isConnected && el.classList.contains('bds-open') &&
+            !el.getClientRects().length) {
+          out.push({ el: el, kind: k });
+        }
+      }
     });
     out.sort(function (a, b) {
       var z = function (x) { return parseInt(getComputedStyle(x.el).zIndex, 10) || 0; };
@@ -174,8 +187,29 @@
     });
   }
 
-  function closeSheet(sheet, fromDy) {
+  /**
+   * The close control to click once the sheet has slid away.
+   *
+   * Read while the sheet is still on screen: `shown()` needs client rects, and a
+   * sheet translated off-screen (or already slid out) reports none — the click
+   * then lands on an element nobody can see, or on nothing at all, and the
+   * drawer stays open. When the element is present but not measurable, it is
+   * still the right control to click: the click is what closes Svelte's state.
+   */
+  function closeTarget(sheet) {
     var c = sheet.kind.close(sheet.el);
+    if (c) return c;
+    // The drawer's `close` falls back to the backdrop, which is a different layer
+    // from the drawer. Clicking it closes the dim layer, not the drawer — the
+    // state CI caught as "drawer still visible after Back" with the drawer's own
+    // close button lying right there in its header.
+    var own = sheet.el.querySelector && sheet.el.querySelector('.bds-drawer-header button, [aria-label="Close"], [aria-label="close"]');
+    if (own) return own;
+    return null;
+  }
+
+  function closeSheet(sheet, fromDy) {
+    var c = closeTarget(sheet);
     slideOut(sheet, fromDy || 0, function () {
       if (c && c.isConnected) c.click();
     });

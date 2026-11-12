@@ -532,7 +532,8 @@ async function topAt(cdp, x, y) {
  * CI hit: a settings drawer left open by Back, sitting over the "+" button.
  */
 function coversControl(top) {
-  return /bds-(drawer|attach-backdrop|sheet|modal|overlay)/.test(String(top || ''));
+  // NOT the Add to chat sheet: the tap toggles it, so it is normally on top.
+  return /bds-(drawer|drawer-backdrop)/.test(String(top || ''));
 }
 
 async function realClick(cdp, x, y) {
@@ -723,10 +724,29 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       return !!card;
     })()`);
     await pause(150);
+    // The tap must land on the card, not on the sheet's edge. A y outside the
+    // viewport is clipped by the browser (the event goes to whatever is there),
+    // which is how the Settings tap produced no drawer at all while every fact
+    // about the card looked right.
+    const cardAt = await evalValue(cdp, `/*sdp:cardpos*/(function () {
+      var el = document.querySelector('#sd-arena-settings-item');
+      if (!el) return '';
+      var b = el.getBoundingClientRect();
+      var hit = document.elementFromPoint(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+      return JSON.stringify({ y: Math.round(b.y), h: Math.round(b.height), vh: innerHeight,
+        inViewport: b.y >= 0 && b.y + b.height <= innerHeight,
+        hitInsideCard: !!(hit && (hit === el || el.contains(hit))) });
+    })()`);
+    result.settingsCardPosition = cardAt ? JSON.parse(cardAt) : null;
     const t = await evalJson(cdp, rectExpr('#sd-arena-settings-item'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
       result.drawer = { present: false, visible: false, reason: 'settings-card-not-visible' };
       return 'Settings card could not be brought into the visible sheet area';
+    }
+    if (!result.settingsCardPosition || result.settingsCardPosition.inViewport !== true) {
+      result.drawer = { present: false, visible: false, reason: 'settings-card-outside-viewport' };
+      return 'Settings card is outside the viewport, so a tap cannot land on it: ' +
+        JSON.stringify(result.settingsCardPosition);
     }
     await realClick(cdp, t.x, t.y);
     await pause(1200);
@@ -751,6 +771,17 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       })()`);
       const at = box ? JSON.parse(box) : null;
       if (!at || !(at.w >= 44 && at.h >= 40)) throw new Error('check-up row not tappable');
+      // Same trap as the Settings card: a row whose centre is outside the
+      // viewport is clipped, so the click never reaches it.
+      const rowHit = await evalValue(cdp, '/*sdp:rowhit*/(function () {' +
+        'var hit = document.elementFromPoint(' + Math.round(at.x) + ', ' + Math.round(at.y) + ');' +
+        'var row = document.querySelector(\'#bds-drawer .bds-set-row[data-bds-page="doctor"]\');' +
+        'return JSON.stringify({ hitInsideRow: !!(hit && row && (hit === row || row.contains(hit))),' +
+        ' vh: innerHeight, y: ' + Math.round(at.y) + ' });' +
+        '})()');
+      if (!rowHit || JSON.parse(rowHit).hitInsideRow !== true) {
+        throw new Error('check-up row is outside the viewport: ' + rowHit);
+      }
       await realClick(cdp, at.x, at.y);
       await pause(700);
       const after = await evalJson(cdp, DRAWER_PAGES_FACTS);
