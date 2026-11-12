@@ -395,6 +395,39 @@ export const DRAWER_PAGES_FACTS = `/*sdp:drawerpages*/(function () {
   });
 })()`;
 
+/**
+ * The Add to chat sheet's own rows.
+ *
+ * The gate already proves the sheet OPENS with a real tap. It never proved the
+ * rows inside it exist, are on top of the page (a row under a backdrop looks
+ * identical in a screenshot), and are big enough for a finger.
+ *
+ * Deliberately non-destructive: tapping "Files" opens the system picker and would
+ * hang the run, so a row is proven by its label, its size and a hit-test at its
+ * centre — the element the page would deliver a tap to must be inside that row.
+ */
+export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  var sheet = q('.bds-attach-dropdown') || q('.bds-attach-menu');
+  var rows = sheet ? Array.prototype.slice.call(sheet.querySelectorAll('.bds-attach-item')) : [];
+  var out = rows.map(function (el) {
+    var b = r(el);
+    var hit = null;
+    if (b && b[2] > 0 && b[3] > 0) {
+      try { hit = document.elementFromPoint(b[0] + b[2] / 2, b[1] + b[3] / 2); } catch (e) { hit = null; }
+    }
+    return {
+      label: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+      rect: b,
+      toggle: !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
+      onTop: !!(hit && (el === hit || (el.contains && el.contains(hit)))),
+      disabled: !!(el.disabled || el.getAttribute('aria-disabled') === 'true')
+    };
+  });
+  return JSON.stringify({ present: !!sheet, count: out.length, rows: out });
+})()`;
+
 export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
@@ -636,6 +669,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
 
     await realClick(cdp, trigger.x, trigger.y);
     await pause(900);
+    result.attachSheetRows = await step('attach-sheet-rows', () => evalJson(cdp, ATTACH_SHEET_ROWS));
+    if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
     result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
     if (!result.settingsCardBeforeClick || result.settingsCardBeforeClick.present !== true ||
         result.settingsCardBeforeClick.count !== 1 || result.settingsCardBeforeClick.insideSheet !== true ||
@@ -907,6 +942,25 @@ export function acceptanceFailures(result) {
       errors.push('check-up-row-not-tappable');
     }
   }
+  // The Add to chat sheet's rows: present, labelled, finger-sized, and actually
+  // the element a tap would land on (a row behind the backdrop looks the same in
+  // a screenshot and eats the tap).
+  const sheetRows = result.attachSheetRows;
+  if (!sheetRows || sheetRows.present !== true || !(sheetRows.count >= 3)) {
+    errors.push('add-to-chat-sheet-empty');
+  } else {
+    const labels = sheetRows.rows.map((x) => (x.label || '').toLowerCase());
+    for (const want of ['add to chat', 'deep research']) {
+      if (!labels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
+    }
+    for (const row of sheetRows.rows) {
+      if (row.disabled) continue;
+      const b = row.rect || [0, 0, 0, 0];
+      if (!(b[2] >= 40 && b[3] >= 32)) errors.push('add-to-chat-row-too-small');
+      if (row.onTop !== true) errors.push('add-to-chat-row-not-tappable');
+    }
+  }
+
   const doc = result.doctorPage;
   if (!doc) errors.push('check-up-page-did-not-open');
   else {

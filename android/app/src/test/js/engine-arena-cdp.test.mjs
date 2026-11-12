@@ -255,6 +255,21 @@ async function startFakeCdp(opts = {}) {
             ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
             : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
+        if (marker === 'attachrows') {
+          if (opts.emptySheet) return value(JSON.stringify({ present: true, count: 0, rows: [] }));
+          const labels = ['Files', 'Add to chat', 'Camera', 'Photos', 'More tools', 'Deep Research'];
+          return value(JSON.stringify({
+            present: true,
+            count: labels.length,
+            rows: labels.map((label, i) => ({
+              label,
+              rect: [16, 300 + i * 56, 288, 48],
+              toggle: label === 'Add to chat',
+              onTop: !(opts.coveredRow && label === 'Camera'),
+              disabled: false,
+            })),
+          }));
+        }
         if (marker === 'drawerpages') {
           // The drawer's rendered rows. On arena the DeepSeek-API-only page is
           // absent by rule; the doctor row is present and its page prints at
@@ -352,7 +367,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'attach-sheet-rows', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -405,7 +420,7 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer', 'doctor-page']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
@@ -417,7 +432,7 @@ test('Arena’s original Plus is exercised only when the real button is present'
   const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer', 'doctor-page']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
