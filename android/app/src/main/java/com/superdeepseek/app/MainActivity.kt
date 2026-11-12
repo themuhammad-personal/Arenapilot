@@ -281,22 +281,34 @@ internal fun parseFileChooserResult(resultCode: Int, data: Intent?): Array<Uri>?
 private fun mapAcceptTypes(acceptTypes: Array<String>?): List<String> {
     val tokens = acceptTypes?.flatMap { it.split(',') }?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
     if (tokens.isEmpty()) return emptyList()
+    // Families the page listed as a wildcard. `image/*` already accepts every
+    // image format — including ones this build has never heard of — so a
+    // per-format token adds nothing, and an extension this device cannot classify
+    // does not need to kill the whole filter.
+    val wildcards = tokens
+            .filter { MIME_TOKEN.matches(it) && it != "*/*" }
+            .map { it.lowercase() }
+            .filter { it.endsWith("/*") }
+            .toSet()
     val mapped = linkedSetOf<String>()
     for (token in tokens) {
         if (MIME_TOKEN.matches(token)) {
-            // A bare `*/*` means "anything": there is nothing to filter by, and
-            // the picker stays wide open.
+            // A bare wildcard means "anything": there is nothing to filter by.
             if (token == "*/*") return emptyList()
             mapped.add(token.lowercase())
             continue
         }
-        // arena's composer advertises `image/png,.png,image/jpeg,.jpg,…` — MIME
-        // types AND bare extensions in one list. Refusing the whole list because
-        // of one extension token threw away the restriction entirely: the picker
-        // offered every file type, the user picked a PDF, and the page refused it.
         val extension = extensionOfAcceptToken(token) ?: return emptyList()
-        val mime = mimeForExtension(extension) ?: return emptyList()
-        mapped.add(mime)
+        val type = mimeForExtension(extension)
+        if (type == null) {
+            // This device cannot name the format. With a family wildcard present
+            // the picker still shows what the page accepts; without one, keeping
+            // the filter would hide files the page takes, so it is dropped.
+            if (wildcards.isNotEmpty()) continue
+            return emptyList()
+        }
+        if ("${type.substringBefore('/')}/*" in wildcards) continue
+        mapped.add(type)
     }
     return mapped.toList()
 }
@@ -328,13 +340,23 @@ private val MEDIA_EXTENSION_MIME = mapOf(
         "bmp" to "image/bmp",
         "heic" to "image/heic",
         "heif" to "image/heif",
+        "tif" to "image/tiff",
+        "tiff" to "image/tiff",
+        "avif" to "image/avif",
         "mp4" to "video/mp4",
         "webm" to "video/webm",
         "mov" to "video/quicktime",
+        "m4v" to "video/mp4",
+        "3gp" to "video/3gpp",
         "mp3" to "audio/mpeg",
         "m4a" to "audio/mp4",
         "wav" to "audio/wav",
         "ogg" to "audio/ogg",
+        "oga" to "audio/ogg",
+        "flac" to "audio/flac",
+        "aac" to "audio/aac",
+        "opus" to "audio/opus",
+        "amr" to "audio/amr",
 )
 
 /**

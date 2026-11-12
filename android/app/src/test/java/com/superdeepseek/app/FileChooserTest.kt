@@ -56,46 +56,49 @@ class FileChooserTest {
         // the table knows the extension, and left unfiltered when it does not —
         // document providers label most code files application/octet-stream, so a
         // filter would grey them out and they could not be picked at all.
-        Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("py", "text/x-python")
-        val mapped = buildFileChooserIntent(arrayOf(".py", ".png"), allowMultiple = false)
+        val mapped = buildFileChooserIntent(arrayOf(".png,.jpg", ".py"), allowMultiple = false)
 
-        // `png` comes from the built-in media table, `py` from the platform's, so
-        // the filter is complete and — being two families — the base type stays
-        // wide.
+        // Both formats are named by the app's own table, so the result cannot
+        // depend on which extensions this device happens to know.
         assertArrayEquals(
-                arrayOf("text/x-python", "image/png"),
+                arrayOf("image/png", "image/jpeg"),
                 mapped.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
+                "an extension the app cannot name must not drop the filter",
         )
-        assertEquals("*/*", mapped.type, "two families: the base type must stay wide")
-
-        // One unknown extension leaves the picker open rather than filtering by
-        // the types it happens to recognise (that would grey files out).
-        val unmappable = buildFileChooserIntent(arrayOf(".py,.nomime", "text/plain"), allowMultiple = false)
-        assertNull(unmappable.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
-        assertEquals("*/*", unmappable.type)
+        assertEquals("image/*", mapped.type, "one media family: the picker can be narrowed")
     }
 
     @Test
-    fun `extension tokens are resolved through a table that does not depend on the device`() {
-        Shadows.shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypeMapping("webp", "image/webp")
-
+    fun `extension tokens are resolved by a table that does not depend on the device`() {
         assertEquals("webp", extensionOfAcceptToken(".webp"))
         assertEquals("webp", extensionOfAcceptToken("WEBP"))
         assertEquals("webp", extensionOfAcceptToken("webp"), "a bare extension is an extension")
         assertNull(extensionOfAcceptToken("image/webp"))
         assertNull(extensionOfAcceptToken("."))
         assertEquals("image/webp", mimeForExtension("webp"))
-        assertEquals("image/png", mimeForExtension(".PNG"), "the built-in media table answers first")
+        assertEquals("image/png", mimeForExtension(".PNG"))
         assertEquals("image/heic", mimeForExtension("heic"), "even where the platform table lacks it")
-        assertNull(mimeForExtension("nomime"), "unknown extensions are not guessed")
-        assertNull(mimeForExtension(""))
+        assertEquals("audio/ogg", mimeForExtension("oga"))
+        assertNull(mimeForExtension(""), "an empty extension is not a type")
     }
 
     @Test
-    fun `buildFileChooserIntent omits the MIME filter when any accept token is unmappable`() {
+    fun `an unpickable extension list keeps the picker open`() {
         val intent = buildFileChooserIntent(arrayOf(".weirdext", "text/plain"), allowMultiple = false)
 
         assertNull(intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+        assertEquals("*/*", intent.type)
+    }
+
+    @Test
+    fun `a family wildcard survives formats the app cannot name`() {
+        // `image/*` covers every image format, including ones added after this
+        // build. A newer format's extension must not narrow the picker to the
+        // handful of types compiled into the app.
+        val intent = buildFileChooserIntent(arrayOf("image/*", ".heic", ".dng"), allowMultiple = false)
+
+        assertArrayEquals(arrayOf("image/*"), intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+        assertEquals("image/*", intent.type)
     }
 
     @Test
