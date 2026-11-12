@@ -4005,11 +4005,25 @@ ${i}`)}r.textContent=i}})();
     el.dispatchEvent(new KeyboardEvent("keydown", opts));
   }
   function closeDrawer(d) {
+    // The header is real markup; the visible back control in it is an svg icon
+    // button that does NOT carry `bds-back-btn`, so that selector only fires on
+    // sub-pages. The close button (#bds-close) is the one every drawer has.
     var back = d.querySelector(".bds-drawer-header .bds-back-btn");
     if (shown(back)) { back.click(); return true; }
-    var x = document.getElementById("bds-close");
+    var x = document.getElementById("bds-close") || d.querySelector(".bds-drawer-header button");
     if (x) { x.click(); return true; }
     return false;
+  }
+  /**
+   * True when the drawer is on its OVERVIEW (the settings list), not on a
+   * sub-page. A sub-page's header has a back control; the overview's does not.
+   */
+  function drawerOnOverview(d) {
+    if (!d) return false;
+    var header = d.querySelector(".bds-drawer-header");
+    if (!header) return true;
+    if (shown(header.querySelector(".bds-back-btn"))) return false;
+    return true;
   }
   function topRoot() {
     var pts = [[0.5, 0.5], [0.5, 0.8], [0.5, 0.25]];
@@ -4037,7 +4051,16 @@ ${i}`)}r.textContent=i}})();
         if (shown(d0) && d0.getBoundingClientRect().top < innerHeight - 8) root = d0;
       }
       if (!root) return false;
-      if (root.id === "bds-drawer") return closeDrawer(root);
+      // Back on the settings list is one step (close the drawer); back on a
+      // sub-page returns to the list. #bds-close exists on both, so it must not
+      // be reached while a sub-page can still take the step.
+      if (root.id === "bds-drawer") {
+        if (!drawerOnOverview(root)) {
+          var sub = root.querySelector(".bds-back-btn");
+          if (shown(sub)) { sub.click(); return true; }
+        }
+        return closeDrawer(root);
+      }
       var btns = root.querySelectorAll(CLOSE_SEL);
       for (var i = 0; i < btns.length; i++) {
         if (shown(btns[i]) && btns[i].tagName !== "svg") { btns[i].click(); return true; }

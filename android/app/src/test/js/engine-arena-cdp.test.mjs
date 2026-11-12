@@ -86,6 +86,16 @@ function pageContext() {
       documentElement: html, body,
       createElement: (tag) => { const n = el(tag); let t = ''; Object.defineProperty(n, 'textContent', { get: () => t, set: (v) => { t = String(v); } }); n.style = {}; n.appendChild = (k) => { n.children.push(k); }; n.addEventListener = () => {}; return n; },
       querySelectorAll: (sel) => [html, ...descendants(html)].filter((n) => matches(n, sel)),
+      // The probe asks what is on top at a point (a tap must not go through an
+      // overlay). The fixture's rects are all the same, so the deepest match wins.
+      elementFromPoint: (x, y) => {
+        let top = null;
+        for (const n of descendants(html)) {
+          const r = n.getBoundingClientRect();
+          if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) top = n;
+        }
+        return top;
+      },
       querySelector: (sel) => [html, ...descendants(html)].find((n) => matches(n, sel)) || null,
     },
   };

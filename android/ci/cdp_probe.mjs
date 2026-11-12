@@ -508,6 +508,33 @@ async function evalJson(cdp, expression) {
   return typeof v === 'string' ? JSON.parse(v) : v;
 }
 
+/**
+ * What is actually on top at (x, y)? A tap that lands on a backdrop, a drawer or
+ * an overlay is not a tap on the control behind it — and the failure looks like a
+ * working page in a screenshot. Returns the top element's tag/id/class chain.
+ */
+async function topAt(cdp, x, y) {
+  return evalValue(cdp, `/*sdp:top*/(function (x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (!el) return '';
+    function d(e) { return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ').slice(0, 3).join('.') : ''); }
+    var names = [d(el)];
+    for (var n = el.parentElement, i = 0; n && i < 4; n = n.parentElement, i++) names.push(d(n));
+    return names.join(' < ');
+  })(${Math.round(x)}, ${Math.round(y)})`);
+}
+
+/**
+ * True when an engine OVERLAY is on top at (x, y) — a drawer, backdrop, sheet or
+ * modal. Deliberately narrow: any other element on top is either the control's
+ * own wrapper or a page decoration, and treating those as blockers would turn
+ * this diagnostic into a flaky gate. The specific case it exists for is the one
+ * CI hit: a settings drawer left open by Back, sitting over the "+" button.
+ */
+function coversControl(top) {
+  return /bds-(drawer|attach-backdrop|sheet|modal|overlay)/.test(String(top || ''));
+}
+
 async function realClick(cdp, x, y) {
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
@@ -746,6 +773,12 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     result.engineSheetRows = await step('engine-sheet-rows', async () => {
       const toggle = await evalJson(cdp, rectExpr('.bds-plus-btn'));
       if (!toggle.found) throw new Error('no engine toggle to open Add to chat with');
+      // Nothing may be lying on top of the "+" — a tap through a drawer opens no
+      // sheet, and "the sheet is empty" would be the wrong diagnosis.
+      const top = await topAt(cdp, toggle.x, toggle.y);
+      if (coversControl(top)) {
+        throw new Error('something covers the + control: ' + String(top).slice(0, 120));
+      }
       await realClick(cdp, toggle.x, toggle.y);
       await pause(900);
       if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
@@ -765,6 +798,13 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
+    // A drawer that is still on screen covers the sheet's own controls. Tapping
+    // "+" through it opened nothing, and the gate reported `add-to-chat-sheet-
+    // empty` — a real defect (Back did not close the drawer) with a misleading
+    // name. Record it here, where it can be named correctly.
+    if (result.drawerAfterBack && result.drawerAfterBack.visible !== false) {
+      steps.push({ name: 'drawer-closed-before-sheet', ok: false, error: 'drawer still visible after Back' });
+    }
     return result.drawer.visible && result.drawer.sheetVisible === false
       ? 'Settings card opened the existing drawer; Add to chat closed'
       : 'Settings drawer did not open cleanly from the sheet';
