@@ -173,3 +173,30 @@ test('MainActivity shows it after the launch screen, and no other code touches i
     assert.ok(!read(MAIN_JAVA, file).includes('IndependenceNotice'), `${file} must not reference the notice`);
   }
 });
+
+// ── User-facing links point at the app that actually ships ──────────────────
+// The bundle's "what's new" links, the issue links, the settings help links and
+// the model's own prompt all named the previous repository. That repository is
+// still public and still serves a `super-deepseek-latest.apk` — a DIFFERENT app
+// — so every one of those links sent users to an installer that is not this app.
+
+test('no user-facing link or prompt points at the retired repository', () => {
+  const content = read(SRC, 'main', 'bds-assets', 'bds', 'content.js');
+  const site = read(SRC, 'main', 'bds-assets', 'bds', 'sd-site.js');
+  for (const [name, src] of [['content.js', content], ['sd-site.js', site]]) {
+    assert.equal(
+      (src.match(/themuhammad-personal\/Super-Deepseek-/g) || []).length,
+      0,
+      `${name} still links to the repo that publishes a different app`,
+    );
+  }
+  const links = content.match(/https:\/\/github\.com\/themuhammad-personal\/[A-Za-z0-9_.-]+/g) || [];
+  assert.ok(links.length > 0, 'the engine still links somewhere');
+  for (const link of links) {
+    assert.equal(
+      link,
+      'https://github.com/themuhammad-personal/Arenapilot',
+      `an unexpected repository link remains: ${link}`,
+    );
+  }
+});

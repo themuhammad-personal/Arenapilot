@@ -432,3 +432,38 @@ test('the seam is still exactly where it was', () => {
   assert.equal(times('function Y2t('), 1, 'and the installer itself is unmodified');
   assert.equal(times('bds-arena-menu-option'), 1, 'only the arena row carries the arena class');
 });
+
+// ── A settings row must open a page that can work on this site ──────────────
+// The API playground posts raw requests to the DeepSeek API. arena.ai has no
+// such API, and the profile flag that said so (`features.apiPlayground`) is
+// never read by the bundle — so the row stayed listed and opened a form that
+// could only ever fail. A settings row that cannot work is a promise the app
+// does not keep.
+
+test('the DeepSeek-only API playground is not offered on arena', () => {
+  const content = fs.readFileSync(
+    path.join(here, '../../main/bds-assets/bds/content.js'),
+    'utf8',
+  );
+  const row = content.indexOf('sdT("API playground"');
+  assert.ok(row > 0, 'the API playground row still exists');
+  // The call that adds the row must be guarded, and the guard must be the arena
+  // check — not a flag nothing reads. Walk back far enough to include the guard.
+  const guardStart = content.lastIndexOf('if(!sdsIsArena())', row);
+  const statement = guardStart >= 0 ? content.slice(guardStart, row) : '';
+  assert.match(
+    statement,
+    /if\s*\(\s*!\s*sdsIsArena\(\)\s*\)\s*sdRow\(/,
+    'the row must be omitted on arena',
+  );
+  // The flag itself may only appear in prose (the comment explaining why the row
+  // is guarded); the CODE must not rely on it.
+  const codeSinceGuard = content
+    .slice(guardStart, row)
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(
+    codeSinceGuard,
+    /features\.apiPlayground/,
+    'a flag the bundle never reads is not a guard',
+  );
+});
