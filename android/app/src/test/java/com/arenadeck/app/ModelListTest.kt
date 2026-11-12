@@ -58,9 +58,9 @@ class ModelListTest {
         assertNull(ModelList.parse(""))
         assertNull(ModelList.parse("   "))
         assertNull(ModelList.parse("not json at all"))
-        assertNull(ModelList.parse("""{"models":[]}"""), "an empty list is not a list")
-        assertNull(ModelList.parse("""{"version":1}"""), "no models key")
-        assertNull(ModelList.parse("""{"models":[{"name":"x","provider":"p"}]}"""), "nothing pickable")
+        assertNull("an empty list is not a list", ModelList.parse("""{"models":[]}"""))
+        assertNull("no models key", ModelList.parse("""{"version":1}"""))
+        assertNull("nothing pickable", ModelList.parse("""{"models":[{"name":"x","provider":"p"}]}"""))
     }
 
     @Test
