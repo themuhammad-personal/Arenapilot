@@ -189,3 +189,15 @@ test('another component’s #bds-close is never mistaken for the drawer’s', ()
   assert.equal(d.state.closed, 1, 'the drawer\u2019s own button must be clicked, not the foreign #bds-close');
   assert.equal(foreign === null, false);
 });
+
+test('a drawer that the hit-test cannot see is still the drawer Back closes', () => {
+  // CI: the drawer covered 320x542 of the screen, yet `topRoot()` (which hit-tests
+  // the middle of the page) returned null, so Back returned "nothing to do" while
+  // a full-height sheet sat in front of everything. The drawer is now checked
+  // first, by its own state, without depending on that hit-test.
+  const { ctx, d } = boot();
+  ctx.document.elementFromPoint = () => null; // nothing recognised under the finger
+  assert.equal(ctx.window.__sdHandleBack(), true);
+  assert.equal(d.state.closed, 1, 'the drawer must be closed, not ignored');
+  assert.equal(ctx.window.__sdBackBranch, 'drawer', 'and the branch is recorded for the CI capture');
+});

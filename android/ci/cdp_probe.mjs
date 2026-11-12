@@ -871,6 +871,7 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         headerButtonSame: !!(headerBtn && close && headerBtn === close),
         subpageBack: !!back,
         wrappedBySheets: !!(window.__sdHandleBack && window.__sdHandleBack.__sdSheets),
+        branch: window.__sdBackBranch || '',
       });
     })()`);
     // Experiment: WHY it stays. If the drawer flashes closed and comes back,

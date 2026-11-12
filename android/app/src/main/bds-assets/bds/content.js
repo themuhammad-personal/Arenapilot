@@ -4081,12 +4081,29 @@ ${i}`)}r.textContent=i}})();
         dd.style.display = "none";
         return true;
       }
-      // 2. Topmost engine overlay under the finger area.
-      var root = topRoot();
-      if (!root) {
-        var d0 = document.getElementById("bds-drawer");
-        if (shown(d0) && d0.getBoundingClientRect().top < innerHeight - 8) root = d0;
+      // 2. The settings drawer, first — it is the one engine surface that is a
+      //    full-height sheet rather than a ROOT_RE overlay, so a generic hit-test
+      //    over the page can miss it (and then Back silently does nothing while
+      //    the drawer covers the screen). It is also the only surface where a
+      //    step "in" is meaningful: a sub-page returns to the list, the list
+      //    closes.
+      var d0 = document.getElementById("bds-drawer");
+      if (d0 && d0.classList.contains("bds-open") &&
+          (shown(d0) || !d0.getClientRects().length)) {
+        window.__sdBackBranch = "drawer";
+        if (!drawerOnOverview(d0)) {
+          var sub0 = d0.querySelector(".bds-back-btn");
+          if (shown(sub0)) { sub0.click(); return true; }
+        }
+        if (closeDrawerByIntent(d0)) {
+          var still0 = document.getElementById("bds-drawer");
+          if (!still0 || !still0.classList.contains("bds-open")) return true;
+        }
+        return closeDrawer(d0);
       }
+      // 3. Topmost engine overlay under the finger area.
+      var root = topRoot();
+      window.__sdBackBranch = root ? (root.id || "overlay") : "none";
       if (!root) return false;
       // Back on the settings list is one step (close the drawer); back on a
       // sub-page returns to the list. #bds-close exists on both, so it must not
