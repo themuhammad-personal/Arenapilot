@@ -312,13 +312,43 @@ internal fun extensionOfAcceptToken(token: String): String? {
 }
 
 /**
- * MIME type for a file extension, from Android's own table.
+ * The extensions this app can name with certainty.
  *
- * Returns null when the platform does not know the extension, so the caller can
- * leave the picker unfiltered instead of greying out files it cannot classify.
+ * `MimeTypeMap` is the fallback, not the first answer: its contents depend on the
+ * device's WebView/AOSP build, `webp` and `heic` are missing on some API 26–27
+ * images, and a null there used to drop the whole filter. These are the types a
+ * chat composer actually accepts.
+ */
+private val MEDIA_EXTENSION_MIME = mapOf(
+        "png" to "image/png",
+        "jpg" to "image/jpeg",
+        "jpeg" to "image/jpeg",
+        "webp" to "image/webp",
+        "gif" to "image/gif",
+        "bmp" to "image/bmp",
+        "heic" to "image/heic",
+        "heif" to "image/heif",
+        "mp4" to "video/mp4",
+        "webm" to "video/webm",
+        "mov" to "video/quicktime",
+        "mp3" to "audio/mpeg",
+        "m4a" to "audio/mp4",
+        "wav" to "audio/wav",
+        "ogg" to "audio/ogg",
+)
+
+/**
+ * MIME type for a file extension: the built-in media table first, then Android's
+ * own.
+ *
+ * Returns null when neither knows the extension, so the caller can leave the
+ * picker unfiltered instead of filtering by the types it happens to recognise.
  */
 internal fun mimeForExtension(extension: String): String? {
-    val known = runCatching { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) }
+    val key = extension.trim().lowercase().removePrefix(".")
+    if (key.isEmpty()) return null
+    MEDIA_EXTENSION_MIME[key]?.let { return it }
+    val known = runCatching { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(key) }
             .getOrNull()
     return known?.lowercase()?.takeIf { MIME_TOKEN.matches(it) }
 }
