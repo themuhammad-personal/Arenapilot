@@ -795,9 +795,34 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
         return JSON.stringify({ closed: !b || !(b.width > 0 && b.height > 0) });
       })()`);
     });
-    await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+    const backHandled = await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
+    // WHY Back did nothing, when it does nothing. Two layers wrap it (content.js,
+    // then sd-sheets.js for the slide-out), and the drawer is driven by Svelte
+    // state: the facts below separate "the handler never ran", "it ran and
+    // clicked nothing", and "it clicked and the page ignored it".
+    result.backDiagnosis = await evalJson(cdp, `/*sdp:backdiag*/(function () {
+      function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+      var drawer = document.getElementById('bds-drawer');
+      var close = document.getElementById('bds-close');
+      var headerBtn = drawer ? drawer.querySelector('.bds-drawer-header button') : null;
+      var back = drawer ? drawer.querySelector('.bds-drawer-header .bds-back-btn') : null;
+      var r = close ? close.getBoundingClientRect() : null;
+      return JSON.stringify({
+        handled: ${JSON.stringify(String(backHandled))},
+        drawer: !!drawer,
+        drawerOpenClass: !!(drawer && drawer.classList && drawer.classList.contains('bds-open')),
+        closeExists: !!close,
+        closeConnected: !!(close && close.isConnected),
+        closeRects: close ? close.getClientRects().length : 0,
+        closeBox: r ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] : null,
+        headerButton: !!headerBtn,
+        headerButtonSame: !!(headerBtn && close && headerBtn === close),
+        subpageBack: !!back,
+        wrappedBySheets: !!(window.__sdHandleBack && window.__sdHandleBack.__sdSheets),
+      });
+    })()`);
     // A drawer that is still on screen covers the sheet's own controls. Tapping
     // "+" through it opened nothing, and the gate reported `add-to-chat-sheet-
     // empty` — a real defect (Back did not close the drawer) with a misleading

@@ -3923,7 +3923,10 @@ function sdsArenaRail(){
   /* sd-site.js alone determines whether Arena's own navigation drawer is open.
      Never overwrite its dock with a second, narrower semantic-sidebar guess. */
   var dock=b.getAttribute("data-dock");
-  if(dock!=="sidebar"&&dock!=="pending")b.setAttribute("data-dock","pending");
+  /* "sheet" is sd-site.js's verdict and is final: overwriting it here made the two
+     modules flip the attribute on every pass, so the rail's dock (and the harness
+     waiting for it) alternated between "pending" and "sheet". */
+  if(dock!=="sidebar"&&dock!=="pending"&&dock!=="sheet")b.setAttribute("data-dock","pending");
   if(b.parentNode!==host)host.appendChild(b);
 }
 function sdsArenaInstall(){

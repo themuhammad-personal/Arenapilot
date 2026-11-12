@@ -97,6 +97,7 @@ function pageContext() {
         return top;
       },
       querySelector: (sel) => [html, ...descendants(html)].find((n) => matches(n, sel)) || null,
+      getElementById: (id) => [html, ...descendants(html)].find((n) => n.getAttribute('id') === id) || null,
     },
   };
   ctx.window = ctx;

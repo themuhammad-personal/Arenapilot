@@ -74,10 +74,30 @@ try {
   // Settings cleanup is intentionally deferred briefly so it cannot race Arena's
   // native React reconciliation. Wait for its final hidden-sheet state before
   // asserting layout; an immediate read sees the source rail's initial `pending`.
-  await wait(() => {
-    const rail = document.querySelector('#bds-settings-rail');
-    return !!(rail && rail.dataset && rail.dataset.dock === 'sheet' && getComputedStyle(rail).display === 'none');
-  });
+  //
+  // If the attribute is NOT settling, say so with the state instead of dying at
+  // the 10s timeout: the previous failure here reported only "pending !== sheet"
+  // from the assertion below, which hid whether the rail was still moving or two
+  // modules were overwriting each other's value.
+  try {
+    await wait(() => {
+      const rail = document.querySelector('#bds-settings-rail');
+      return !!(rail && rail.dataset && rail.dataset.dock === 'sheet' && getComputedStyle(rail).display === 'none');
+    }, 6000);
+  } catch (e) {
+    const state = await page.evaluate(() => {
+      const rail = document.querySelector('#bds-settings-rail');
+      return {
+        present: !!rail,
+        dock: rail && rail.dataset ? rail.dataset.dock : null,
+        display: rail ? getComputedStyle(rail).display : null,
+        siteId: window.__sdSite && window.__sdSite.id,
+      };
+    });
+    const err = new Error('the Settings rail never reached its final docked+hidden state: ' + JSON.stringify(state));
+    err.state = state;
+    throw err;
+  }
   const skinLayout = await page.evaluate(() => {
     const form = document.querySelector('form');
     const input = document.querySelector('textarea[name="message"]');
