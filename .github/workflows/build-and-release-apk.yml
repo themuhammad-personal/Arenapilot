@@ -140,7 +140,12 @@ jobs:
         working-directory: android
         run: |
           set -o pipefail
-          if ! ./gradlew --no-daemon assembleRelease -PbdsBuildId=${{ github.run_number }} 2>&1 | tee /tmp/gradle-release.log; then
+          # bdsBuildId = monotonic per-build identity; bdsVersionName = package.json
+          # version, so the APK, the release tag and the updater never disagree.
+          if ! ./gradlew --no-daemon assembleRelease \
+               -PbdsBuildId=${{ github.run_number }} \
+               -PbdsVersionName="$(node -p "require('./package.json').version")" \
+               2>&1 | tee /tmp/gradle-release.log; then
             grep -E '^e: |^w: .*(error)|FAILED|Error' /tmp/gradle-release.log | head -40 | while IFS= read -r line; do
               line="${line//'%'/'%25'}"; echo "::error::${line}"
             done
@@ -164,6 +169,11 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # The release tag carries the version ("v1.9.0"): the in-app updater
+          # reads RemoteVersionName from the release `tag_name`, so a rolling
+          # tag name ("arena-latest") made it compare "arena-latest" against
+          # "1.9.0", fail to parse a version, and stay silent forever.
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           APK_RAW=$(find android/app/build/outputs/apk -path "*/release/*.apk" ! -name "*unaligned*" | head -n 1)
           if [ -z "$APK_RAW" ]; then
             echo "Error: No release APK found under android/app/build/outputs/apk!"
@@ -325,7 +335,9 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug -Dorg.gradle.jvmargs=-Xmx3g
+          ./gradlew --no-daemon assembleDebug \
+            -PbdsVersionName="$(node -p "require('./package.json').version")" \
+            -Dorg.gradle.jvmargs=-Xmx3g
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -369,12 +381,23 @@ jobs:
           retention-days: 14
 
   release-arena:
-    # ArenaPilot's continuous channel (arena-latest). The app is arena-only
-    # since the 2026-10-15 cleanup: this is the repository's one and only
-    # release job, never marked as the repository's latest release.
+    # ArenaPilot's continuous channel. ONE tag per version (`v1.9.0`), rebuilt
+    # on every push to main so `arenapilot-latest.apk` always tracks the newest
+    # commit — and the tag is a real semantic version, which is what the
+    # in-app updater compares against its own versionName.
+    #
+    # Why not a rolling `arena-latest` tag any more: the updater reads
+    # release `tag_name` as the remote version. With a rolling tag it could
+    # never parse a version, so NO update was ever offered to anyone, and the
+    # README's download link pointed at a tag that this job never created
+    # (HTTP 404 — the documented install link was dead).
+    #
+    # `make_latest: true` so `GET /releases/latest` (the default RELEASE
+    # channel) resolves to this build; the tag is fixed per version, so
+    # re-publishing it just replaces the assets of the same release.
     name: Publish ArenaPilot Release
     needs: build-apk
-    if: github.ref == 'refs/heads/arena/0e0268d7-super-deepseek'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -385,10 +408,11 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: arena-latest
-          name: ArenaPilot (Continuous Build #${{ github.run_number }})
+          tag_name: ${{ steps.rel_cfg.outputs.tag }}
+          name: ArenaPilot ${{ steps.rel_cfg.outputs.version }} (build #${{ github.run_number }})
           body: |
             ### ArenaPilot for Android
 
@@ -435,6 +459,6 @@ jobs:
             arenapilot-latest.apk
             arenapilot-latest.apk.sha256
           prerelease: false
-          make_latest: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

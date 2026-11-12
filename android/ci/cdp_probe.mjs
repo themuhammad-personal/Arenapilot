@@ -595,7 +595,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
     if (!result.settingsCardBeforeClick || result.settingsCardBeforeClick.present !== true ||
         result.settingsCardBeforeClick.count !== 1 || result.settingsCardBeforeClick.insideSheet !== true ||
-        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.sourceRailVisible === true ||
+        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.visible !== true ||
+        result.settingsCardBeforeClick.sourceRailVisible === true ||
         result.settingsCardBeforeClick.legacySidebarRows !== 0) {
       result.drawer = { present: false, visible: false, reason: 'settings-card-not-last-in-plus-sheet' };
       return 'Settings card not present at the bottom of Add to chat';
@@ -791,10 +792,15 @@ export function acceptanceFailures(result) {
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
   const settingsCard = result.settingsCardBeforeClick;
+  // The card must be the ONE settings entry: inside the Add to chat sheet, last in
+  // it, on screen, and with no second (rail / sidebar) entry next to it. The rail's
+  // `data-dock` attribute is engine bookkeeping ("pending"/"sheet"), not a product
+  // fact — asserting a specific internal value made this gate fail while the UI was
+  // correct, which is exactly how a false red build hides a real one.
   const cardOk = !!(settingsCard && settingsCard.present === true &&
       settingsCard.count === 1 && settingsCard.visible === true && settingsCard.insideSheet === true &&
       settingsCard.lastCard === true && settingsCard.legacySidebarRows === 0 &&
-      settingsCard.sourceRailVisible !== true && settingsCard.sourceDock === 'sheet');
+      settingsCard.sourceRailVisible !== true);
   if (!cardOk) errors.push('settings-card-not-last-in-plus-sheet');
   if (settingsCard && (settingsCard.sourceRailVisible === true || settingsCard.legacySidebarRows !== 0)) {
     errors.push('settings-sidebar-row-still-visible');

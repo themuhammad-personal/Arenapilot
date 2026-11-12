@@ -47,9 +47,30 @@ internal enum class UpdateChannel(val storageValue: String) {
 /** Where the update metadata for [channel] lives, relative to the GitHub API base URL. */
 internal fun releaseApiPath(channel: UpdateChannel, owner: String, repo: String): String =
         when (channel) {
+            // The newest published version release (CI publishes one tag per
+            // version and marks it latest).
             UpdateChannel.RELEASE -> "/repos/$owner/$repo/releases/latest"
-            UpdateChannel.BETA -> "/repos/$owner/$repo/releases/tags/latest"
+            // The newest build whatever its version: the releases LIST is used
+            // rather than a fixed tag, because the tag now carries the version
+            // number ("v1.9.0"); a fixed "latest" tag would go stale after the
+            // first version bump.
+            UpdateChannel.BETA -> "/repos/$owner/$repo/releases?per_page=1"
         }
+
+/** True when [path] asks for a releases LIST rather than a single release. */
+internal fun isReleaseListPath(path: String): Boolean =
+        path.contains("/releases?") || path.endsWith("/releases")
+
+/** First release out of a releases-list response, or null when the list is empty/malformed. */
+internal fun firstReleaseFromList(body: String?): JSONObject? {
+    val array = try {
+        JSONArray(body ?: return null)
+    } catch (t: Throwable) {
+        return null
+    }
+    if (array.length() == 0) return null
+    return array.optJSONObject(0)
+}
 
 /**
  * Read a leading dotted numeric version, tolerating a `v` prefix and any suffix: `v0.1.14`,
@@ -326,7 +347,12 @@ internal class UpdateChecker(
 
         val release =
                 try {
-                    JSONObject(body)
+                    if (isReleaseListPath(path)) {
+                        firstReleaseFromList(body)
+                                ?: return UpdateCheckResult.Failed("no-releases")
+                    } else {
+                        JSONObject(body)
+                    }
                 } catch (t: Throwable) {
                     Log.w(TAG, "Update check returned unparseable JSON", t)
                     return UpdateCheckResult.Failed("malformed-response")
@@ -453,7 +479,7 @@ internal class UpdateChecker(
 
         private const val DEFAULT_API_BASE_URL = "https://api.github.com"
         private const val DEFAULT_REPO_OWNER = "themuhammad-personal"
-        private const val DEFAULT_REPO_NAME = "Super-Deepseek-"
+        private const val DEFAULT_REPO_NAME = "Arenapilot"
 
         /**
          * GitHub's API rejects requests without a User-Agent and asks integrators to identify

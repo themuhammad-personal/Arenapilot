@@ -10,6 +10,14 @@ plugins {
 // falls back to its timestamp heuristic for.
 val bdsBuildId: Long = (project.findProperty("bdsBuildId") as String?)?.toLongOrNull() ?: 0L
 
+// The ONE version string of the app: CI passes `-PbdsVersionName=$(node -p version)`
+// from package.json, so the APK's versionName, the release tag (`v$version`) and the
+// value the in-app updater compares against can never drift apart again. A drift is
+// not cosmetic: with an older versionName inside the APK, every launch sees a
+// "newer" release on GitHub and offers the same update forever.
+// Falls back to this literal for a local build without the property.
+val bdsVersionName: String = (project.findProperty("bdsVersionName") as String?)?.takeIf { it.isNotBlank() } ?: "2.0.0"
+
 android {
     namespace = "com.superdeepseek.app"
     compileSdk = 34
@@ -24,8 +32,8 @@ android {
         targetSdk = 34
         // Monotonically increasing versionCode ensures updates install smoothly over older versions
         versionCode = (1000L + bdsBuildId).toInt()
-        // Keep in sync with package.json "version" and static/manifest.json "version".
-        versionName = "1.8.3"
+        // Comes from package.json via -PbdsVersionName (see bdsVersionName above).
+        versionName = bdsVersionName
         buildConfigField("long", "BUILD_ID", "${bdsBuildId}L")
         // The one chat site this app wraps: Site.kt (native) and bds/sd-site.js
         // (engine) both branch on it. The deep-link host follows the same
