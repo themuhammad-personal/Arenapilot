@@ -73,7 +73,7 @@ test('a drawer left open but unmeasurable is still closed by Back', () => {
     classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
     // Present, but translated away: nothing to measure.
     getClientRects: () => [], getBoundingClientRect: () => ({ width: 0, height: 0, top: 0 }),
-    querySelector: (s) => (s === '.bds-sheet-close' || s.includes('bds-back-btn') ? null : null),
+    querySelector: (s) => (s === '.bds-drawer-header button' ? closeButton : s.includes('bds-back-btn') ? null : null),
   };
   const document = {
     body: {}, documentElement: {}, head: { appendChild() {} },

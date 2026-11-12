@@ -151,3 +151,17 @@ test('Back on a closed drawer is not consumed (the page keeps its own back)', ()
   const { ctx } = boot({ visible: false });
   assert.equal(ctx.window.__sdHandleBack(), false);
 });
+
+test('another component’s #bds-close is never mistaken for the drawer’s', () => {
+  // Three components emit id="bds-close" (the settings drawer, the onboarding
+  // modal, the Direct Chat modal). `document.getElementById` returns the first in
+  // the document, which is the onboarding/modal one — visible, sized, and
+  // therefore clickable: Back then "closed" the wrong element and left the drawer
+  // on screen. CI caught it with handled=true and the drawer still visible.
+  const { ctx, d } = boot();
+  const foreign = { isConnected: true, getClientRects: () => [{}], click: () => { d.state.closed += 100; } };
+  ctx.document.getElementById = (id) => (id === 'bds-close' ? foreign : id === 'bds-drawer' ? d.root : null);
+  assert.equal(ctx.window.__sdHandleBack(), true);
+  assert.equal(d.state.closed, 1, 'the drawer\u2019s own button must be clicked, not the foreign #bds-close');
+  assert.equal(foreign === null, false);
+});

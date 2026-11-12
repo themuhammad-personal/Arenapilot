@@ -41,7 +41,13 @@
       sel: '#bds-drawer.bds-open',
       mobileOnly: true,
       backdrop: function () { return document.querySelector('.bds-drawer-backdrop'); },
-      close: function () { return document.getElementById('bds-close') || document.querySelector('.bds-drawer-backdrop'); },
+      // Scoped to the drawer: three components emit id="bds-close", and the
+      // document-wide lookup returned whichever one was in the DOM, not the
+      // drawer's own button.
+      close: function (s) {
+        return s.querySelector('.bds-drawer-header button') || s.querySelector('button') ||
+          document.querySelector('.bds-drawer-backdrop');
+      },
       // On a settings sub-page Back steps back inside the sheet; it only
       // slides away from the overview.
       backStaysInside: function (s) {

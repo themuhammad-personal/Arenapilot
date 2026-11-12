@@ -4007,13 +4007,26 @@ ${i}`)}r.textContent=i}})();
     var opts = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
     el.dispatchEvent(new KeyboardEvent("keydown", opts));
   }
+  /**
+   * The drawer's own close button.
+   *
+   * Scoped to the drawer on purpose: `id="bds-close"` appears THREE times in the
+   * bundle (the settings drawer, the onboarding modal and the Direct Chat modal),
+   * so `document.getElementById("bds-close")` can return another component's
+   * button — one that is visible and sized, so an earlier version happily clicked
+   * it, reported "closed", and left the drawer on screen.
+   */
+  function drawerCloseButton(d) {
+    if (!d) return null;
+    return d.querySelector(".bds-drawer-header button") || d.querySelector("button");
+  }
   function closeDrawer(d) {
     // The header is real markup; the visible back control in it is an svg icon
     // button that does NOT carry `bds-back-btn`, so that selector only fires on
-    // sub-pages. The close button (#bds-close) is the one every drawer has.
+    // sub-pages.
     var back = d.querySelector(".bds-drawer-header .bds-back-btn");
     if (shown(back)) { back.click(); return true; }
-    var x = document.getElementById("bds-close") || d.querySelector(".bds-drawer-header button");
+    var x = drawerCloseButton(d);
     if (x) { x.click(); return true; }
     return false;
   }
