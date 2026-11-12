@@ -1037,7 +1037,7 @@ class MainActivity : ComponentActivity() {
     private var pageFinishedAt = 0L
     private var readyPollRunning = false
 
-    private companion object {
+    internal companion object {
         /** "0" the first time in a document (and marks it), "1" afterwards. */
         const val ENGINE_CLAIM_JS =
             "(function(){if(window.__sdEngineInjected)return 1;window.__sdEngineInjected=true;return 0})()"
@@ -1048,6 +1048,42 @@ class MainActivity : ComponentActivity() {
         const val LIVENESS_RETRY_MS = 12_000L
         /** The page URL when the renderer died; read by the recreated activity. */
         @Volatile var rendererLostUrl: String? = null
+        /**
+         * The page is usable: engine CSS in place, back handler installed, and a
+         * composer that can actually take text.
+         *
+         * Visibility inside the viewport is deliberately NOT required — the
+         * Direct Chat composer can sit below the fold on a phone — but a hidden
+         * or disabled composer still means "not ready".
+         */
+        internal val READY_PROBE_JS = """
+            (function(){try{
+              if(document.readyState!=='complete')return '0';
+              if(!document.getElementById('bds-css'))return '0';
+              if(typeof window.__sdHandleBack!=='function')return '0';
+              /* The page must be USABLE, not merely decorated. The engine is on
+                 it (its CSS is in place and its back handler is installed), so
+                 what is left to check is that the composer exists and can take
+                 text. Requiring it to be inside the viewport was wrong: on a
+                 phone the Direct Chat composer can sit below the fold (model
+                 banner, sample prompts) and the probe then never returned '1',
+                 so the launch screen always waited out its 18 s cap and the
+                 "engine ready" signal was never logged — on a page that was
+                 perfectly fine. A disabled or hidden composer is still a real
+                 "not ready", so that is what is checked. */
+              var els=document.querySelectorAll('textarea, [contenteditable="true"], input:not([type]), input[type=text], input[type=email], input[type=tel], input[type=password]');
+              for(var i=0;i<els.length;i++){
+                var el=els[i];
+                if((el.id||'').indexOf('bds-')===0)continue;
+                if(el.disabled||el.getAttribute('aria-disabled')==='true')continue;
+                if(el.getClientRects().length===0)continue;
+                var st=getComputedStyle(el);
+                if(!st||st.visibility==='hidden'||st.display==='none')continue;
+                return '1';
+              }
+              return '0';
+            }catch(e){return '0';}})()
+        """.trimIndent()
         /** Hard cap on the launch screen, however slow the network is. */
         const val BOOT_FORCE_DISMISS_MS = 18_000L
         /** How often the page is probed for readiness while the launch screen is up. */
@@ -1077,20 +1113,7 @@ class MainActivity : ComponentActivity() {
         val BAR_REFRESH_RESUME_MS = longArrayOf(300L, 900L)
 
         /** "1" once the enhanced chat (or the sign-in form) is actually on screen. */
-        val READY_PROBE_JS = """
-            (function(){try{
-              if(document.readyState!=='complete')return '0';
-              if(!document.getElementById('bds-css'))return '0';
-              if(typeof window.__sdHandleBack!=='function')return '0';
-              var els=document.querySelectorAll('textarea, input:not([type]), input[type=text], input[type=email], input[type=tel], input[type=password]');
-              for(var i=0;i<els.length;i++){
-                if((els[i].id||'').indexOf('bds-')===0)continue;
-                var r=els[i].getBoundingClientRect();
-                if(r.width>0&&r.height>0)return '1';
-              }
-              return '0';
-            }catch(e){return '0';}})()
-        """.trimIndent()
+
 
         /**
          * Background colour ("r,g,b") of the page right under the status bar,
