@@ -134,7 +134,21 @@ internal object UiPolish {
         }
         return """
             (function(){
-              if(window.__bdsUiPolished)return;window.__bdsUiPolished=true;
+              if(window.__bdsUiPolished)return;
+              /* The engine must be there before anything is hidden or relabelled:
+                 on a cold load of the real site the page can finish after the
+                 engine bundle is still parsing, and an early claim used to burn
+                 the one-shot guard — the polish then never ran and the host's
+                 launch screen waited out its full 18 s cap. Claim only when the
+                 engine API exists; otherwise report "not polished yet" and let
+                 the host ask again (and the engine's own mount signal answer). */
+              if(!window.__sdEngine||typeof window.__sdEngine!=='object'){
+                try{
+                  if(window.AndroidBridge&&typeof AndroidBridge.onPolishPending==='function'){AndroidBridge.onPolishPending();}
+                }catch(e){}
+                return;
+              }
+              window.__bdsUiPolished=true;
               var RE=$sweepRe;
               var SEL=$deadSel;
               var SWEEP=$sweepSel;

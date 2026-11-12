@@ -392,6 +392,13 @@ class WebViewBridge(
     @Volatile var onUiPolishedCallback: (() -> Unit)? = null
 
     /**
+     * Set by MainActivity: fired when the polish pass ran but the engine was not
+     * on the page yet. The pass is re-entrant, so the host re-runs it shortly
+     * instead of leaving the launch screen to time out and the polish unapplied.
+     */
+    @Volatile var onPolishPending: (() -> Unit)? = null
+
+    /**
      * Returns the last DeepSeek page theme written by the extension's theme.js via
      * chrome.storage.local (which the Android polyfill routes through [setStorage] as
      * JSON.stringify(boolean) → stored as the string "true" or "false"). Falls back to [default]
@@ -2062,6 +2069,16 @@ class WebViewBridge(
     @JavascriptInterface
     fun onUiPolished() {
         onUiPolishedCallback?.invoke()
+    }
+
+    /**
+     * The polish pass found no engine API yet (the page finished before the
+     * engine bundle did). Not a failure: the host retries, and the engine's own
+     * mount signal can also answer.
+     */
+    @JavascriptInterface
+    fun onPolishPending() {
+        onPolishPending?.invoke()
     }
 
     /** Removes the session token a legacy build kept in plain prefs (native call, not for JS). */

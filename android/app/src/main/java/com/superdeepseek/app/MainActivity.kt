@@ -737,6 +737,23 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // The polish pass ran before the engine existed (the site finished while
+        // the engine bundle was still parsing). The pass claims nothing in that
+        // case, so it is safe and necessary to run it again a moment later:
+        // otherwise nothing is hidden/relabelled and the launch screen waits out
+        // its 18 s cap on a page that was ready all along.
+        bridge.onPolishPending = {
+            runOnUiThread {
+                if (isFinishing || isDestroyed || uiPolished) return@runOnUiThread
+                polishAttempts++
+                if (polishAttempts > MAX_POLISH_ATTEMPTS) {
+                    Log.w("SuperDeepSeek", "Polish pass still found no engine after $polishAttempts attempts")
+                    return@runOnUiThread
+                }
+                handler.postDelayed({ if (!uiPolished) injectUiPolish(officialWebView) }, POLISH_RETRY_MS)
+            }
+        }
+
         // The engine reports every light/dark switch of the page; recolour the
         // bars at once, then sample the exact page colour after the switch paints.
         bridge.onThemeChanged = { isDark ->
@@ -900,6 +917,8 @@ class MainActivity : ComponentActivity() {
     private val engineUiReady = java.util.concurrent.atomic.AtomicBoolean(false)
     /** AndroidBridge.onUiPolished() arrived (the polish pass ran after the engine). */
     private var uiPolished = false
+    /** How many times the polish pass was retried because the engine was not up yet. */
+    private var polishAttempts = 0
     private var pageFinishedAt = 0L
     private var readyPollRunning = false
 
@@ -920,6 +939,10 @@ class MainActivity : ComponentActivity() {
         const val BOOT_NO_POLISH_GRACE_MS = 3_000L
         /** Let the engine's first layout settle before revealing the page. */
         const val BOOT_SETTLE_MS = 450L
+        /** Wait before re-running a polish pass that found no engine yet. */
+        const val POLISH_RETRY_MS = 600L
+        /** Enough retries to cover a slow bundle (each waits POLISH_RETRY_MS). */
+        const val MAX_POLISH_ATTEMPTS = 20
         /**
          * The chat's dark background until it has been measured on this device
          * (then [storedDarkPageColor] remembers the real value). Matches

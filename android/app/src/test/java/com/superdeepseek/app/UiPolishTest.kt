@@ -209,4 +209,40 @@ class UiPolishTest {
             assertTrue("selector must stay inside the engine namespace: $selector", insideEngineNs)
         }
     }
+
+    // ── The pass must be re-runnable until the engine really exists ──────
+
+    @Test
+    fun `an early polish pass claims nothing and reports pending`() {
+        val script = UiPolish.buildScript(Sites.ACTIVE)
+        // The claim moved behind the engine check: a pass that runs before
+        // content.js has installed window.__sdEngine must NOT burn the one-shot
+        // guard, otherwise the polish never happens and the launch screen waits
+        // out its 18 s cap on a page that was ready all along.
+        val guardIndex = script.indexOf("if(window.__bdsUiPolished)return;")
+        val engineCheck = script.indexOf("if(!window.__sdEngine||typeof window.__sdEngine!=='object')")
+        val claim = script.indexOf("window.__bdsUiPolished=true;")
+        assertTrue("idempotency guard present", guardIndex >= 0)
+        assertTrue("engine readiness check present", engineCheck > guardIndex)
+        assertTrue("the claim happens only after the engine check", claim > engineCheck)
+    }
+
+    @Test
+    fun `a pending pass tells the host to ask again`() {
+        val script = UiPolish.buildScript(Sites.ACTIVE)
+        val pending = script.indexOf("AndroidBridge.onPolishPending")
+        val claim = script.indexOf("window.__bdsUiPolished=true;")
+        assertTrue("the host is told the pass was early", pending >= 0)
+        assertTrue("and it is told before anything is claimed", pending < claim)
+        assertTrue("guarded against a missing bridge", script.contains("typeof AndroidBridge.onPolishPending==='function'"))
+    }
+
+    @Test
+    fun `the polish signal is still sent on a real run`() {
+        val script = UiPolish.buildScript(Sites.ACTIVE)
+        assertTrue(
+            "the boot overlay still learns the pass ran",
+            script.contains("typeof AndroidBridge.onUiPolished==='function'"),
+        )
+    }
 }
