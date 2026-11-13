@@ -71,6 +71,9 @@ case "$cmd" in
           rm -f "$S/dismissed"
           if [ -f "$S/start-fails" ]; then echo "Error: launch failed"; exit 1; fi
           if [ "$n" = "2" ] && [ -f "$S/second-dead" ]; then touch "$S/dead"; fi
+          # A relaunch starts a FRESH process: when the world says the retry comes
+          # back (the real device does), the dead mark is cleared again.
+          if [ -f "$S/recover-on-relaunch" ] && [ "$n" -ge 3 ]; then rm -f "$S/dead"; fi
           echo "Status: ok"
         fi
         exit 0 ;;
@@ -79,6 +82,10 @@ case "$cmd" in
         if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/renderer-kill" ]; then
           echo "  process=com.google.android.webview:sandboxed_process0 reason=13 (OTHER KILLS BY SYSTEM)"
           echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED)"
+        fi
+        if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/dependency-kill" ]; then
+          echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED) subreason=0 (UNKNOWN)"
+          echo "  Killing 5353:com.arenadeck.app/u0a192 (adj 0): depends on provider com.google.android.gms/.fonts.provider.FontsProvider in dying proc com.google.android.gms.persistent"
         fi
         exit 0 ;;
       input)
@@ -164,6 +171,8 @@ function runSmoke(world = {}) {
     ["uiBroken", "ui-broken"],
     ["forwardFails", "forward-fails"],
     ["rendererKill", "renderer-kill"],
+    ["dependencyKill", "dependency-kill"],
+    ["recoverOnRelaunch", "recover-on-relaunch"],
   ]) {
     if (world[flag]) fs.writeFileSync(path.join(state, file), "");
   }
@@ -358,8 +367,37 @@ test("a WebView renderer the SYSTEM killed gets one relaunch, then the run conti
   // it before onRenderProcessGone can recreate the Activity. That is not a defect
   // in this app, and failing the run on it hides every real failure behind it.
   const r = runSmoke({ noticeFirst: true, dead: true, rendererKill: true });
-  assert.match(r.out, /renderer killed by the system on the second launch, relaunched once/);
+  assert.match(r.out, /the system \(not the app\) ended the second launch; relaunched once/);
   assert.ok(r.launches >= 3, `expected a relaunch, saw ${r.launches} launches`);
+});
+
+// Run 43346270972: the second launch was killed because the persistent Google
+// Play services process (a shared, out-of-process FontsProvider) died and took
+// its client with it — reason=12 DEPENDENCY DIED, on the app's own exit record.
+// The relaunch came back alive (pid=6087) and the run STILL failed, because the
+// notice check read the killed attempt's pid file. Both halves are tested here.
+test("ArenaPilot: a dead dependency is retried, and the retry is the boot that counts", () => {
+  // secondDead: the kill lands on the SECOND launch, so the relaunch (launch 3)
+  // comes back alive — exactly run 43346270972's shape.
+  const r = runSmoke({
+    noticeFirst: true, secondDead: true, dependencyKill: true, recoverOnRelaunch: true,
+  });
+  assert.match(r.out, /the system \(not the app\) ended the second launch; relaunched once/);
+  assert.ok(r.launches >= 3, `expected a relaunch, saw ${r.launches} launches`);
+  assert.match(r.out, /no notice on the second launch/,
+    "the relaunch is the boot whose UI must be read");
+  assert.doesNotMatch(r.out, /persistence unverified/,
+    "a successful relaunch must not be reported as unverified");
+  // The DEAD attempt is still reported as an error on its own line (evidence,
+  // never silence); what must not survive is the run's verdict.
+  assert.doesNotMatch(r.out, /app process is not alive after launch/,
+    "a boot that came back is alive at the end of the run");
+});
+
+test("ArenaPilot: a second boot that dies without system evidence is still a failure", () => {
+  const r = runSmoke({ noticeFirst: true, dead: true });
+  assert.equal(r.code, 1, "no evidence of an external kill, so it is our failure");
+  assert.match(r.out, /second-boot: app process is not alive/);
 });
 
 test("a crash or ANR still fails the run — a relaunch is never a way out", () => {

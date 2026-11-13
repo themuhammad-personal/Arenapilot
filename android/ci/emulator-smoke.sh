@@ -135,14 +135,29 @@ renderer_kill_evidence() {
     | grep -aiE 'webview[^ ]*sandboxed_process|reason=13|reason=12' >/dev/null 2>&1
 }
 
+# The app died because a process it DEPENDS ON died. Android records this on the
+# app's own exit record; it is not the app crashing.
+dependency_kill_evidence() {
+  adb shell dumpsys activity exit-info "$PKG" 2>/dev/null \
+    | grep -aiE 'reason=12|depends on provider|DEPENDENCY DIED' >/dev/null 2>&1
+}
+
 alive() {
   local pid
   pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')
   [[ "$pid" =~ ^[0-9]+([[:space:]][0-9]+)*$ ]]
 }
 
+# The last phase snapshot_launch() recorded. A killed boot is retried, and the
+# notice check afterwards must read the RETRY's evidence, not the dead boot's:
+# run 43346270972 relaunched successfully (pid=6087) and still reported
+# "could not read the UI after the second launch" because it looked at the
+# killed attempt's pid file.
+LAST_SNAPSHOT_PHASE=""
+
 snapshot_launch() {
   local phase="$1" pid
+  LAST_SNAPSHOT_PHASE="$phase"
   adb logcat -d > "$OUT/$phase-logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity exit-info "$PKG" > "$OUT/$phase-exit-info.txt" 2>&1 || true
   adb shell dumpsys activity activities > "$OUT/$phase-activities.txt" 2>&1 || true
@@ -230,14 +245,26 @@ adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
 launch
 sleep "$BOOT_WAIT"
 snapshot_launch second-boot
-if ! alive && renderer_kill_evidence; then
-  echo "::warning::the system killed the WebView renderer on the second launch — relaunching once"
-  echo "::notice::ArenaPilot: renderer killed by the system on the second launch, relaunched once"
+# A boot the SYSTEM ended is retried; a crash we caused is not.
+#   - renderer_kill_evidence: the activity's own WebView process was killed by
+#     the OS (reason=13 "other kills by the system") and the app died with it.
+#   - dependency_kill_evidence: the persistent Google Play services process (a
+#     shared, out-of-process FontsProvider) died and took its client with it
+#     (reason=12 "dependency died"), which is an emulator infrastructure flake,
+#     not this app's defect. Neither is quietly forgiven: both are reported, and
+#     a boot that never came back still fails the run.
+if ! alive && { renderer_kill_evidence || dependency_kill_evidence; }; then
+  echo "::warning::the system ended the app or its renderer on the second launch — relaunching once"
+  echo "::notice::ArenaPilot: the system (not the app) ended the second launch; relaunched once"
+  # Write the dead boot's pid file as well: it is evidence that the app was
+  # gone, and the relaunch's own file is the one the gate reads.
+  printf '%s\n' "$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')" > "$OUT/second-boot-pid.txt"
   launch
   sleep "$BOOT_WAIT"
   snapshot_launch second-boot-retry
 fi
-if [ -s "$OUT/second-boot-pid.txt" ] && grep -qE "[0-9]" "$OUT/second-boot-pid.txt" && dump2=$(ui_dump); then
+SECOND_EVIDENCE="$OUT/${LAST_SNAPSHOT_PHASE:-second-boot}-pid.txt"
+if [ -s "$SECOND_EVIDENCE" ] && grep -qE "[0-9]" "$SECOND_EVIDENCE" && dump2=$(ui_dump); then
   printf '%s' "$dump2" > "$OUT/ui-second.xml"
   if grep -q "$NOTICE_TEXT" <<<"$dump2"; then
     echo "::error::the notice came back on the second launch — 'seen' was not persisted"; STATUS=1
