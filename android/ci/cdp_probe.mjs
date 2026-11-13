@@ -422,9 +422,15 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
       // The row's own content, also finger-sized (a scrollable sheet can clip it).
       try { own = document.elementFromPoint(Math.min(b[0] + b[2] / 2, window.innerWidth - 2), Math.min(b[1] + b[3] / 2, window.innerHeight - 2)); } catch (e2) { own = null; }
     }
+    var vh = window.innerHeight || 0;
+    var inView = !!(b && b[3] > 0 && b[1] + b[3] > 0 && b[1] < vh);
     return {
       label: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
       rect: b,
+      // A row below the fold of a scrolling sheet is normal; it is not a fault
+      // and not reachable until someone scrolls. Kept as its own fact so the
+      // gate can demand scrolling instead of failing on geometry.
+      inViewport: inView,
       toggle: !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
       // Two facts, not one: is the row inside the scrollable sheet, and is it on
       // top of the page where a finger would land? A row below the fold is normal
@@ -1256,11 +1262,19 @@ export function acceptanceFailures(result) {
       if (row.disabled) continue;
       const b = row.rect || [0, 0, 0, 0];
       if (!(b[2] >= 40 && b[3] >= 32)) errors.push('add-to-chat-row-too-small');
+    }
+    // The sheet scrolls: only the rows a finger can actually reach are required
+    // to be hit-testable. A row below the fold is normal, and demanding it be
+    // reachable measured the viewport, not the sheet — which is how a fixed gate
+    // kept failing after the real fault (a paused rise animation) was gone.
+    const visibleRows = sheetRows.rows.filter((x) => x.inViewport !== false && !x.disabled);
+    if (visibleRows.length < 1) errors.push('add-to-chat-sheet-no-visible-row');
+    for (const row of visibleRows) {
       if (row.reachable !== true) errors.push('add-to-chat-row-not-in-sheet');
     }
     // At least the first row must be on top of the page (the sheet scrolls, so
     // rows further down are expected to be below the fold).
-    if (sheetRows.rows.filter((x) => x.onTop === true).length < 1) {
+    if (visibleRows.filter((x) => x.onTop === true).length < 1) {
       errors.push('add-to-chat-sheet-covered-by-backdrop');
     }
   }

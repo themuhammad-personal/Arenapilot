@@ -302,6 +302,7 @@ async function startFakeCdp(opts = {}) {
             rows: labels.map((label, i) => ({
               label,
               rect: [16, 300 + i * 56, 288, 48],
+              inViewport: true,
               toggle: label === 'Add to chat',
               reachable: true,
               onTop: !(opts.coveredRow && label === 'Camera'),
@@ -703,6 +704,30 @@ test('N0 acceptance gate rejects a missing skin target or Send overflow without 
   consentGate.engine.composer.named = 0;
   assert.ok(!acceptanceFailures(consentGate).includes('composer-skin-target-missing'));
   assert.ok(!acceptanceFailures(consentGate).includes('send-outside-composer'));
+});
+
+test('a row below the fold of the scrolling sheet is not a fault; a covered one is', async () => {
+  // Measured on the emulator (run 43333312429): after the rise animation was
+  // retired, the FIRST row of the 7-row sheet became reachable:true while the
+  // other six reported reachable:false — they sit below the sheet's fold, which
+  // is what a scrolling sheet does. The gate had been demanding every row be
+  // hit-testable, so it measured the viewport rather than the sheet. Now only the
+  // rows a finger can reach must be reachable, and at least one must be on top.
+  const { result } = await runProbe();
+  const below = JSON.parse(JSON.stringify(result));
+  below.engineSheetRows.rows = below.engineSheetRows.rows.map((row, i) => (i === 0
+    ? { ...row, reachable: true, onTop: true, inViewport: true }
+    : { ...row, reachable: false, onTop: false, inViewport: false }));
+  assert.deepEqual(acceptanceFailures(below), [], 'rows below the fold are not failures');
+
+  const covered = JSON.parse(JSON.stringify(below));
+  covered.engineSheetRows.rows[0] = { ...covered.engineSheetRows.rows[0], reachable: false, onTop: false };
+  assert.ok(acceptanceFailures(covered).includes('add-to-chat-row-not-in-sheet'),
+    'a visible row that a tap cannot reach is still a fault');
+
+  const nothingVisible = JSON.parse(JSON.stringify(below));
+  nothingVisible.engineSheetRows.rows = nothingVisible.engineSheetRows.rows.map((row) => ({ ...row, inViewport: false }));
+  assert.ok(acceptanceFailures(nothingVisible).includes('add-to-chat-sheet-no-visible-row'));
 });
 
 test('the default output is the readable summary, the facts, the engine’s markup and the composer’s controls — no payload', async () => {
