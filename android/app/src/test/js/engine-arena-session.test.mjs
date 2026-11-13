@@ -204,7 +204,7 @@ test('the two id reads go through the helper, keeping their own patterns', () =>
   assert.equal(times(`sdsSessionId(e,"\\\\/chat\\\\/s\\\\/([a-f0-9-]+)")`), 1, 'cS keeps the strict pattern');
   assert.equal(times(`sdsSessionId(location.href,"\\\\/chat\\\\/s\\\\/([^/?#]+)")`), 1,
     'the urlChanged read keeps its looser pattern');
-  assert.equal(times('__sdUrl'), 19, 'seam count changed — re-audit the patched sites');
+  assert.equal(times('__sdUrl'), 17, 'seam count changed — re-audit the patched sites');
 });
 
 // ── 4. the sandbox agent's own session id ───────────────────────────────────

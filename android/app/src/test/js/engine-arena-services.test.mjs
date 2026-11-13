@@ -110,7 +110,9 @@ const KNOWN = {
   'https://api.deepseek.com/beta': 2,
   'https://api.deepseek.com/user/balance': 2,
   // PH.urlPatterns.base (overridden on arena) and the __sdUrl seams' DeepSeek fallbacks (Phase 3)
-  'https://chat.deepseek.com/': 5,
+  // 4: urlPatterns.base, the __sdUrl seams' fallbacks — one fewer than before,
+  // because the memory-import dialog no longer navigates to another AI's home.
+  'https://chat.deepseek.com/': 4,
   'https://chat.deepseek.com': 1,
   // PH.api.statusUrl and the b1e() fallback (guarded above)
   'https://status.deepseek.com/api/widget/v1/summary.json': 2,
@@ -121,4 +123,49 @@ test('every DeepSeek URL in content.js is classified, with its count', () => {
   for (const m of CONTENT.matchAll(/https?:\/\/[A-Za-z0-9.-]*deepseek\.com[A-Za-z0-9_/.\-?=&%]*/g)) found[m[0]] = (found[m[0]] || 0) + 1;
   assert.deepEqual(found, KNOWN,
     'a DeepSeek URL appeared, vanished or changed count in content.js — decide what it does on arena, then update KNOWN');
+});
+
+// ── The app loads nothing from a third-party CDN ─────────────────────────────
+//
+// Three features used to fetch code from public CDNs the app does not control:
+// the browser code runners (Pyodide, Babel, Fengari, Opal) and the export
+// documents (Google Fonts). On a phone that is a foreign dependency — and on a
+// page, one whose CSP may block the script at any moment, so the feature would
+// fail silently. Everything is now the app's own: JavaScript runs natively,
+// TypeScript annotations are stripped locally, Python/Lua/Ruby run in the app's
+// Linux on the phone, and the exports use the phone's fonts.
+
+const CDN_HOSTS = /(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.opalrb\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/;
+
+test('no bundle fetches a script, stylesheet or font from a third-party CDN', () => {
+  const INJECTED = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/injected.js'), 'utf8');
+  for (const [name, text] of [['content.js', CONTENT], ['injected.js', INJECTED]]) {
+    const hits = [...text.matchAll(new RegExp(CDN_HOSTS.source, 'g'))];
+    assert.equal(hits.length, 0,
+      `${name} still references a third-party CDN host — the app must ship everything it runs`);
+  }
+});
+
+test('the in-page Python runner runs on the app’s own Linux, not in a downloaded runtime', () => {
+  // The playground page calls the sandbox MCP "run" tool through the bridge and
+  // takes the reply from window.__sdBridgeReply, which is the app's contract.
+  assert.match(CONTENT, /serverUrl: "sandbox:\/\/linux",\s*\n\s*toolName: "run"/);
+  assert.match(CONTENT, /window\.__sdPlaygroundReply = function \(replyId, json, blobPath\)/);
+  assert.doesNotMatch(CONTENT, /loadPyodide\(/);
+  // A language the browser runner cannot host says where to run it instead of
+  // promising a runtime it will never have.
+  assert.match(CONTENT, /This browser runner has no /);
+  assert.match(CONTENT, /Linux & Agent/);
+});
+
+test('importing a memory profile from another AI never opens another AI', () => {
+  // The dialog used to build chat.openai.com / claude.ai / x.com-grok /
+  // gemini.google.com deep links and then navigate the app to chat.deepseek.com.
+  // Both are other people's products; the app now copies its own prompt and
+  // reads the answer the user pastes back.
+  for (const gone of ['chat.openai.com', 'claude.ai/new', 'gemini.google.com', 'x.com/i/grok']) {
+    assert.equal(CONTENT.includes(gone), false, `the memory-import dialog still links to ${gone}`);
+  }
+  assert.match(CONTENT, /await chrome\.storage\.local\.set\(\{\[st\.pendingMemoryImport\]:R\}\);\s*\n\s*t\.onclose&&t\.onclose\(\);/,
+    'the pasted profile is stored and the dialog closes — no navigation to another site');
 });

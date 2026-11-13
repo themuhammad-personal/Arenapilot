@@ -186,5 +186,5 @@ test('the reversed-column branch exists exactly once and only affects reversed l
 
 test('the conversation gate follows the site and keeps its DeepSeek fallback', () => {
   assert.equal(times('location.href.includes((window.__sdUrl&&window.__sdUrl.session)||"/chat/s/")'), 2);
-  assert.equal(times('__sdUrl'), 19, 'content.js seam count changed — re-audit the patched sites');
+  assert.equal(times('__sdUrl'), 17, 'content.js seam count changed — re-audit the patched sites');
 });
