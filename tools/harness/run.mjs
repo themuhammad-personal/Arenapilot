@@ -1,5 +1,5 @@
 /**
- * Super DeepSeek — Layer 2 scenario runner.
+ * ArenaPilot — Layer 2 scenario runner.
  *
  * Usage: npm run test:harness            (all scenarios)
  *        node tools/harness/run.mjs agent-once keep-going
@@ -56,8 +56,8 @@ const agentOnce = makeScenario('agent-once', async (browser) => {
   const { page, consoleErrors } = await openSession(browser);
   await setSandboxOutputs(page, { 'run:ls': 'hello.py  main.py', write_file: 'wrote hello.py' });
   await setBeats(page, [
-    'I will list the files first.\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls -la"}</SDS:AUTO:MCP>',
-    'Now I will write the script.\n<SDS:AUTO:MCP url="sandbox" tool="write_file">{"path":"hello.py","content":"print(1)"}</SDS:AUTO:MCP>',
+    'I will list the files first.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls -la"}</APH:AUTO:MCP>',
+    'Now I will write the script.\n<APH:AUTO:MCP url="sandbox" tool="write_file">{"path":"hello.py","content":"print(1)"}</APH:AUTO:MCP>',
     'All done — hello.py is written.',
   ]);
   await page.evaluate(() => window.__sdEngine.markLive());
@@ -84,8 +84,8 @@ const agentOnce = makeScenario('agent-once', async (browser) => {
 
   const mutations = state.events.filter((e) => e.type === 'bds:mutation-applied');
   check(failures, mutations.length >= 1, 'injected.js did not wrap the prompt (no bds:mutation-applied)');
-  check(failures, mutations.some((m) => /SuperDeepSeek/.test(String(m.detail))),
-    'automatic prompts must be wrapped in <SuperDeepSeek>');
+  check(failures, mutations.some((m) => /ArenaPilot/.test(String(m.detail))),
+    'automatic prompts must be wrapped in <ArenaPilot>');
   const errors = consoleErrors.filter((e) => !/favicon|net::ERR/.test(e));
   if (errors.length) notes.push('console errors: ' + errors.slice(0, 3).join(' | '));
   await page.close();
@@ -97,7 +97,7 @@ const noRerun = makeScenario('no-rerun', async (browser) => {
   const { page } = await openSession(browser);
   await setSandboxOutputs(page, { run: 'ok' });
   await setBeats(page, [
-    'Running it.\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"echo once"}</SDS:AUTO:MCP>',
+    'Running it.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo once"}</APH:AUTO:MCP>',
     'All done — the command finished.',
   ]);
   await page.evaluate(() => window.__sdEngine.markLive());
@@ -156,7 +156,7 @@ const keepGoing = makeScenario('keep-going', async (browser) => {
   const { page } = await openSession(browser);
   await setSandboxOutputs(page, { run: 'tool output' });
   await setBeats(page, [
-    'Starting.\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"echo go"}</SDS:AUTO:MCP>',
+    'Starting.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo go"}</APH:AUTO:MCP>',
     'Now I will run the tests:',
     'Continuing, one moment:',
     'Almost there:',

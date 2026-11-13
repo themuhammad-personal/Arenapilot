@@ -77,7 +77,7 @@ test('Ghe asks the gate before any automatic request and checks every kind of ca
 
 test('an old chat never runs its last calls; a chat becomes live once a reply is generated in it', () => {
   const { api, page, msg } = setup();
-  const n = [msg('user', 'build it'), msg('assistant', 'Starting <SDS:AUTO:MCP …>')];
+  const n = [msg('user', 'build it'), msg('assistant', 'Starting <APH:AUTO:MCP …>')];
   assert.equal(api.sdMayAuto(n[1], 1, n), false, 'opened, nothing generated here');
   page.generating = true;
   api.sdLiveTick();
@@ -90,7 +90,7 @@ test('an old chat never runs its last calls; a chat becomes live once a reply is
 
 test("the user's own send makes the chat live too (even if the stop button is not recognised)", () => {
   const { api, page, msg, fire } = setup();
-  const n = [msg('user', 'go'), msg('assistant', 'b <SDS…>')];
+  const n = [msg('user', 'go'), msg('assistant', 'b <APH…>')];
   const composer = { closest: (sel) => (sel.includes('#bds-root') ? null : sel.includes('textarea') ? {} : null) };
   // Automatic sends (untrusted events) and Shift+Enter do not count.
   fire('keydown', { isTrusted: false, key: 'Enter', target: composer });
@@ -114,9 +114,9 @@ test("the user's own send makes the chat live too (even if the stop button is no
 test('a reply followed by a user message (its results) never runs again', () => {
   const { api, page, msg } = setup();
   page.generating = true; api.sdLiveTick(); page.generating = false;
-  const n = [msg('user', 'a'), msg('assistant', 'b <SDS…>'), msg('user', '[SDS:AUTO] MCP Result …')];
+  const n = [msg('user', 'a'), msg('assistant', 'b <APH…>'), msg('user', '[APH:AUTO] MCP Result …')];
   assert.equal(api.sdMayAuto(n[1], 1, n), false);
-  const m = [msg('user', 'a'), msg('assistant', 'b <SDS…>'), msg('assistant', 'c')];
+  const m = [msg('user', 'a'), msg('assistant', 'b <APH…>'), msg('assistant', 'c')];
   assert.equal(api.sdMayAuto(m[1], 1, m), true, 'only a user message blocks');
 });
 
@@ -135,18 +135,18 @@ test('an older reply that is merely the last rendered element (virtualised list)
 test('a call of a message is handled once, by content: re-created elements and reloads do not repeat it', () => {
   const storage = new Map();
   const first = setup({ storage });
-  const n = [first.msg('user', '[results of step 1]'), first.msg('assistant', 'Running tests <SDS:AUTO:MCP run npm test>')];
-  const key = first.api.sdMsgKey('Running tests <SDS:AUTO:MCP run npm test>', 1, n);
+  const n = [first.msg('user', '[results of step 1]'), first.msg('assistant', 'Running tests <APH:AUTO:MCP run npm test>')];
+  const key = first.api.sdMsgKey('Running tests <APH:AUTO:MCP run npm test>', 1, n);
   const call = 'sandbox|run|{"command":"npm test"}';
   assert.equal(first.api.sdSeen(key, 'mcp', call), false, 'first time: run it');
   assert.equal(first.api.sdSeen(key, 'mcp', call), true, 'same element again');
   // DeepSeek re-creates both elements with the same content.
-  const again = [first.msg('user', '[results of step 1]'), first.msg('assistant', 'Running tests <SDS:AUTO:MCP run npm test>')];
-  assert.equal(first.api.sdSeen(first.api.sdMsgKey('Running tests <SDS:AUTO:MCP run npm test>', 1, again), 'mcp', call), true);
+  const again = [first.msg('user', '[results of step 1]'), first.msg('assistant', 'Running tests <APH:AUTO:MCP run npm test>')];
+  assert.equal(first.api.sdSeen(first.api.sdMsgKey('Running tests <APH:AUTO:MCP run npm test>', 1, again), 'mcp', call), true);
   // The page reloads (renderer restart): remembered in storage.
   const second = setup({ storage });
-  const n2 = [second.msg('user', '[results of step 1]'), second.msg('assistant', 'Running tests <SDS:AUTO:MCP run npm test>')];
-  assert.equal(second.api.sdSeen(second.api.sdMsgKey('Running tests <SDS:AUTO:MCP run npm test>', 1, n2), 'mcp', call), true);
+  const n2 = [second.msg('user', '[results of step 1]'), second.msg('assistant', 'Running tests <APH:AUTO:MCP run npm test>')];
+  assert.equal(second.api.sdSeen(second.api.sdMsgKey('Running tests <APH:AUTO:MCP run npm test>', 1, n2), 'mcp', call), true);
   // Other kinds of request and other calls of the same message are separate.
   assert.equal(second.api.sdSeen(key, 'web', call), false);
   assert.equal(second.api.sdSeen(key, 'mcp', 'sandbox|run|{"command":"ls"}'), false);
@@ -154,7 +154,7 @@ test('a call of a message is handled once, by content: re-created elements and r
 
 test('the same reply text in a new turn (after different results) runs again', () => {
   const { api, msg } = setup();
-  const text = '<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"npm test"}</SDS:AUTO:MCP>';
+  const text = '<APH:AUTO:MCP url="sandbox" tool="run">{"command":"npm test"}</APH:AUTO:MCP>';
   const t1 = [msg('user', 'results: 2 failing'), msg('assistant', text)];
   const t2 = [msg('user', 'results: file written'), msg('assistant', text)];
   const call = 'sandbox|run|{"command":"npm test"}';

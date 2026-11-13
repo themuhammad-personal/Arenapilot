@@ -1,5 +1,5 @@
 /**
- * Super DeepSeek — real-engine harness (Layer 2).
+ * ArenaPilot — real-engine harness (Layer 2).
  *
  * Runs the REAL engine bundle (injected.js → content.css/our-skin.css →
  * content.js → sd-native.js + sd-agent.js + sd-sheets.js + sd-health.js —

@@ -19,9 +19,10 @@ OUT=${SMOKE_OUT:-/tmp/emulator-smoke}
 mkdir -p "$OUT"
 
 PKG=com.arenadeck.app
-# The Kotlin lives in the historical `com.superdeepseek.app` namespace:
-# `.MainActivity` would resolve against the *package* and miss it.
-ACTIVITY=com.superdeepseek.app.MainActivity
+# The Kotlin package and the application id are both com.arenadeck.app now, so
+# `.MainActivity` would resolve — but the full class name is used on purpose: it
+# keeps working if the two ever diverge again (they did for years).
+ACTIVITY=com.arenadeck.app.MainActivity
 BOOT_WAIT="${SMOKE_BOOT_WAIT:-25}"
 NOTICE_WAIT="${SMOKE_NOTICE_WAIT:-40}"
 RETRY_SLEEP="${SMOKE_UI_RETRY_SLEEP:-2}"
@@ -123,8 +124,40 @@ launch() {
   cp "$OUT/launch-$LAUNCH_NO.log" "$OUT/launch.log"
 }
 
+# Android kills the WebView renderer to reclaim memory (exit reason 13, "other
+# kills by system"), and a WebView app whose renderer died has no window left to
+# draw — the process goes with it, before onRenderProcessGone can recreate the
+# Activity. That is routine under CI's memory pressure, not a defect in this app.
+# One relaunch, and only when the evidence says the SYSTEM killed the renderer;
+# a Java crash, an ANR or a failed am-start still fails the run.
+renderer_kill_evidence() {
+  adb shell dumpsys activity exit-info "$PKG" 2>/dev/null \
+    | grep -aiE 'webview[^ ]*sandboxed_process|reason=13|reason=12' >/dev/null 2>&1
+}
+
+# The app died because a process it DEPENDS ON died. Android records this on the
+# app's own exit record; it is not the app crashing.
+dependency_kill_evidence() {
+  adb shell dumpsys activity exit-info "$PKG" 2>/dev/null \
+    | grep -aiE 'reason=12|depends on provider|DEPENDENCY DIED' >/dev/null 2>&1
+}
+
+alive() {
+  local pid
+  pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')
+  [[ "$pid" =~ ^[0-9]+([[:space:]][0-9]+)*$ ]]
+}
+
+# The last phase snapshot_launch() recorded. A killed boot is retried, and the
+# notice check afterwards must read the RETRY's evidence, not the dead boot's:
+# run 43346270972 relaunched successfully (pid=6087) and still reported
+# "could not read the UI after the second launch" because it looked at the
+# killed attempt's pid file.
+LAST_SNAPSHOT_PHASE=""
+
 snapshot_launch() {
   local phase="$1" pid
+  LAST_SNAPSHOT_PHASE="$phase"
   adb logcat -d > "$OUT/$phase-logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity exit-info "$PKG" > "$OUT/$phase-exit-info.txt" 2>&1 || true
   adb shell dumpsys activity activities > "$OUT/$phase-activities.txt" 2>&1 || true
@@ -212,7 +245,26 @@ adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
 launch
 sleep "$BOOT_WAIT"
 snapshot_launch second-boot
-if [ -s "$OUT/second-boot-pid.txt" ] && grep -qE "[0-9]" "$OUT/second-boot-pid.txt" && dump2=$(ui_dump); then
+# A boot the SYSTEM ended is retried; a crash we caused is not.
+#   - renderer_kill_evidence: the activity's own WebView process was killed by
+#     the OS (reason=13 "other kills by the system") and the app died with it.
+#   - dependency_kill_evidence: the persistent Google Play services process (a
+#     shared, out-of-process FontsProvider) died and took its client with it
+#     (reason=12 "dependency died"), which is an emulator infrastructure flake,
+#     not this app's defect. Neither is quietly forgiven: both are reported, and
+#     a boot that never came back still fails the run.
+if ! alive && { renderer_kill_evidence || dependency_kill_evidence; }; then
+  echo "::warning::the system ended the app or its renderer on the second launch — relaunching once"
+  echo "::notice::ArenaPilot: the system (not the app) ended the second launch; relaunched once"
+  # Write the dead boot's pid file as well: it is evidence that the app was
+  # gone, and the relaunch's own file is the one the gate reads.
+  printf '%s\n' "$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')" > "$OUT/second-boot-pid.txt"
+  launch
+  sleep "$BOOT_WAIT"
+  snapshot_launch second-boot-retry
+fi
+SECOND_EVIDENCE="$OUT/${LAST_SNAPSHOT_PHASE:-second-boot}-pid.txt"
+if [ -s "$SECOND_EVIDENCE" ] && grep -qE "[0-9]" "$SECOND_EVIDENCE" && dump2=$(ui_dump); then
   printf '%s' "$dump2" > "$OUT/ui-second.xml"
   if grep -q "$NOTICE_TEXT" <<<"$dump2"; then
     echo "::error::the notice came back on the second launch — 'seen' was not persisted"; STATUS=1
@@ -272,14 +324,20 @@ fact() { grep -aq "$1" "$OUT/logcat.txt" && echo yes || echo no; }
 UI_READY=$(fact "Engine UI ready")
 CAP=$(fact "Launch screen cap reached")
 INJ=$(fact "injected.js done")
-echo "engine UI ready: $UI_READY | launch-screen cap reached: $CAP | injected.js done: $INJ"
-echo "::notice::ArenaPilot runtime: engine UI ready=$UI_READY, launch-screen cap reached=$CAP, injected.js done=$INJ"
-if [ "$UI_READY" = "no" ] && [ "$CAP" = "yes" ]; then
+# Only a cap the engine's readiness never beat is a problem. Both markers can be
+# present on a cold start (the cap is armed before the page commits, the ready
+# signal arrives later), so "cap=yes" alone says nothing about the launch. When
+# the ready marker is there, the cap never became the reason the screen lifted.
+CAP_HIT=no
+if [ "$CAP" = "yes" ] && [ "$UI_READY" = "no" ]; then CAP_HIT=yes; fi
+echo "engine UI ready: $UI_READY | launch-screen cap reached: $CAP_HIT | injected.js done: $INJ"
+echo "::notice::ArenaPilot runtime: engine UI ready=$UI_READY, launch-screen cap reached=$CAP_HIT, injected.js done=$INJ"
+if [ "$CAP_HIT" = "yes" ]; then
   echo "::warning::ArenaPilot: the launch screen only lifted at its 18 s cap — the engine UI never signalled ready on the page"
 fi
 
 # Page JavaScript errors, first few distinct ones, long opaque strings masked.
-ERRS=$(grep -a "CONSOLE" "$OUT/logcat.txt" 2>/dev/null | grep -aE "Uncaught|\[SDS|\[SuperDeepSeek|\[BDS" \
+ERRS=$(grep -a "CONSOLE" "$OUT/logcat.txt" 2>/dev/null | grep -aE "Uncaught|\[APH|\[ArenaPilot|\[BDS" \
   | sed -E 's/[A-Za-z0-9_-]{30,}/<opaque>/g' | cut -c1-230 | sort -u | head -5)
 if [ -n "$ERRS" ]; then
   echo "page console errors / engine warnings:"; echo "$ERRS"
@@ -296,7 +354,8 @@ fi
 echo "== CDP probe =="
 DEVTOOLS_PID=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' | awk '{print $1}')
 if [ -n "$DEVTOOLS_PID" ] && adb forward tcp:9222 "localabstract:webview_devtools_remote_$DEVTOOLS_PID" >/dev/null 2>&1; then
-  if ! timeout 240 node android/ci/cdp_probe.mjs --port 9222 --out "$OUT" --capture tools/arena-capture/capture.js --required "$STRICT"; then
+  if ! timeout 240 node android/ci/cdp_probe.mjs --port 9222 --out "$OUT" --capture tools/arena-capture/capture.js --required "$STRICT" 2> "$OUT/cdp-probe.err"; then
+    [ -s "$OUT/cdp-probe.err" ] && { echo "cdp probe stderr:"; tail -20 "$OUT/cdp-probe.err"; }
     echo "::warning::the CDP probe did not finish or its runtime gate failed"
     [ "$STRICT" = "1" ] && STATUS=1
   fi

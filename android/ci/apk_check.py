@@ -27,8 +27,9 @@ from pathlib import Path
 
 EXPECT_PACKAGE = "com.arenadeck.app"
 EXPECT_LABEL = "ArenaPilot"
-# The Kotlin lives in the historical `com.superdeepseek.app` namespace.
-LAUNCHER_ACTIVITY = "com.superdeepseek.app.MainActivity"
+# The Kotlin package is com.arenadeck.app; LAUNCHER_ACTIVITY is the full class
+# name so a future namespace change cannot silently break the check.
+LAUNCHER_ACTIVITY = "com.arenadeck.app.MainActivity"
 SOURCE_SET = "main"  # single app, single source set since the 2026-10-15 cleanup
 ART = [
     "mipmap-mdpi/ic_launcher_foreground.png",

@@ -8,11 +8,11 @@
 
 AI agent · Linux Studio · model picker · thinking chips · MCP tools · Deep Research
 
-[![Download APK](https://img.shields.io/badge/Download-APK-4d6bfe?style=for-the-badge&logo=android&logoColor=white)](https://github.com/themuhammad-personal/Super-Deepseek-/releases/download/arena-latest/arenapilot-latest.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-4d6bfe?style=for-the-badge&logo=android&logoColor=white)](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)
 &nbsp;
-[![Latest build](https://img.shields.io/badge/Release-arena--latest-1f2233?style=for-the-badge)](https://github.com/themuhammad-personal/Super-Deepseek-/releases/tag/arena-latest)
+[![Latest build](https://img.shields.io/badge/Release-arena--latest-1f2233?style=for-the-badge)](https://github.com/themuhammad-personal/Arenapilot/releases)
 
-[![Build](https://github.com/themuhammad-personal/Super-Deepseek-/actions/workflows/build-and-release-apk.yml/badge.svg)](https://github.com/themuhammad-personal/Super-Deepseek-/actions/workflows/build-and-release-apk.yml)
+[![Build](https://github.com/themuhammad-personal/Arenapilot/actions/workflows/build-and-release-apk.yml/badge.svg)](https://github.com/themuhammad-personal/Arenapilot/actions/workflows/build-and-release-apk.yml)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -66,7 +66,7 @@ The plan with acceptance criteria for every phase is in
 
 ## Install
 
-1. Download **[arenapilot-latest.apk](https://github.com/themuhammad-personal/Super-Deepseek-/releases/download/arena-latest/arenapilot-latest.apk)**
+1. Download **[arenapilot-latest.apk](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)**
    on your phone (Android 8.0+).
 2. Open it and allow installing from this source when Android asks.
 3. Sign in with your arena.ai account. That's it.
@@ -146,7 +146,7 @@ Without the sandbox step the app still builds and works, just without Linux.
 CI ([build-and-release-apk.yml](.github/workflows/build-and-release-apk.yml)) runs the same
 steps, boots the real APK on an API-34 emulator, reads the real arena.ai page over DevTools,
 verifies the APK signature and publishes every build to the
-[`arena-latest`](https://github.com/themuhammad-personal/Super-Deepseek-/releases/tag/arena-latest)
+[`arena-latest`](https://github.com/themuhammad-personal/Arenapilot/releases)
 release channel. What is verified and what is still unknown is in
 [docs/arena/REPORT-BN.md](docs/arena/REPORT-BN.md).
 
@@ -157,7 +157,7 @@ release channel. What is verified and what is still unknown is in
 
 | Path | What lives there |
 |---|---|
-| `android/app/src/main/java/com/superdeepseek/app/` | Kotlin shell: `MainActivity`, `WebViewBridge`, the sandbox (`Sandbox`, `SandboxTools`, `SandboxService`) and Linux Studio (`StudioActivity`, `StudioPreview`). The Kotlin namespace is historical; the app's id is `com.arenadeck.app`. |
+| `android/app/src/main/java/com/arenadeck/app/` | Kotlin shell: `MainActivity`, `WebViewBridge`, the sandbox (`Sandbox`, `SandboxTools`, `SandboxService`) and Linux Studio (`StudioActivity`, `StudioPreview`). The Kotlin package is `com.arenadeck.app`, the same as the app id. |
 | `android/app/src/main/bds-assets/bds/` | The engine bundle (`content.js`, `injected.js`, `sd-agent.js`, styles, sandbox pages) |
 | `android/app/src/test/` | JVM unit tests (`java/`) and engine tests (`js/`) |
 | `docs/` | Architecture notes, the roadmap and third-party licenses |
@@ -180,7 +180,7 @@ The app only contacts other services when a feature needs them:
 ## Contributing
 
 Issues and pull requests are welcome, especially bug reports with screenshots, and new commands
-or tools. [Open an issue →](https://github.com/themuhammad-personal/Super-Deepseek-/issues/new)
+or tools. [Open an issue →](https://github.com/themuhammad-personal/Arenapilot/issues/new)
 
 ## License
 

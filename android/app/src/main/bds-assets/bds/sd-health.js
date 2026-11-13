@@ -1,5 +1,5 @@
 /**
- * Super DeepSeek — DeepSeek DOM health check.
+ * ArenaPilot — DeepSeek DOM health check.
  *
  * The engine leans on DeepSeek's DOM, including hashed class names that can
  * change with any site update. When one of them drifts, features must NOT
@@ -100,8 +100,8 @@
     sendProvesChat: true,
     notice: function (names) {
       return {
-        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in Super DeepSeek until the next update. Your chat keeps working.',
-        bn: 'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে।',
+        en: 'DeepSeek updated their page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working. ' + HOW,
+        bn: 'ডিপসিক তাদের পেজ আপডেট করেছে, তাই সুপার ডিপসিক-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে। ' + HOW_BN,
       };
     },
   };
@@ -181,8 +181,8 @@
       sendProvesChat: false,
       notice: function (names) {
         return {
-          en: 'arena.ai may have changed its page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working.',
-          bn: 'arena.ai তাদের পেজ বদলে থাকতে পারে, তাই ArenaPilot-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে।',
+          en: 'arena.ai may have changed its page, so ' + names.en + ' may be paused in ArenaPilot until the next update. Your chat keeps working. ' + HOW,
+          bn: 'arena.ai তাদের পেজ বদলে থাকতে পারে, তাই ArenaPilot-এ ' + names.bn + ' পরবর্তী আপডেট পর্যন্ত সাময়িকভাবে বন্ধ থাকতে পারে। আপনার চ্যাট চলতেই থাকবে। ' + HOW_BN,
         };
       },
     };
@@ -208,6 +208,18 @@
   }
 
   function t(en, bn) { return isBn() ? bn : en; }
+
+  /**
+   * What the user can DO about a health warning.
+   *
+   * The warning used to end at "may be paused", which leaves a non-technical
+   * user with nothing to act on — and the app has no in-app store listing where
+   * they could find a newer version. The real advice is: reload once, then pull
+   * the update from the app's own settings row (which exists on both sites), and
+   * the version to look for is printed by that row.
+   */
+  var HOW = 'Pull down to reload once; if it stays like this, open Settings → About and check for an update.';
+  var HOW_BN = 'একবার নিচে টেনে রিলোড করুন; তাতেও না হলে Settings → About-এ গিয়ে আপডেট দেখুন।';
 
   function firstMatch(selectors) {
     for (var i = 0; i < selectors.length; i++) {
@@ -301,6 +313,10 @@
 
   var last = null;
   var lastNotice = null;
+  /** The failure set the on-screen notice is about, so a LATER drift still speaks. */
+  var noticeFor = null;
+  /** Set when the user dismisses a notice; only that exact failure set stays quiet. */
+  var dismissedFor = null;
 
   function noticeText(report) {
     return SITE.notice(namesFor(report.failed));
@@ -309,6 +325,10 @@
   function showNotice(report) {
     var text = noticeText(report);
     lastNotice = isBn() ? text.bn : text.en;
+    // A notice nothing rendered is not a notice. Recording "shown" before this
+    // point made a broken page look like a delivered warning: the toast may not
+    // exist and the banner needs document.body. Only the last success records it.
+    var rendered = false;
     try {
       if (window.__sdEngine && typeof window.__sdEngine.toast === 'function') {
         window.__sdEngine.toast(lastNotice);
@@ -316,8 +336,16 @@
     } catch (_) {}
     try {
       if (!document.body) return;
+      var key = report.failed.slice().sort().join(',');
+      if (dismissedFor === key) return; // this exact drift was dismissed by the user
       var old = document.getElementById('sd-health-notice');
-      if (old) return; // one notice at a time, shown once per session
+      // One notice at a time — but a DIFFERENT drift replaces the visible one
+      // instead of being swallowed by it. The old `if (old) return;` meant the
+      // first (often transient, right after a route change) failure hid every
+      // later, real one for the rest of the session.
+      if (old && noticeFor === key) return;
+      if (old) { try { old.remove(); } catch (_) {} }
+      noticeFor = key;
       var el = document.createElement('div');
       el.id = 'sd-health-notice';
       el.setAttribute('role', 'status');
@@ -335,11 +363,16 @@
       x.textContent = '✕';
       x.style.cssText = 'flex:none;border:0;background:transparent;color:#f1f1f3;opacity:.7;' +
         'font:600 14px/1 system-ui;padding:4px 6px';
-      x.addEventListener('click', function () { el.remove(); });
+      x.addEventListener('click', function () {
+        dismissedFor = noticeFor;
+        el.remove();
+      });
       el.appendChild(msg);
       el.appendChild(x);
       document.body.appendChild(el);
+      rendered = true;
     } catch (_) {}
+    if (!rendered) return;
     try {
       var b = window.AndroidBridge;
       if (b && typeof b.setStorage === 'function') b.setStorage(NOTICE_SHOWN_KEY, String(Date.now()));
@@ -349,7 +382,17 @@
   function check() {
     var report = evaluate(null);
     last = report;
-    if (!report.ok && report.visible) showNotice(report);
+    if (!report.ok && report.visible) {
+      showNotice(report);
+    } else if (report.ok) {
+      // Recovered (the route rendered, the composer is back): retract the
+      // warning instead of leaving a stale "paused" notice over a working page.
+      try {
+        var stale = document.getElementById('sd-health-notice');
+        if (stale) stale.remove();
+      } catch (_) {}
+      noticeFor = null;
+    }
     return report;
   }
 

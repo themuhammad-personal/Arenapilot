@@ -2,7 +2,7 @@
 // independence notice.
 //
 // Since the 2026-10-15 cleanup this repository builds ONE app: ArenaPilot
-// (com.arenadeck.app). The old Super DeepSeek/ArenaPilot product-flavor split
+// (com.arenadeck.app). The old ArenaPilot/ArenaPilot product-flavor split
 // is gone — the launcher art, the brand strings and the notice now live in the
 // single `main` source set. These tests pin that identity:
 //   * the app's name, boot title and launcher art;
@@ -132,11 +132,11 @@ test('the notice discloses what the engine sends, and quotes the real setting la
 
 // ── 4. the notice itself ────────────────────────────────────────────────────
 
-const ARENA_NOTICE = path.join(MAIN_JAVA, 'com', 'superdeepseek', 'app', 'IndependenceNotice.kt');
+const ARENA_NOTICE = path.join(MAIN_JAVA, 'com', 'arenadeck', 'app', 'IndependenceNotice.kt');
 
 test('ArenaPilot’s notice is shown once, never nags, and cannot crash the launch', () => {
   const kt = read(ARENA_NOTICE);
-  assert.match(kt, /^package com\.superdeepseek\.app$/m);
+  assert.match(kt, /^package com\.arenadeck\.app$/m);
   assert.match(kt, /internal object IndependenceNotice/);
   assert.match(kt, /fun maybeShow\(activity: Activity\)/);
   assert.ok(kt.includes('R.string.arena_notice_title'));
@@ -155,7 +155,7 @@ test('ArenaPilot’s notice is shown once, never nags, and cannot crash the laun
 });
 
 test('MainActivity shows it after the launch screen, and no other code touches it', () => {
-  const main = read(MAIN_JAVA, 'com', 'superdeepseek', 'app', 'MainActivity.kt');
+  const main = read(MAIN_JAVA, 'com', 'arenadeck', 'app', 'MainActivity.kt');
   assert.equal(main.split('IndependenceNotice.maybeShow(').length - 1, 2);
 
   const exit = main.indexOf('view.onExitFinished = {');
@@ -172,4 +172,128 @@ test('MainActivity shows it after the launch screen, and no other code touches i
     if (file.endsWith('MainActivity.kt') || file.endsWith('IndependenceNotice.kt')) continue;
     assert.ok(!read(MAIN_JAVA, file).includes('IndependenceNotice'), `${file} must not reference the notice`);
   }
+});
+
+// ── User-facing links point at the app that actually ships ──────────────────
+// The bundle's "what's new" links, the issue links, the settings help links and
+// the model's own prompt all named the previous repository. That repository is
+// still public and still serves a `super-deepseek-latest.apk` — a DIFFERENT app
+// — so every one of those links sent users to an installer that is not this app.
+
+test('no user-facing link or prompt points at the retired repository', () => {
+  const content = read(SRC, 'main', 'bds-assets', 'bds', 'content.js');
+  const site = read(SRC, 'main', 'bds-assets', 'bds', 'sd-site.js');
+  for (const [name, src] of [['content.js', content], ['sd-site.js', site]]) {
+    assert.equal(
+      (src.match(/themuhammad-personal\/Super-Deepseek-/g) || []).length,
+      0,
+      `${name} still links to the repo that publishes a different app`,
+    );
+  }
+  const links = content.match(/https:\/\/github\.com\/themuhammad-personal\/[A-Za-z0-9_.-]+/g) || [];
+  assert.ok(links.length > 0, 'the engine still links somewhere');
+  for (const link of links) {
+    assert.equal(
+      link,
+      'https://github.com/themuhammad-personal/Arenapilot',
+      `an unexpected repository link remains: ${link}`,
+    );
+  }
+});
+
+// ── The app does not name the software it started from ──────────────────────
+// Owner decision (2026-11-12): "remove the Super DeepSeek dependency and anything
+// else outside this app". The old name had reached the Kotlin package, the theme,
+// the sandbox shell profile, the engine's product strings, the tool-tag prefix the
+// model is taught, and the prompt sent to the site. None of that is this app.
+
+/** Files a user can see the output of: the shell, the theme, and the engine. */
+function shippedSources() {
+  const out = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(kt|xml|js|css)$/.test(entry.name)) out.push(full);
+    }
+  };
+  walk(path.join(SRC, 'main'));
+  return out.filter((f) => !f.includes(`${path.sep}assets${path.sep}`)); // staged copy of bds
+}
+
+const OLD_NAMES = [/Super DeepSeek/, /SuperDeepSeek/, /superdeepseek/, /Better ?DeepSeek/];
+// The one-time migration has to be able to RECOGNISE old stored data, and the
+// engine must still parse old tag prefixes; those two functions are the exception.
+const EXEMPT = new Set(['sdsRebrandStored', 'pxe', 'RG', 'B']);
+
+test('no shipped source names the old product (except the readers that must recognise it)', () => {
+  const offenders = [];
+  for (const file of shippedSources()) {
+    if (file.endsWith('.jks')) continue;
+    let src = fs.readFileSync(file, 'utf8');
+    // drop the migration/reader functions: they exist to understand old data
+    src = src
+      .replace(/async function sdsRebrandStored\(\)\{[\s\S]*?\}function /, 'function ')
+      .replace(/function (?:pxe|RG|B)\([\s\S]*?\nfunction /g, 'function ');
+    for (const re of OLD_NAMES) {
+      const hit = src.match(re);
+      if (hit) offenders.push(`${path.relative(SRC, file)}: ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], 'the old product name is back in shipped code');
+});
+
+test('the package, theme and sandbox profile are ArenaPilot’s', () => {
+  const manifest = read(SRC, 'main', 'AndroidManifest.xml');
+  assert.doesNotMatch(manifest, /Theme\.SuperDeepSeek/);
+  assert.match(manifest, /Theme\.ArenaPilot/);
+  const gradle = read(SRC, '..', 'build.gradle.kts');
+  assert.match(gradle, /namespace = "com\.arenadeck\.app"/);
+  const sandbox = read(MAIN_JAVA, 'com', 'arenadeck', 'app', 'Sandbox.kt');
+  assert.match(sandbox, /etc\/profile\.d\/arenapilot\.sh/);
+});
+
+test('the model is taught the prefix its own parser accepts', () => {
+  const content = read(SRC, 'main', 'bds-assets', 'bds', 'content.js');
+  const site = read(SRC, 'main', 'bds-assets', 'bds', 'sd-site.js');
+  // The prompt the model reads must use APH:, and nothing may teach BDS:/SDS:.
+  for (const [name, src] of [['content.js', content], ['sd-site.js', site]]) {
+    const taught = (src.match(/<(?:APH|[BS]DS):[A-Za-z_]/g) || []);
+    assert.ok(taught.length > 0, `${name} teaches no tags at all`);
+    assert.ok(taught.every((t) => t.startsWith('<APH:')), `${name} still teaches ${taught.find((t) => !t.startsWith('<APH:'))}`);
+  }
+  // A tag written today must parse — the failure this test exists for was a
+  // rename that taught APH: while the parser only knew [BS]DS.
+  assert.match(content, /\(\?:APH\|\[BS\]DS\)/, 'the parser no longer accepts both prefixes');
+});
+
+// ── The model list, and why it is native ────────────────────────────────────
+// The owner's screenshot: the site's model picker opens blank. The list is a
+// release asset of THIS repo (models.json) plus a cache plus the copy in the APK.
+test('the model list is served natively, from this repo, with three fallbacks', () => {
+  const bridge = read(MAIN_JAVA, 'com', 'arenadeck', 'app', 'WebViewBridge.kt');
+  const models = read(MAIN_JAVA, 'com', 'arenadeck', 'app', 'ModelList.kt');
+  assert.match(bridge, /"bds-model-list"/, 'the page cannot ask for the list');
+  assert.match(bridge, /"bds-model-list-cache"/, 'there is no offline path');
+  assert.match(bridge, /"bds-model-list-capture"/, 'a good site response is never kept');
+  // Three sources in order: download, cache, bundled.
+  assert.match(bridge, /"remote"/);
+  assert.match(bridge, /"cache"/);
+  assert.match(bridge, /"bundled"/);
+  // And the URL is this repository's release, not someone else's CDN.
+  assert.match(models, /github\.com\/\$owner\/\$repo\/releases\/download/);
+  assert.doesNotMatch(models, /cdn\.|jsdelivr|unpkg/);
+});
+
+test('the published list and the copy in the APK are the same file', () => {
+  const repoRoot = path.resolve(SRC, '..', '..', '..'); // → the checkout root
+  const staged = fs.readFileSync(path.join(repoRoot, 'models.json'), 'utf8');
+  const published = JSON.parse(staged);
+  assert.ok(Array.isArray(published.models) && published.models.length > 0, 'a shipped empty list is an empty picker');
+  for (const m of published.models) {
+    assert.ok(m.id && m.name, `model without id/name: ${JSON.stringify(m)}`);
+  }
+  // The build stages exactly this file; a second copy would drift.
+  const gradle = read(SRC, '..', 'build.gradle.kts');
+  assert.match(gradle, /from\(rootProject\.file\("\.\.\/models\.json"\)\)/);
 });

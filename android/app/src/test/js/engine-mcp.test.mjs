@@ -53,7 +53,7 @@ function setup({ results = {}, inlineMax = 8000 } = {}) {
   return { ctx, sent, calls };
 }
 
-const blocks = (text) => [...text.matchAll(/\[SDS:AUTO_MCP_(RESULT|ERROR)\]\n(.*)\n/g)].map((m) => ({ kind: m[1], ...JSON.parse(m[2]) }));
+const blocks = (text) => [...text.matchAll(/\[APH:AUTO_MCP_(RESULT|ERROR)\]\n(.*)\n/g)].map((m) => ({ kind: m[1], ...JSON.parse(m[2]) }));
 
 test('one call → one quiet sandbox result, same format as before', async () => {
   const { ctx, sent } = setup();
@@ -61,8 +61,8 @@ test('one call → one quiet sandbox result, same format as before', async () =>
   assert.equal(sent.length, 1);
   assert.equal(sent[0].kind, 'text');
   assert.equal(sent[0].label, 'Sandbox result');
-  assert.match(sent[0].text, /^<SuperDeepSeek>\n\[SDS:AUTO\] MCP Result for run @ sandbox:\/\/linux\n\[SDS:AUTO_MCP_RESULT\]\n/);
-  assert.match(sent[0].text, /\n\[\/SDS:AUTO_MCP_RESULT\]\n<\/SuperDeepSeek>$/);
+  assert.match(sent[0].text, /^<ArenaPilot>\n\[APH:AUTO\] MCP Result for run @ sandbox:\/\/linux\n\[APH:AUTO_MCP_RESULT\]\n/);
+  assert.match(sent[0].text, /\n\[\/APH:AUTO_MCP_RESULT\]\n<\/ArenaPilot>$/);
   assert.equal(blocks(sent[0].text)[0].content, 'ok:run');
 });
 
@@ -80,7 +80,7 @@ test('several calls in one reply → run in order, answered by ONE message', asy
   const b = blocks(sent[0].text);
   assert.deepEqual(b.map((x) => [x.kind, x.toolName]), [['RESULT', 'write_file'], ['ERROR', 'read_file'], ['RESULT', 'run']]);
   assert.equal(b[1].error, 'no such file');
-  assert.equal((sent[0].text.match(/<SuperDeepSeek>/g) || []).length, 1);
+  assert.equal((sent[0].text.match(/<ArenaPilot>/g) || []).length, 1);
 });
 
 test('a big single sandbox result is attached as a file; in a batch it is truncated inline', async () => {
@@ -124,14 +124,14 @@ test('later batches wait for the earlier one', async () => {
 test('renderer parses every result and error card of a combined message', () => {
   const { ctx } = setup();
   const msg = [
-    '<SuperDeepSeek>',
-    '[SDS:AUTO] MCP Result for run @ sandbox://linux', '[SDS:AUTO_MCP_RESULT]',
+    '<ArenaPilot>',
+    '[APH:AUTO] MCP Result for run @ sandbox://linux', '[APH:AUTO_MCP_RESULT]',
     JSON.stringify({ serverName: 'sandbox://linux', toolName: 'run', args: { command: 'ls' }, content: 'a\nb' }),
-    '[/SDS:AUTO_MCP_RESULT]', '',
-    '[SDS:AUTO] MCP call failed for read_file @ sandbox://linux', '[SDS:AUTO_MCP_ERROR]',
+    '[/APH:AUTO_MCP_RESULT]', '',
+    '[APH:AUTO] MCP call failed for read_file @ sandbox://linux', '[APH:AUTO_MCP_ERROR]',
     JSON.stringify({ serverName: 'sandbox://linux', toolName: 'read_file', args: {}, error: 'nope' }),
-    '[/SDS:AUTO_MCP_ERROR]',
-    '</SuperDeepSeek>',
+    '[/APH:AUTO_MCP_ERROR]',
+    '</ArenaPilot>',
   ].join('\n');
   const b = JSON.parse(JSON.stringify(ctx.sdMcpBlocks(msg)));
   assert.deepEqual(b.map((x) => [x.name, x.attrs.toolName, x.content]), [

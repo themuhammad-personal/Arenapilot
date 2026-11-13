@@ -21,7 +21,7 @@ sys.path.insert(0, str(HERE))
 import apk_check  # noqa: E402
 
 ARENA = ("com.arenadeck.app", "ArenaPilot")
-SD = ("com.superdeepseek.app", "Super DeepSeek")
+SD = ("com.arenadeck.app", "ArenaPilot")
 
 
 class ApkCheck(unittest.TestCase):
@@ -60,7 +60,7 @@ class ApkCheck(unittest.TestCase):
             "#!/bin/sh\ncat <<'EOF'\n"
             f"package: name='{package}' versionCode='1'\n"
             f"application-label:'{label}'\n"
-            "launchable-activity: name='com.superdeepseek.app.MainActivity'  label='' icon='' \nEOF\n"
+            "launchable-activity: name='com.arenadeck.app.MainActivity'  label='' icon='' \nEOF\n"
         )
         path.chmod(0o755)
         return str(path)

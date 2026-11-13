@@ -432,3 +432,56 @@ test('the seam is still exactly where it was', () => {
   assert.equal(times('function Y2t('), 1, 'and the installer itself is unmodified');
   assert.equal(times('bds-arena-menu-option'), 1, 'only the arena row carries the arena class');
 });
+
+// ── A settings row must open a page that can work on this site ──────────────
+// The API playground posts raw requests to the DeepSeek API. arena.ai has no
+// such API, and the profile flag that said so (`features.apiPlayground`) is
+// never read by the bundle — so the row stayed listed and opened a form that
+// could only ever fail. A settings row that cannot work is a promise the app
+// does not keep.
+
+test('the DeepSeek-only API playground is not offered on arena', () => {
+  const content = fs.readFileSync(
+    path.join(here, '../../main/bds-assets/bds/content.js'),
+    'utf8',
+  );
+  // The ROW's own sub-label is the one place that describes what the page does.
+  const sub = 'sdT("Send raw requests to the DeepSeek API"';
+  assert.ok(content.includes(sub), 'the API playground row still exists');
+  const rowStart = content.lastIndexOf('sdRow(dev', content.indexOf(sub));
+  assert.ok(rowStart > 0, 'the row is added by sdRow(dev, …)');
+  // The adding call must sit behind the arena check the rest of the engine uses.
+  const guard = content.lastIndexOf('if(!sdsIsArena())', content.indexOf(sub));
+  assert.ok(
+    guard > rowStart - 200 && guard < content.indexOf(sub),
+    'the row must be guarded by if(!sdsIsArena())',
+  );
+  // And the guard may not be a flag the bundle never reads.
+  const code = content.slice(guard, content.indexOf(sub)).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /features\.apiPlayground/);
+});
+
+// ── The settings check-up must be evidence, not reassurance ─────────────────
+// A "everything is fine" page is worse than none. Every check-up line has to
+// come from something that is actually read at runtime on this page, and the
+// page has to be reachable from the drawer.
+
+test('the check-up reads the live engine and is reachable from the drawer', () => {
+  const doctor = fnSource('sdBuildDoctor');
+  // Live signals, not stored copy:
+  for (const signal of ['__sdAgent', 'diagnose()', '__sdHealth', 'sdsIsArena()']) {
+    assert.ok(doctor.includes(signal), `the check-up never reads ${signal}`);
+  }
+  // It must be able to say "not on this site" — silence is the failure mode.
+  assert.match(doctor, /state:"off"/, 'the check-up cannot report an unusable feature');
+  assert.match(doctor, /state:"warn"/, 'the check-up cannot report a problem');
+
+  // Reachable: a drawer row and a page route.
+  assert.ok(
+    CONTENT.includes('onClick:function(){h.go("doctor")}'),
+    'no drawer row opens the check-up',
+  );
+  assert.ok(CONTENT.includes('case"doctor":'), 'the check-up page has no title');
+  const route = CONTENT.slice(CONTENT.indexOf('sdDocPg'));
+  assert.ok(route.includes('sdBuildDoctor'), 'the doctor page is not wired to the builder');
+});

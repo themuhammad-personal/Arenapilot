@@ -74,10 +74,30 @@ try {
   // Settings cleanup is intentionally deferred briefly so it cannot race Arena's
   // native React reconciliation. Wait for its final hidden-sheet state before
   // asserting layout; an immediate read sees the source rail's initial `pending`.
-  await wait(() => {
-    const rail = document.querySelector('#bds-settings-rail');
-    return !!(rail && rail.dataset && rail.dataset.dock === 'sheet' && getComputedStyle(rail).display === 'none');
-  });
+  //
+  // If the attribute is NOT settling, say so with the state instead of dying at
+  // the 10s timeout: the previous failure here reported only "pending !== sheet"
+  // from the assertion below, which hid whether the rail was still moving or two
+  // modules were overwriting each other's value.
+  try {
+    await wait(() => {
+      const rail = document.querySelector('#bds-settings-rail');
+      return !!(rail && rail.dataset && rail.dataset.dock === 'sheet' && getComputedStyle(rail).display === 'none');
+    }, 6000);
+  } catch (e) {
+    const state = await page.evaluate(() => {
+      const rail = document.querySelector('#bds-settings-rail');
+      return {
+        present: !!rail,
+        dock: rail && rail.dataset ? rail.dataset.dock : null,
+        display: rail ? getComputedStyle(rail).display : null,
+        siteId: window.__sdSite && window.__sdSite.id,
+      };
+    });
+    const err = new Error('the Settings rail never reached its final docked+hidden state: ' + JSON.stringify(state));
+    err.state = state;
+    throw err;
+  }
   const skinLayout = await page.evaluate(() => {
     const form = document.querySelector('form');
     const input = document.querySelector('textarea[name="message"]');
@@ -172,13 +192,13 @@ try {
   await send('Plain chat, no private context');
   await wait(() => window.__arena.replies.length === 1);
   // Roadmap 3 v2 defaults: app instructions are ON (the tools need the model to
-  // know the SDS protocol), stored memory is OFF. The user's words must still
+  // know the APH protocol), stored memory is OFF. The user's words must still
   // arrive verbatim, after the engine's own block and nothing else.
   const outgoing = await page.evaluate(() => window.__arena.outgoing[0].userMessage.content);
-  assert.ok(outgoing.startsWith('<SuperDeepSeek>\n'), 'instructions ride the first message by default');
+  assert.ok(outgoing.startsWith('<ArenaPilot>\n'), 'instructions ride the first message by default');
   assert.match(outgoing, /ArenaPilot/, 'the injected block is the app instructions');
   assert.ok(outgoing.endsWith('\n\nPlain chat, no private context'), 'the user text arrives verbatim at the end');
-  assert.doesNotMatch(outgoing, /SDS:memory_calls/, 'stored memory stays off by default');
+  assert.doesNotMatch(outgoing, /APH:memory_calls/, 'stored memory stays off by default');
   console.log('PASS Arena v2 privacy defaults through the real bundle: instructions on, memory off');
 
   // Native style reset, button replacement, and group replacement while the engine
@@ -443,7 +463,7 @@ try {
 
   // Scripted assistant, not a real model. Assert actual widget rendering, not
   // the presence of a tag or selector in source code.
-  await page.evaluate(() => { window.__arena.beats = ['<SDS:VISUALIZER><html><body><h1>ARENA_WIDGET_OK</h1></body></html></SDS:VISUALIZER>']; });
+  await page.evaluate(() => { window.__arena.beats = ['<APH:VISUALIZER><html><body><h1>ARENA_WIDGET_OK</h1></body></html></APH:VISUALIZER>']; });
   stage = 'visualizer';
   await send('Show the fixture widget');
   await wait(() => !!document.querySelector('.bds-visualizer-container, .bds-visualizer-card, iframe[srcdoc]'), 15000);
@@ -452,12 +472,12 @@ try {
   const widgetFrame = await widget.contentFrame();
   await widgetFrame.waitForFunction(() => document.body.textContent.includes('ARENA_WIDGET_OK'));
   await wait(() => !window.__arena.streaming);
-  await wait(() => !document.querySelector('#thread').innerText.includes('</SDS:VISUALIZER>'));
+  await wait(() => !document.querySelector('#thread').innerText.includes('</APH:VISUALIZER>'));
   await shot(page, 'arena-visualizer');
   console.log('PASS assistant tag reaches Visualizer renderer');
 
   await page.evaluate(() => {
-    window.__arena.beats = ['<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"printf ARENA_TOOL_OK"}</SDS:AUTO:MCP>', 'Verified fixture result.'];
+    window.__arena.beats = ['<APH:AUTO:MCP url="sandbox" tool="run">{"command":"printf ARENA_TOOL_OK"}</APH:AUTO:MCP>', 'Verified fixture result.'];
     window.__setSandboxOutputs({ run: 'ARENA_TOOL_OK' });
   });
   stage = 'sandbox-loop';
@@ -472,7 +492,7 @@ try {
   assert.equal(mcpCalls(await bridgeState(page)).length, 1);
   await shot(page, 'arena-agent');
   console.log('PASS assistant → fake sandbox → result → follow-up, exactly once');
-  await send('Quoted user text only: <SDS:AUTO:MCP url="sandbox" tool="run">{"command":"MUST_NOT_RUN"}</SDS:AUTO:MCP>');
+  await send('Quoted user text only: <APH:AUTO:MCP url="sandbox" tool="run">{"command":"MUST_NOT_RUN"}</APH:AUTO:MCP>');
   await wait(() => !window.__arena.streaming && window.__arena.sent.some((t) => t.startsWith('Quoted user')));
   await page.evaluate(() => window.__sdEngine.reprocess());
   assert.equal(mcpCalls(await bridgeState(page)).length, 1, 'user tool tags never execute');
@@ -508,14 +528,14 @@ try {
   await installEngine(page);
   await wait(() => document.querySelector('.bds-plus-btn'));
   assert.equal(await page.evaluate(() => window.__sdEngine.messageNodes().length), 2, 'plain list: seeded rows found, h-0 spacer skipped');
-  await page.evaluate(() => { window.__arena.beats = ['<SDS:VISUALIZER><html><body><h1>ARENA_MT8_OK</h1></body></html></SDS:VISUALIZER>']; });
+  await page.evaluate(() => { window.__arena.beats = ['<APH:VISUALIZER><html><body><h1>ARENA_MT8_OK</h1></body></html></APH:VISUALIZER>']; });
   await send('Widget on the plain list');
   await wait(() => !!document.querySelector('iframe[srcdoc]'), 15000);
   const mt8Widget = await page.$('iframe[srcdoc]');
   const mt8Frame = await mt8Widget.contentFrame();
   await mt8Frame.waitForFunction(() => document.body.textContent.includes('ARENA_MT8_OK'));
   await wait(() => !window.__arena.streaming);
-  await wait(() => !document.querySelector('#thread').innerText.includes('</SDS:VISUALIZER>'));
+  await wait(() => !document.querySelector('#thread').innerText.includes('</APH:VISUALIZER>'));
   console.log('PASS plain ol.mt-8 thread list: rows found in order, spacer skipped, widget rendered');
   assert.deepEqual(errors, [], 'no runtime errors');
 } catch (error) {

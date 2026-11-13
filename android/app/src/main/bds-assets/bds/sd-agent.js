@@ -1,11 +1,11 @@
 /*
- * Super DeepSeek — agent glue for the built-in Linux sandbox (loaded after
+ * ArenaPilot — agent glue for the built-in Linux sandbox (loaded after
  * sd-native.js).
  *
  * The sandbox is exposed to the engine as an MCP server named "sandbox"
  * (url sandbox://linux) that the native side implements. The engine then
  * does the agent loop by itself: the model writes
- *   <SDS:AUTO:MCP url="sandbox" tool="run">{"command":"…"}</SDS:AUTO:MCP>
+ *   <APH:AUTO:MCP url="sandbox" tool="run">{"command":"…"}</APH:AUTO:MCP>
  * the engine calls the tool and sends the result back as the next message.
  *
  * This file adds what the loop needs on a phone:
@@ -102,11 +102,11 @@
     return a;
   }
 
-  /** Every <SDS:AUTO:MCP …>body</SDS:AUTO:MCP> (or self-closing) tag, in order. */
+  /** Every <APH:AUTO:MCP …>body</APH:AUTO:MCP> (or self-closing) tag, in order. */
   function parseTags(text) {
     var out = [];
     var s = String(text || '');
-    var re = /<[BS]DS:(?:AUTO:)?MCP\b/gi;
+    var re = /<(?:APH|[BS]DS):(?:AUTO:)?MCP\b/gi;
     var m;
     while ((m = re.exec(s))) {
       var i = m.index + m[0].length;
@@ -124,7 +124,7 @@
       var body = '';
       var end = i + 1;
       if (!selfClosing) {
-        var close = /<\/[BS]DS:(?:AUTO:)?MCP\s*>/gi;
+        var close = /<\/(?:APH|[BS]DS):(?:AUTO:)?MCP\s*>/gi;
         close.lastIndex = i + 1;
         var cm = close.exec(s);
         if (cm) { body = s.slice(i + 1, cm.index); end = cm.index + cm[0].length; }
@@ -543,7 +543,7 @@
 
   /** Last line of the prose, without code blocks. */
   function tailLine(text) {
-    var s = String(text || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/<[BS]DS:[\s\S]*$/i, ' ');
+    var s = String(text || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/<(?:APH|[BS]DS):[\s\S]*$/i, ' ');
     var lines = s.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
     return lines.length ? lines[lines.length - 1].slice(-300) : '';
   }
@@ -557,7 +557,7 @@
 
   /** The reply (before any tool tag) ends with a code block. */
   function endsWithBlock(text) {
-    var s = String(text || '').replace(/<[BS]DS:[\s\S]*$/i, '').trim();
+    var s = String(text || '').replace(/<(?:APH|[BS]DS):[\s\S]*$/i, '').trim();
     return /```\s*$/.test(s);
   }
 
@@ -574,7 +574,7 @@
 
   function isToolResultMessage(m) {
     var text = messageText(m);
-    return /\[[BS]DS:AUTO_MCP_(RESULT|ERROR)\]|\[[BS]DS:AUTO\] Agent continue/.test(text);
+    return /\[(?:APH|[BS]DS):AUTO_MCP_(RESULT|ERROR)\]|\[(?:APH|[BS]DS):AUTO\] Agent continue/.test(text);
   }
 
   /** What to tell the model, or null when the reply is fine as it is. */
@@ -608,7 +608,7 @@
     if (!e || typeof e.sendQuiet !== 'function') return;
     // A user-tapped Continue never spends the automatic keep-going budget.
     if (countBudget !== false) flow.nudges++;
-    e.sendQuiet(['<SuperDeepSeek>', '[SDS:AUTO] Agent continue', body, '</SuperDeepSeek>'].join('\n'), 'Agent continue');
+    e.sendQuiet(['<ArenaPilot>', '[APH:AUTO] Agent continue', body, '</ArenaPilot>'].join('\n'), 'Agent continue');
   }
 
   function maybeNudge(callsAtEnd) {
@@ -1592,9 +1592,50 @@
   install();
 
   window.__sdSandboxServers = sandboxServers;
+  /**
+   * One plain-language answer to "why is nothing happening?".
+   *
+   * The owner's report -- "the features are all there but none of them work"
+   * -- was impossible to act on because every failure looked the same from the
+   * outside: a model that ignored the protocol, a page whose request shape
+   * changed, a sandbox that is switched off. This reports the facts the engine
+   * actually knows, so a screenshot of it is a usable bug report.
+   */
+  function diagnose() {
+    var out = { version: 1, site: null, mode: null, composer: false, send: false,
+      generating: false, sandbox: null, agent: null, health: null, tools: null };
+    try { out.site = (window.__sdSite && window.__sdSite.id) || null; } catch (_) {}
+    try { out.mode = window.__sdSite && typeof window.__sdSite.arenaMode === 'function'
+      ? window.__sdSite.arenaMode() : null; } catch (_) {}
+    try { out.composer = !!document.querySelector('textarea[name="message"]'); } catch (_) {}
+    try { out.send = !!document.querySelector('button[aria-label="Send message"]'); } catch (_) {}
+    try { out.generating = generating(); } catch (_) {}
+    try {
+      var i = info();
+      out.sandbox = { supported: !!i.supported, enabled: i.enabled !== false, installed: !!i.installed,
+        active: Number(i.active) || 0, mode: i.mode || null, reason: i.reason || null };
+    } catch (_) { out.sandbox = { error: 'unavailable' }; }
+    out.agent = { active: state.active, pending: state.pending, nudges: flow.nudges, calls: flow.calls,
+      stopped: !!window.__sdAgentStopped };
+    try {
+      if (window.__sdHealth && typeof window.__sdHealth.status === 'function') {
+        var h = window.__sdHealth.status();
+        out.health = { ok: !!h.ok, failed: h.failed || [], visible: !!h.visible };
+      }
+    } catch (_) {}
+    try {
+      var schemas = window.__sdEngine && window.__sdEngine.mcpToolSchemas;
+      if (typeof schemas === 'function') schemas = schemas();
+      out.tools = Array.isArray(schemas) ? schemas.map(function (t) { return t && t.toolName; }) : null;
+    } catch (_) {}
+    return out;
+  }
+
   window.__sdAgent = {
     version: 1,
     stop: stopAgent,
+    /** For the native side and for bug reports: what the engine sees right now. */
+    diagnose: diagnose,
     isActive: function () { return state.active; },
     /** From native: sandbox activity outside a tool call (Studio, jobs, reset). */
     refresh: function () { infoCache = null; updateCard(); },

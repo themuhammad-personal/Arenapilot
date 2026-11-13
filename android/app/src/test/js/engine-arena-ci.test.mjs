@@ -8,7 +8,7 @@
 //
 // Since the 2026-10-15 cleanup this repo builds ONE app: ArenaPilot
 // (com.arenadeck.app). There is no flavor dimension anymore — the old
-// Super DeepSeek flavor jobs and their branches are gone by design.
+// ArenaPilot flavor jobs and their branches are gone by design.
 //
 // Run: npm run test:engine
 import { test } from "node:test";
@@ -71,10 +71,23 @@ case "$cmd" in
           rm -f "$S/dismissed"
           if [ -f "$S/start-fails" ]; then echo "Error: launch failed"; exit 1; fi
           if [ "$n" = "2" ] && [ -f "$S/second-dead" ]; then touch "$S/dead"; fi
+          # A relaunch starts a FRESH process: when the world says the retry comes
+          # back (the real device does), the dead mark is cleared again.
+          if [ -f "$S/recover-on-relaunch" ] && [ "$n" -ge 3 ]; then rm -f "$S/dead"; fi
           echo "Status: ok"
         fi
         exit 0 ;;
       pidof) if [ -f "$S/dead" ]; then exit 1; fi; echo 4242; exit 0 ;;
+      dumpsys)
+        if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/renderer-kill" ]; then
+          echo "  process=com.google.android.webview:sandboxed_process0 reason=13 (OTHER KILLS BY SYSTEM)"
+          echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED)"
+        fi
+        if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/dependency-kill" ]; then
+          echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED) subreason=0 (UNKNOWN)"
+          echo "  Killing 5353:com.arenadeck.app/u0a192 (adj 0): depends on provider com.google.android.gms/.fonts.provider.FontsProvider in dying proc com.google.android.gms.persistent"
+        fi
+        exit 0 ;;
       input)
         if [ "$1" = "tap" ]; then
           echo "$2 $3" >> "$S/taps"
@@ -157,6 +170,9 @@ function runSmoke(world = {}) {
     ["dead", "dead"],
     ["uiBroken", "ui-broken"],
     ["forwardFails", "forward-fails"],
+    ["rendererKill", "renderer-kill"],
+    ["dependencyKill", "dependency-kill"],
+    ["recoverOnRelaunch", "recover-on-relaunch"],
   ]) {
     if (world[flag]) fs.writeFileSync(path.join(state, file), "");
   }
@@ -164,21 +180,21 @@ function runSmoke(world = {}) {
   const lines = [];
   if (site === "arena")
     lines.push(
-      "D SuperDeepSeek: Official WebView loaded: https://arena.ai/text/direct",
+      "D ArenaPilot: Official WebView loaded: https://arena.ai/text/direct",
     );
   if (site === "deepseek")
     lines.push(
-      "D SuperDeepSeek: Official WebView loaded: https://chat.deepseek.com/",
+      "D ArenaPilot: Official WebView loaded: https://chat.deepseek.com/",
     );
   if (world.crash)
     lines.push(
       `E AndroidRuntime: FATAL EXCEPTION: main\nE AndroidRuntime: Process: ${pkg}`,
     );
   if (world.engineReady)
-    lines.push("D SuperDeepSeek: Engine UI ready — releasing launch screen");
+    lines.push("D ArenaPilot: Engine UI ready — releasing launch screen");
   if (world.cap)
     lines.push(
-      "W SuperDeepSeek: Launch screen cap reached — revealing the page",
+      "W ArenaPilot: Launch screen cap reached — revealing the page",
     );
   if (world.injected) lines.push("D BDS: injected.js done");
   for (const l of world.logLines || []) lines.push(l);
@@ -256,7 +272,7 @@ test("ArenaPilot is launched by its FULL class name — `.MainActivity` would re
   for (const line of r.amStart) {
     assert.match(
       line,
-      /-n com\.arenadeck\.app\/com\.superdeepseek\.app\.MainActivity/,
+      /-n com\.arenadeck\.app\/com\.arenadeck\.app\.MainActivity/,
     );
     assert.ok(!/\/\.MainActivity/.test(line));
   }
@@ -346,6 +362,52 @@ test("a dead process fails the run", () => {
   assert.match(r.out, /::error::app process is not alive/);
 });
 
+test("a WebView renderer the SYSTEM killed gets one relaunch, then the run continues", () => {
+  // Android reclaims the renderer under memory pressure; a WebView app goes with
+  // it before onRenderProcessGone can recreate the Activity. That is not a defect
+  // in this app, and failing the run on it hides every real failure behind it.
+  const r = runSmoke({ noticeFirst: true, dead: true, rendererKill: true });
+  assert.match(r.out, /the system \(not the app\) ended the second launch; relaunched once/);
+  assert.ok(r.launches >= 3, `expected a relaunch, saw ${r.launches} launches`);
+});
+
+// Run 43346270972: the second launch was killed because the persistent Google
+// Play services process (a shared, out-of-process FontsProvider) died and took
+// its client with it — reason=12 DEPENDENCY DIED, on the app's own exit record.
+// The relaunch came back alive (pid=6087) and the run STILL failed, because the
+// notice check read the killed attempt's pid file. Both halves are tested here.
+test("ArenaPilot: a dead dependency is retried, and the retry is the boot that counts", () => {
+  // secondDead: the kill lands on the SECOND launch, so the relaunch (launch 3)
+  // comes back alive — exactly run 43346270972's shape.
+  const r = runSmoke({
+    noticeFirst: true, secondDead: true, dependencyKill: true, recoverOnRelaunch: true,
+  });
+  assert.match(r.out, /the system \(not the app\) ended the second launch; relaunched once/);
+  assert.ok(r.launches >= 3, `expected a relaunch, saw ${r.launches} launches`);
+  assert.match(r.out, /no notice on the second launch/,
+    "the relaunch is the boot whose UI must be read");
+  assert.doesNotMatch(r.out, /persistence unverified/,
+    "a successful relaunch must not be reported as unverified");
+  // The DEAD attempt is still reported as an error on its own line (evidence,
+  // never silence); what must not survive is the run's verdict.
+  assert.doesNotMatch(r.out, /app process is not alive after launch/,
+    "a boot that came back is alive at the end of the run");
+});
+
+test("ArenaPilot: a second boot that dies without system evidence is still a failure", () => {
+  const r = runSmoke({ noticeFirst: true, dead: true });
+  assert.equal(r.code, 1, "no evidence of an external kill, so it is our failure");
+  assert.match(r.out, /second-boot: app process is not alive/);
+});
+
+test("a crash or ANR still fails the run — a relaunch is never a way out", () => {
+  const crash = runSmoke({ noticeFirst: true, dead: true, crash: true, rendererKill: true });
+  assert.equal(crash.code, 1);
+  assert.match(crash.out, /crash or ANR detected/);
+  const noEvidence = runSmoke({ noticeFirst: true, dead: true });
+  assert.equal(noEvidence.code, 1, "no renderer-kill evidence, no relaunch");
+});
+
 test("a failing static APK check fails the run, whatever the runtime did", () => {
   const r = runSmoke({ noticeFirst: true, apkCheckExit: 1 });
   assert.equal(r.code, 1);
@@ -390,7 +452,7 @@ test("the emulator matrix is ArenaPilot on API 34 — one app, one job", () => {
     job.includes("api-level: 34, flavor: ArenaDeck"),
     "the single matrix entry",
   );
-  assert.ok(!job.includes("flavor: Deepseek"), "no Super DeepSeek jobs remain");
+  assert.ok(!job.includes("flavor: Deepseek"), "no ArenaPilot jobs remain");
   assert.ok(job.includes("fail-fast: false"));
   assert.ok(
     job.includes("continue-on-error: false"),
@@ -427,16 +489,78 @@ test("the unit tests and lint run the single-variant tasks", () => {
   );
 });
 
-test("the repository releases exactly one APK channel: arena-latest / ArenaPilot", () => {
-  assert.ok(WORKFLOW.includes("tag_name: arena-latest"));
+test("the repository releases one versioned APK channel that the updater can read", () => {
+  // This test used to pin `tag_name: arena-latest` — the ROLLING tag. That was
+  // the bug, not the contract: UpdateChecker reads the release `tag_name` as the
+  // remote version, so a rolling tag ("arena-latest") never parses, and no
+  // install could ever be offered an update. The tag must be the version.
+  assert.match(
+    WORKFLOW,
+    /tag_name: \$\{\{\s*steps\.rel_cfg\.outputs\.tag\s*\}\}/,
+    "the release tag comes from package.json's version",
+  );
+  assert.match(WORKFLOW, /echo "tag=v\$VERSION"/, "the tag is v<version>");
+  assert.ok(
+    !/tag_name:\s*arena-latest/.test(WORKFLOW),
+    "no rolling tag: the in-app updater reads tag_name as a version",
+  );
+  // `/releases/latest` is the updater's default channel, so the published
+  // release must actually be the latest one.
+  assert.match(WORKFLOW, /make_latest:\s*true/);
+  // One APK, one name — the updater's asset picker looks for `arenapilot`.
   assert.ok(WORKFLOW.includes("name: arenapilot-apk"));
+  assert.ok(WORKFLOW.includes("APK_NAME=\"arenapilot-latest.apk\""));
   assert.ok(
     !WORKFLOW.includes("name: super-deepseek-apk"),
-    "the old Super DeepSeek artifact is gone",
+    "the old ArenaPilot artifact is gone",
   );
   assert.ok(
-    !/Publish Release[\s\S]*Super DeepSeek v/.test(WORKFLOW),
-    "no Super DeepSeek release job remains",
+    !/Publish Release[\s\S]*ArenaPilot v/.test(WORKFLOW),
+    "no ArenaPilot release job remains",
+  );
+});
+
+test("the release job can actually run on the branches this workflow builds", () => {
+  // It was gated on `refs/heads/arena/0e0268d7-super-deepseek`, a branch that no
+  // longer exists — so the job was skipped on every push and nothing was ever
+  // published, while the README linked to the release it would have created.
+  const job = WORKFLOW.slice(WORKFLOW.indexOf("release-arena:"));
+  const gate = /if: ([^\n]+)/.exec(job);
+  assert.ok(gate, "the release job has an explicit if:");
+  const condition = gate[1];
+  const built = [...WORKFLOW.matchAll(/^\s+- (\S+)\s*$/gm)].map((m) => m[1]);
+  for (const branch of ["main", "arena/e90647be-arenapilot"]) {
+    assert.ok(
+      condition.includes(`refs/heads/${branch}`),
+      `the release job must run on ${branch}, which this workflow builds`,
+    );
+    assert.ok(built.includes(branch), `${branch} is in the build trigger list`);
+  }
+  assert.ok(
+    !condition.includes("0e0268d7"),
+    "not gated on the deleted branch",
+  );
+});
+
+test("the APK's versionName and the release tag come from one source", () => {
+  const gradle = fs.readFileSync(path.join(REPO, "android/app/build.gradle.kts"), "utf8");
+  assert.ok(
+    gradle.includes('project.findProperty("bdsVersionName")'),
+    "Gradle reads the version from the build property",
+  );
+  assert.ok(
+    !/versionName\s*=\s*"\d/.test(gradle),
+    "no hard-coded versionName next to package.json's version",
+  );
+  assert.match(
+    WORKFLOW,
+    /-PbdsVersionName=/,
+    "CI passes a version into the build",
+  );
+  assert.match(
+    WORKFLOW,
+    /bdsVersionName=.*package\.json/,
+    "and that version is package.json's, not a second literal",
   );
 });
 
@@ -481,6 +605,19 @@ test("runtime facts: engine UI ready and injected, no cap → plain notices, no 
   assert.ok(!/only lifted at its 18 s cap/.test(r.out));
 });
 
+test("runtime facts: a cap the engine's ready signal beat is not a failure signal", () => {
+  // A cold start arms the cap before the page commits; the ready signal then
+  // arrives later. Both markers end up in logcat even though the launch was
+  // healthy, so the cap alone must never be reported as "the engine never came up".
+  const r = runSmoke({ noticeFirst: true, engineReady: true, cap: true, injected: true });
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /::notice::ArenaPilot runtime: engine UI ready=yes, launch-screen cap reached=no, injected\.js done=yes/,
+  );
+  assert.ok(!/only lifted at its 18 s cap/.test(r.out), r.out);
+});
+
 test("runtime facts: a launch screen that only lifted at its cap is called out", () => {
   const r = runSmoke({ noticeFirst: true, cap: true, injected: true });
   assert.equal(r.code, 0, "informational: it never fails the run");
@@ -500,7 +637,7 @@ test("runtime facts: page console errors are reported, long opaque strings maske
     noticeFirst: true,
     logLines: [
       `I chromium: [INFO:CONSOLE(12)] "Uncaught TypeError: x is not a function ${secret}", source: https://arena.ai/_next/x.js (12)`,
-      'I chromium: [INFO:CONSOLE(7)] "[SDS] Guard check: something", source: (7)',
+      'I chromium: [INFO:CONSOLE(7)] "[APH] Guard check: something", source: (7)',
       'I chromium: [INFO:CONSOLE(3)] "an ordinary page log", source: https://arena.ai/y.js (3)',
     ],
   });
@@ -512,7 +649,7 @@ test("runtime facts: page console errors are reported, long opaque strings maske
   );
   assert.ok(!r.out.includes(secret), "the raw string never reaches the log");
   assert.ok(
-    r.out.includes("[SDS] Guard check"),
+    r.out.includes("[APH] Guard check"),
     "the engine warning is included",
   );
   assert.ok(
@@ -666,4 +803,183 @@ test("uiautomator fatal is not attributed to a healthy APK (observed Android CI 
   });
   assert.equal(r.code, 0, r.out);
   assert.doesNotMatch(r.out, /crash or ANR detected/);
+});
+
+// ── Kotlin sources must stay lexically valid ───────────────────────────────
+// A CI build caught `*/*` written inside a Kotlin block comment: the `*/` closed
+// the comment and the file stopped parsing — a whole release lost to a comment.
+// Kotlin only compiles in CI (no JVM in the local harness), so a cheap scanner
+// keeps this class of mistake from reaching a push.
+
+test("kotlin sources have no block comment that closes early", () => {
+  const root = path.join(REPO, "android/app/src");
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".kt")) files.push(full);
+    }
+  };
+  walk(root);
+  assert.ok(files.length > 20, `found ${files.length} Kotlin files`);
+
+  // A real (small) lexer: string and char literals and line comments must not be
+  // mistaken for comment markers, and Kotlin block comments nest.
+  const problems = [];
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8");
+    let i = 0;
+    let line = 1;
+    let depth = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === "\n") {
+        line++;
+        i++;
+        continue;
+      }
+      if (depth > 0) {
+        if (src.startsWith("*/", i)) {
+          depth--;
+          i += 2;
+          continue;
+        }
+        if (src.startsWith("/*", i)) {
+          depth++;
+          i += 2;
+          continue;
+        }
+        // A glob written inside a comment ends it: `*/*` is `*/` + `*`.
+        if (src.startsWith("*/*", i)) {
+          problems.push(`${path.relative(REPO, file)}:${line}: a glob inside a block comment closes it early`);
+        }
+        i++;
+        continue;
+      }
+      if (src.startsWith("//", i)) {
+        while (i < src.length && src[i] !== "\n") i++;
+        continue;
+      }
+      if (src.startsWith("/*", i)) {
+        depth = 1;
+        i += 2;
+        continue;
+      }
+      if (src.startsWith('"""', i)) {
+        i += 3;
+        while (i < src.length && !src.startsWith('"""', i)) {
+          if (src[i] === "\n") line++;
+          i++;
+        }
+        i += 3;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        i++;
+        while (i < src.length && src[i] !== quote) {
+          if (src[i] === "\\") i++;
+          else if (src[i] === "\n") line++;
+          i++;
+        }
+        i++;
+        continue;
+      }
+      i++;
+    }
+    if (depth !== 0) problems.push(`${path.relative(REPO, file)}: unclosed block comment`);
+  }
+  assert.deepEqual(problems, []);
+});
+
+// ── JUnit assertions must put the message FIRST ────────────────────────────
+// JUnit 4's assertX(message, expected, actual) takes the message first. Writing
+// assertX(expected, actual, "why") compiles happily and compares `actual`
+// against the *string* — the test then fails forever with no useful output, or
+// passes for the wrong reason. Two CI rounds were spent on exactly that.
+
+test("JUnit assertions do not carry the message in the last position", () => {
+  const root = path.join(REPO, "android/app/src/test/java");
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".kt")) files.push(full);
+    }
+  };
+  walk(root);
+
+  const splitArgs = (body) => {
+    const parts = [];
+    let depth = 0;
+    let cur = "";
+    for (const ch of body) {
+      if ("([{".includes(ch)) depth++;
+      else if (")]}".includes(ch)) depth--;
+      if (ch === "," && depth === 0) {
+        parts.push(cur.trim());
+        cur = "";
+      } else cur += ch;
+    }
+    parts.push(cur.trim());
+    return parts;
+  };
+
+  const problems = [];
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8");
+    // local helpers may legitimately differ; only JUnit's own names are checked
+    const re = /\b(assertEquals|assertArrayEquals|assertTrue|assertFalse|assertNull|assertNotNull)\(/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      let i = re.lastIndex;
+      let depth = 1;
+      const start = i;
+      while (i < src.length && depth > 0) {
+        if ("([{".includes(src[i])) depth++;
+        else if (")]}".includes(src[i])) depth--;
+        i++;
+      }
+      const parts = splitArgs(src.slice(start, i - 1));
+      if (parts.length < 3) continue;
+      const last = parts[parts.length - 1];
+      if (/^".*"$/.test(last)) {
+        const line = src.slice(0, m.index).split("\n").length;
+        problems.push(`${path.relative(REPO, file)}:${line}: ${m[1]}() has its message last`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+// ── The CI gate must look INSIDE the settings drawer ────────────────────────
+// The previous gate proved the drawer opened; a drawer that opens onto dead
+// rows passed. These assertions keep the per-row checks in place.
+
+test('the smoke gate checks the drawers rows, not just that it opened', async () => {
+  const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
+  assert.match(src, /DRAWER_PAGES_FACTS/, 'the probe no longer reads the drawer rows');
+  assert.match(src, /data-bds-page/, 'the probe no longer identifies rows by page');
+  for (const page of ['doctor', 'deep_research', 'appearance']) {
+    assert.ok(src.includes(`'${page}'`), `the gate does not require the ${page} row`);
+  }
+  assert.match(
+    src,
+    /api-playground-offered-on-arena/,
+    'the gate would let the DeepSeek-only API page come back on arena',
+  );
+  assert.match(src, /check-up-page-hides-limitations/, 'the gate accepts a check-up that only says "fine"');
+  assert.match(src, /check-up-page-back-failed/, 'the gate never leaves the page again');
+  // The header may be the overview title or a sub-page's Back label; pinning one
+  // node failed a build while the page was correct.
+  assert.match(src, /bds-back-label/, 'the gate only accepts one header node');
+});
+
+test('the check-up probe reads live markers, not the page copy', async () => {
+  const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
+  for (const marker of ['.bds-doc-ok', '.bds-doc-off', '.bds-doc-warn', 'doctorLines']) {
+    assert.ok(src.includes(marker), `the probe no longer reads ${marker}`);
+  }
 });

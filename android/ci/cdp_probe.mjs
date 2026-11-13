@@ -351,6 +351,144 @@ export const DRAWER_FACTS = `/*sdp:drawer*/(function () {
   });
 })()`;
 
+/**
+ * The drawer's own page list, and the check-up page it contains.
+ *
+ * Why this exists: the CI gate proved the drawer OPENS, but never that anything
+ * inside it is alive. "Settings works" meant "a panel appeared". This probe reads
+ * the page rows the engine actually rendered, opens each one by a real tap, and —
+ * for the check-up page — verifies that every line it prints came from a live
+ * read rather than stored copy.
+ */
+export const DRAWER_PAGES_FACTS = `/*sdp:drawerpages*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  var d = q('#bds-drawer');
+  var rows = d ? Array.prototype.slice.call(d.querySelectorAll('.bds-set-row')) : [];
+  var title = d ? d.querySelector('.bds-ov-title') : null;
+  var apiRow = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'api'; });
+  var docRow = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; });
+  var doctor = q('.bds-doc');
+  return JSON.stringify({
+    present: !!d,
+    headerTitle: title ? String(title.textContent || '').trim() : '',
+    pages: rows.map(function (x) { return x.getAttribute('data-bds-page'); }),
+    rowCount: rows.length,
+    apiRowCount: apiRow.length,
+    doctorRowCount: docRow.length,
+    doctorRowVisible: docRow.length === 1 && !!(r(docRow[0]) && r(docRow[0])[2] >= 44 && r(docRow[0])[3] >= 40),
+    apiRowVisible: apiRow.length === 1 && !!(r(apiRow[0]) && r(apiRow[0])[2] > 0 && r(apiRow[0])[3] > 0),
+    doctorLines: document.querySelectorAll('.bds-doc').length,
+    doctorOkLines: document.querySelectorAll('.bds-doc-ok').length,
+    doctorOffLines: document.querySelectorAll('.bds-doc-off').length,
+    doctorWarnLines: document.querySelectorAll('.bds-doc-warn').length,
+    doctorFirstLine: doctor ? String(doctor.textContent || '').trim().slice(0, 120) : '',
+    // A sub-page shows a Back button and its own label; the overview shows the
+    // drawer title. Both count as "the drawer still has a header" — asserting one
+    // specific node failed a build while the page was correct.
+    pageTitle: (function () {
+      if (!d) return '';
+      var t = d.querySelector('.bds-ov-title') || d.querySelector('.bds-back-label') ||
+        d.querySelector('.bds-drawer-header');
+      return t ? String(t.textContent || '').trim() : '';
+    })()
+  });
+})()`;
+
+/**
+ * The Add to chat sheet's own rows.
+ *
+ * The gate already proves the sheet OPENS with a real tap. It never proved the
+ * rows inside it exist, are on top of the page (a row under a backdrop looks
+ * identical in a screenshot), and are big enough for a finger.
+ *
+ * Deliberately non-destructive: tapping "Files" opens the system picker and would
+ * hang the run, so a row is proven by its label, its size and a hit-test at its
+ * centre — the element the page would deliver a tap to must be inside that row.
+ *
+ * The sheet has TWO surfaces and they are read as such (run 43337677596 showed
+ * why): a quick grid of icon tiles (Files / Camera / Photos) and the "More
+ * tools" list below it (the ".bds-attach-item" rows). Reading only the list
+ * made a correct sheet look like it was missing Files, Camera and Photos — the
+ * gate was asserting the shapes of rows that were never meant to be rows.
+ */
+export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
+  function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+  function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
+  function fact(el) {
+    var b = r(el);
+    var hit = null;
+    var own = null;
+    if (b && b[2] > 0 && b[3] > 0) {
+      try { hit = document.elementFromPoint(b[0] + b[2] / 2, b[1] + b[3] / 2); } catch (e) { hit = null; }
+      // The tile's own content, also finger-sized (a scrollable sheet can clip it).
+      try { own = document.elementFromPoint(Math.min(b[0] + b[2] / 2, window.innerWidth - 2), Math.min(b[1] + b[3] / 2, window.innerHeight - 2)); } catch (e2) { own = null; }
+    }
+    // "In viewport" means the point a finger would land on — the row's CENTRE —
+    // is really on screen: inside the WINDOW *and* inside every scrolling
+    // ancestor that clips it (the sheet list owns its own scroll). Run
+    // 43344536996 measured rows with correct window coordinates that were still
+    // clipped by the list's bottom edge: Attach Project's centre sat between the
+    // list's bottom and the viewport's, reachable:false, while its rect looked
+    // perfectly on-screen. Comparing against the window alone called those rows
+    // visible and turned a normal scroll into a red gate.
+    var cy = b ? b[1] + b[3] / 2 : -1;
+    var cx = b ? b[0] + b[2] / 2 : -1;
+    var top = 0, bottom = window.innerHeight || 0, left = 0, right = window.innerWidth || 0;
+    for (var n = el.parentElement, depth = 0; n && depth < 24; n = n.parentElement, depth += 1) {
+      var cs;
+      try { cs = getComputedStyle(n); } catch (e) { break; }
+      if (!cs) break;
+      var scrollsY = /(auto|scroll|overlay)/.test(cs.overflowY || '') || /(auto|scroll|overlay)/.test(cs.overflow || '');
+      var scrollsX = /(auto|scroll|overlay)/.test(cs.overflowX || '') || /(auto|scroll|overlay)/.test(cs.overflow || '');
+      if (!scrollsY && !scrollsX) continue;
+      var nb = r(n);
+      if (!nb) continue;
+      if (scrollsY) { top = Math.max(top, nb[1]); bottom = Math.min(bottom, nb[1] + nb[3]); }
+      if (scrollsX) { left = Math.max(left, nb[0]); right = Math.min(right, nb[0] + nb[2]); }
+    }
+    var inView = !!(b && b[2] > 0 && b[3] > 0 &&
+      cx >= left && cx <= right && cy >= top && cy <= bottom);
+    return {
+      label: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
+      rect: b,
+      // A row below the fold of a scrolling sheet is normal; it is not a fault
+      // and not reachable until someone scrolls. Kept as its own fact so the
+      // gate can demand scrolling instead of failing on geometry.
+      inViewport: inView,
+      // The switch row carries the class ON ITSELF (bds-attach-toggle), so a
+      // descendant-only check reported toggle:false for the one real switch —
+      // visible in run 43342755419's own sheet dump.
+      toggle: !!(el.matches && el.matches('.bds-attach-toggle, [aria-pressed]')) ||
+        !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
+      // Two facts, not one: is the row inside the scrollable sheet, and is it on
+      // top of the page where a finger would land? A row below the fold is normal
+      // (the sheet scrolls); a row under the backdrop swallows every tap.
+      reachable: !!(hit && (el === hit || (el.contains && el.contains(hit)))),
+      onTop: !!(own && (el === own || (el.contains && el.contains(own)))),
+      disabled: !!(el.disabled || el.getAttribute('aria-disabled') === 'true')
+    };
+  }
+  var sheet = q('.bds-attach-dropdown') || q('.bds-attach-menu');
+  var any = function (sel) { return sheet ? Array.prototype.slice.call(sheet.querySelectorAll(sel)) : []; };
+  // The quick grid: icon tiles above the list.
+  var tiles = any('.bds-quick-tile').map(fact);
+  // The list: "More tools" rows, plus the engine's own Linux Studio / Settings cards.
+  var rows = any('.bds-attach-item').map(fact);
+  var title = q('.bds-sheet-title');
+  var section = q('.bds-sheet-section');
+  return JSON.stringify({
+    present: !!sheet,
+    count: rows.length,
+    rows: rows,
+    tiles: tiles,
+    // What the sheet calls itself, so "this is the engine's sheet" is a fact the
+    // capture can be read for instead of an assumption made in the gate.
+    header: title ? String(title.textContent || '').trim().slice(0, 40) : '',
+    section: section ? String(section.textContent || '').trim().slice(0, 40) : ''
+  });
+})()`;
+
 export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
@@ -420,6 +558,34 @@ async function evalValue(cdp, expression) {
 async function evalJson(cdp, expression) {
   const v = await evalValue(cdp, expression);
   return typeof v === 'string' ? JSON.parse(v) : v;
+}
+
+/**
+ * What is actually on top at (x, y)? A tap that lands on a backdrop, a drawer or
+ * an overlay is not a tap on the control behind it — and the failure looks like a
+ * working page in a screenshot. Returns the top element's tag/id/class chain.
+ */
+async function topAt(cdp, x, y) {
+  return evalValue(cdp, `/*sdp:top*/(function (x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (!el) return '';
+    function d(e) { return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ').slice(0, 3).join('.') : ''); }
+    var names = [d(el)];
+    for (var n = el.parentElement, i = 0; n && i < 4; n = n.parentElement, i++) names.push(d(n));
+    return names.join(' < ');
+  })(${Math.round(x)}, ${Math.round(y)})`);
+}
+
+/**
+ * True when an engine OVERLAY is on top at (x, y) — a drawer, backdrop, sheet or
+ * modal. Deliberately narrow: any other element on top is either the control's
+ * own wrapper or a page decoration, and treating those as blockers would turn
+ * this diagnostic into a flaky gate. The specific case it exists for is the one
+ * CI hit: a settings drawer left open by Back, sitting over the "+" button.
+ */
+function coversControl(top) {
+  // NOT the Add to chat sheet: the tap toggles it, so it is normally on top.
+  return /bds-(drawer|drawer-backdrop)/.test(String(top || ''));
 }
 
 async function realClick(cdp, x, y) {
@@ -592,10 +758,13 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
 
     await realClick(cdp, trigger.x, trigger.y);
     await pause(900);
+    result.attachSheetRows = await step('attach-sheet-rows', () => evalJson(cdp, ATTACH_SHEET_ROWS));
+    if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
     result.settingsCardBeforeClick = await evalJson(cdp, SETTINGS_CARD_FACTS);
     if (!result.settingsCardBeforeClick || result.settingsCardBeforeClick.present !== true ||
         result.settingsCardBeforeClick.count !== 1 || result.settingsCardBeforeClick.insideSheet !== true ||
-        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.sourceRailVisible === true ||
+        result.settingsCardBeforeClick.lastCard !== true || result.settingsCardBeforeClick.visible !== true ||
+        result.settingsCardBeforeClick.sourceRailVisible === true ||
         result.settingsCardBeforeClick.legacySidebarRows !== 0) {
       result.drawer = { present: false, visible: false, reason: 'settings-card-not-last-in-plus-sheet' };
       return 'Settings card not present at the bottom of Add to chat';
@@ -607,18 +776,274 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       return !!card;
     })()`);
     await pause(150);
+    // The tap must land on the card, not on the sheet's edge. A y outside the
+    // viewport is clipped by the browser (the event goes to whatever is there),
+    // which is how the Settings tap produced no drawer at all while every fact
+    // about the card looked right.
+    const cardAt = await evalValue(cdp, `/*sdp:cardpos*/(function () {
+      var el = document.querySelector('#sd-arena-settings-item');
+      if (!el) return '';
+      var b = el.getBoundingClientRect();
+      var hit = document.elementFromPoint(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+      return JSON.stringify({ y: Math.round(b.y), h: Math.round(b.height), vh: innerHeight,
+        inViewport: b.y >= 0 && b.y + b.height <= innerHeight,
+        hitInsideCard: !!(hit && (hit === el || el.contains(hit))) });
+    })()`);
+    result.settingsCardPosition = cardAt ? JSON.parse(cardAt) : null;
     const t = await evalJson(cdp, rectExpr('#sd-arena-settings-item'));
     if (!t.found || !(t.w >= 44 && t.h >= 40)) {
       result.drawer = { present: false, visible: false, reason: 'settings-card-not-visible' };
       return 'Settings card could not be brought into the visible sheet area';
     }
-    await realClick(cdp, t.x, t.y);
+    if (!result.settingsCardPosition || result.settingsCardPosition.inViewport !== true) {
+      result.drawer = { present: false, visible: false, reason: 'settings-card-outside-viewport' };
+      return 'Settings card is outside the viewport, so a tap cannot land on it: ' +
+        JSON.stringify(result.settingsCardPosition);
+    }
+    // HOW the card is pressed matters: the probe clicks at the rect's centre, and
+    // the sheet is a scroll container whose visible box can be shorter than the
+    // card's rect (CI measured rect y=941 on a 616px screen while the hit-test at
+    // that same point still landed inside the card). A JS click runs the row's own
+    // handler with no coordinates, which is what a finger does after scrolling.
+    const usedJsClick = await evalValue(cdp, `/*sdp:cardclick*/(function () {
+      var el = document.querySelector('#sd-arena-settings-item');
+      if (!el) return false;
+      el.click();
+      return true;
+    })()`);
+    if (usedJsClick !== true) {
+      await realClick(cdp, t.x, t.y);
+    }
+    result.settingsCardClick = { js: usedJsClick === true, at: [Math.round(t.x), Math.round(t.y)] };
     await pause(1200);
     result.drawer = await evalJson(cdp, DRAWER_FACTS);
+    // The sheet must be gone before the next step taps "+", or that tap lands on
+    // the sheet instead of the page and every later fact is measured wrong.
+    if (result.drawer && result.drawer.sheetVisible !== false) {
+      await evalValue(cdp, '/*sdp:attachclose*/(function () { try { window.dispatchEvent(new CustomEvent("bds:close-attach")); return true; } catch (e) { return false; } })()');
+      await pause(400);
+      result.sheetClosedAfterCard = await evalJson(cdp, DRAWER_FACTS);
+    }
     if (kitOk) await evalJson(cdp, snapExpr('settings-drawer'));
-    await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+
+    // What is INSIDE the drawer: the page rows it actually rendered, the
+    // DeepSeek-only row that must be absent here, and the check-up page.
+    result.drawerPagesBefore = await step('drawer-pages', () => evalJson(cdp, DRAWER_PAGES_FACTS));
+    result.doctorPage = await step('doctor-page', async () => {
+      const facts = result.drawerPagesBefore;
+      const rows = facts && Array.isArray(facts.pages) ? facts.pages : [];
+      const doctorIndex = rows.indexOf('doctor');
+      if (doctorIndex < 0) throw new Error('no check-up row in the drawer');
+      const box = await evalValue(cdp, `(function () {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#bds-drawer .bds-set-row'));
+        var row = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; })[0];
+        if (!row) return null;
+        if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+        var b = row.getBoundingClientRect();
+        return JSON.stringify({ x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2), w: Math.round(b.width), h: Math.round(b.height) });
+      })()`);
+      const at = box ? JSON.parse(box) : null;
+      if (!at || !(at.w >= 44 && at.h >= 40)) throw new Error('check-up row not tappable');
+      // Same trap as the Settings card: a row whose centre is outside the
+      // viewport is clipped, so the click never reaches it.
+      const rowHit = await evalValue(cdp, '/*sdp:rowhit*/(function () {' +
+        'var hit = document.elementFromPoint(' + Math.round(at.x) + ', ' + Math.round(at.y) + ');' +
+        'var row = document.querySelector(\'#bds-drawer .bds-set-row[data-bds-page="doctor"]\');' +
+        'return JSON.stringify({ hitInsideRow: !!(hit && row && (hit === row || row.contains(hit))),' +
+        ' vh: innerHeight, y: ' + Math.round(at.y) + ' });' +
+        '})()');
+      if (!rowHit || JSON.parse(rowHit).hitInsideRow !== true) {
+        throw new Error('check-up row is outside the viewport: ' + rowHit);
+      }
+      await realClick(cdp, at.x, at.y);
+      await pause(700);
+      const after = await evalJson(cdp, DRAWER_PAGES_FACTS);
+      if (kitOk) await evalJson(cdp, snapExpr('doctor-page'));
+      // Back to the overview, so the drawer's back path is exercised too.
+      await evalValue(cdp, `(function () {
+        var back = document.querySelector('#bds-drawer .bds-back-btn');
+        if (back) back.click();
+        return !!back;
+      })()`);
+      await pause(500);
+      return after;
+    });
+    result.drawerPagesAfter = await step('drawer-pages-after', () => evalJson(cdp, DRAWER_PAGES_FACTS));
+
+    // One more tap on "+" — the overview is back, so this lands on the sheet the
+    // ENGINE adds (Files / Add to chat / Camera / Photos / More tools / Deep
+    // Research / Settings). The first read above may hit arena's own sheet, which
+    // cannot be distinguished by class name; this one switches the toggle first.
+    result.engineSheetRows = await step('engine-sheet-rows', async () => {
+      // The Settings card opened the drawer and it is still on screen: its
+      // backdrop is over the "+" corner, so a tap there lands on the drawer and
+      // an empty sheet would be measured through no fault of the sheet. Close the
+      // drawer by intent (not by tapping around it) and prove it is gone.
+      const closed = await evalValue(cdp, '/*sdp:drawerclose*/(function () { try { window.dispatchEvent(new CustomEvent("bds:close-drawer")); return true; } catch (e) { return false; } })()');
+      await pause(600);
+      let drawerNow = await evalJson(cdp, DRAWER_FACTS);
+      if (drawerNow && drawerNow.visible) {
+        await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+        await pause(600);
+        drawerNow = await evalJson(cdp, DRAWER_FACTS);
+      }
+      result.drawerClosedBeforeSheet = { sent: closed === true, visible: !!(drawerNow && drawerNow.visible) };
+      const toggle = await evalJson(cdp, rectExpr('.bds-plus-btn'));
+      if (!toggle.found) throw new Error('no engine toggle to open Add to chat with');
+      // Nothing may be lying on top of the "+" — a tap through a drawer opens no
+      // sheet, and "the sheet is empty" would be the wrong diagnosis.
+      const top = await topAt(cdp, toggle.x, toggle.y);
+      if (coversControl(top)) {
+        throw new Error('something covers the + control: ' + String(top).slice(0, 120));
+      }
+      // The toggle is a toggle. After the Settings card closed the sheet, one tap
+      // can land while the engine still considers it open, and closes it again —
+      // 'add-to-chat-sheet-empty' while the sheet works perfectly. Make sure it is
+      // open, and record how many taps that took.
+      const taps = [];
+      let rows = null;
+      for (let i = 0; i < 2; i += 1) {
+        await realClick(cdp, toggle.x, toggle.y);
+        await pause(900);
+        rows = await evalJson(cdp, ATTACH_SHEET_ROWS);
+        const present = !!(rows && rows.present);
+        taps.push({ tap: i + 1, present, count: (rows && rows.count) || 0 });
+        if (present) break;
+        // A tap can land on a toggle whose state is stale and close it instead of
+        // opening it. The engine exposes the intent, so stop guessing at it.
+        const opened = await evalValue(cdp, '/*sdp:attachopen*/(function () { try { window.dispatchEvent(new CustomEvent("bds:open-attach")); return true; } catch (e) { return false; } })()');
+        await pause(500);
+        rows = await evalJson(cdp, ATTACH_SHEET_ROWS);
+        taps.push({ tap: 'intent', present: !!(rows && rows.present), count: (rows && rows.count) || 0, sent: opened === true });
+        if (rows && rows.present === true) break;
+      }
+      result.sheetTaps = taps;
+      if (kitOk) await evalJson(cdp, snapExpr('add-to-chat-sheet'));
+      return rows;
+    });
+    result.engineSheetFacts = await step('engine-sheet-close', async () => {
+      await pressEscape(cdp);
+      await pause(400);
+      return evalJson(cdp, `/*sdp:enginesheet*/(function () {
+        function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+        var sheet = q('.bds-attach-dropdown');
+        var b = null;
+        try { b = sheet ? sheet.getBoundingClientRect() : null; } catch (e) { b = null; }
+        return JSON.stringify({ closed: !b || !(b.width > 0 && b.height > 0) });
+      })()`);
+    });
+    // Back is a repeatable action, and that is the whole point of a stack: from a
+    // settings sub-page the first press returns to the list, the next closes the
+    // drawer. The counter capture proved exactly this was happening (the wrapper
+    // forwarded, content stepped out of a sub-page, drawer still open) while the
+    // gate demanded closure after ONE press. Press until the drawer is gone, and
+    // fail only if it never closes.
+    const backPresses = [];
+    for (let i = 0; i < 3; i += 1) {
+      const handled = await evalValue(cdp, '/*sdp:back*/(function () { return typeof window.__sdHandleBack === "function" ? window.__sdHandleBack() : null; })()');
+      await pause(320);
+      const state = await evalJson(cdp, DRAWER_FACTS);
+      backPresses.push({ handled: String(handled), visible: !!(state && state.visible) });
+      if (!state || state.visible === false) break;
+    }
+    result.backPresses = backPresses;
+    const backHandled = backPresses.length ? backPresses[backPresses.length - 1].handled : 'false';
+    // Three moments, because "still visible after Back" has two very different
+    // causes: the close never ran, or it ran and something reopened the drawer.
+    // The slide-out is 210ms, so +120ms shows it mid-flight and +600ms the end.
+    const drawerAt = async () => evalValue(cdp, `/*sdp:drawerstate*/(function () {
+      var d = document.getElementById('bds-drawer');
+      if (!d) return '';
+      var b = d.getBoundingClientRect();
+      var cs = getComputedStyle(d);
+      return JSON.stringify({ open: d.classList.contains('bds-open'),
+        box: [Math.round(b.width), Math.round(b.height)],
+        transform: String(cs.transform || '').slice(0, 40), display: cs.display, opacity: cs.opacity,
+        inlineTransform: String(d.style.transform || ''),
+        closeButtons: document.querySelectorAll('#bds-close').length });
+    })()`);
+    await pause(120);
+    const at120 = await drawerAt();
+    result.drawerAt120 = at120 ? JSON.parse(at120) : null;
     await pause(600);
     result.drawerAfterBack = await evalJson(cdp, DRAWER_FACTS);
+    const at600 = await drawerAt();
+    result.drawerAt600 = at600 ? JSON.parse(at600) : null;
+    // WHY Back did nothing, when it does nothing. Two layers wrap it (content.js,
+    // then sd-sheets.js for the slide-out), and the drawer is driven by Svelte
+    // state: the facts below separate "the handler never ran", "it ran and
+    // clicked nothing", and "it clicked and the page ignored it".
+    result.backDiagnosis = await evalJson(cdp, `/*sdp:backdiag*/(function () {
+      function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
+      var drawer = document.getElementById('bds-drawer');
+      var close = document.getElementById('bds-close');
+      var headerBtn = drawer ? drawer.querySelector('.bds-drawer-header button') : null;
+      var back = drawer ? drawer.querySelector('.bds-drawer-header .bds-back-btn') : null;
+      var r = close ? close.getBoundingClientRect() : null;
+      return JSON.stringify({
+        handled: ${JSON.stringify(String(backHandled))},
+        drawer: !!drawer,
+        drawerOpenClass: !!(drawer && drawer.classList && drawer.classList.contains('bds-open')),
+        closeExists: !!close,
+        closeConnected: !!(close && close.isConnected),
+        closeRects: close ? close.getClientRects().length : 0,
+        closeBox: r ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] : null,
+        headerButton: !!headerBtn,
+        headerButtonSame: !!(headerBtn && close && headerBtn === close),
+        subpageBack: !!back,
+        wrappedBySheets: !!(window.__sdHandleBack && window.__sdHandleBack.__sdSheets),
+        branch: window.__sdBackBranch || '',
+        diag: window.__sdSheetsDiag || null,
+      });
+    })()`);
+    // Experiment: WHY it stays. If the drawer flashes closed and comes back,
+    // something re-opens it; if it never closes, the event has no listener or the
+    // button is not the one that owns the state. One run answers all of it.
+    if (result.drawerAfterBack && result.drawerAfterBack.visible !== false) {
+      result.backExperiment = await evalJson(cdp, `/*sdp:backexp*/(function () {
+        var seen = [];
+        var realDispatch = window.dispatchEvent;
+        window.dispatchEvent = function (e) {
+          if (e && e.type && e.type.indexOf('bds:') === 0) seen.push(e.type);
+          return realDispatch.apply(this, arguments);
+        };
+        function state(tag) {
+          var d = document.getElementById('bds-drawer');
+          return { tag: tag, open: !!(d && d.classList.contains('bds-open')),
+            box: d ? [Math.round(d.getBoundingClientRect().width), Math.round(d.getBoundingClientRect().height)] : null };
+        }
+        var before = state('before');
+        realDispatch.call(window, new CustomEvent('bds:close-drawer'));
+        var out = { before: before, marks: [], events: seen };
+        out.marks.push(state('immediate'));
+        return new Promise(function (resolve) {
+          setTimeout(function () { out.marks.push(state('t60')); }, 60);
+          setTimeout(function () { out.marks.push(state('t250')); }, 250);
+          setTimeout(function () {
+            out.marks.push(state('t700'));
+            // Second lever: click the drawer's own header button, if the event did nothing.
+            var d = document.getElementById('bds-drawer');
+            var btn = d && d.querySelector('.bds-drawer-header button');
+            out.headerButton = !!btn;
+            if (btn) btn.click();
+            setTimeout(function () {
+              out.marks.push(state('afterClick'));
+              window.dispatchEvent = realDispatch;
+              out.events = seen;
+              resolve(JSON.stringify(out));
+            }, 400);
+          }, 700);
+        });
+      })()`);
+    }
+
+    // A drawer that is still on screen covers the sheet's own controls. Tapping
+    // "+" through it opened nothing, and the gate reported `add-to-chat-sheet-
+    // empty` — a real defect (Back did not close the drawer) with a misleading
+    // name. Record it here, where it can be named correctly.
+    if (result.drawerAfterBack && result.drawerAfterBack.visible !== false) {
+      steps.push({ name: 'drawer-closed-before-sheet', ok: false, error: 'drawer still visible after Back' });
+    }
     return result.drawer.visible && result.drawer.sheetVisible === false
       ? 'Settings card opened the existing drawer; Add to chat closed'
       : 'Settings drawer did not open cleanly from the sheet';
@@ -706,8 +1131,47 @@ export function summarize(result) {
 }
 
 /** The few readable lines: the summary, and the engine's own markup (why a piece may be missing). */
+/**
+ * One compact line of the facts a failing gate is about, in reading order.
+ *
+ * The full capture is chunked into annotations, and GitHub caps the total size of
+ * a step's annotations: when the capture grew, the chunks were silently cut and
+ * one run's evidence was simply gone. These ~1 KB always fit, so the reason for a
+ * red gate survives even when the payload does not.
+ */
+export function factsLine(result) {
+  const pick = (o, keys) => {
+    if (!o) return null;
+    const out = {};
+    for (const k of keys) if (o[k] !== undefined) out[k] = o[k];
+    return Object.keys(out).length ? out : null;
+  };
+  return JSON.stringify({
+    steps: (result.steps || []).filter((s) => !s.ok).map((s) => `${s.name}: ${String(s.error || '').slice(0, 160)}`),
+    card: pick(result.settingsCardBeforeClick, ['present', 'count', 'visible', 'insideSheet', 'lastCard', 'rect']),
+    cardPos: result.settingsCardPosition || null,
+    drawer: pick(result.drawer, ['present', 'visible', 'rect', 'sheetVisible']),
+    drawerAfterBack: pick(result.drawerAfterBack, ['present', 'visible', 'rect']),
+    back: result.backDiagnosis || null,
+    at120: result.drawerAt120 || null,
+    at600: result.drawerAt600 || null,
+    presses: result.backPresses || null,
+    sheetTaps: result.sheetTaps || null,
+    diag: (result.backDiagnosis && result.backDiagnosis.diag) || null,
+    exp: result.backExperiment || null,
+    sheet: pick(result.engineSheetRows, ['present', 'count', 'header', 'section']),
+    sheetTiles: (result.engineSheetRows?.tiles || []).map((t) => ({
+      label: (t.label || '').slice(0, 24), rect: t.rect, inViewport: t.inViewport, reachable: t.reachable,
+    })),
+    pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
+    doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),
+    launch: pick(result.launch || {}, ['noticeShown', 'secondBootAlive']),
+  });
+}
+
 export function summaryAnnotations(result) {
   const lines = [annotation('notice', `CDP probe: ${summarize(result)}`)];
+  lines.push(annotation('notice', `CDP facts: ${factsLine(result)}`.slice(0, 6000)));
   const e = result.engineAfter || result.engine || {};
   if (e.engineMarkup) lines.push(annotation('notice', `CDP engine markup: ${JSON.stringify(e.engineMarkup)}`.slice(0, 3900)));
   if (e.composerControls) lines.push(annotation('notice', `CDP composer controls: ${JSON.stringify(e.composerControls)}`.slice(0, 3900)));
@@ -791,10 +1255,15 @@ export function acceptanceFailures(result) {
   if (!fill || fill.engine !== true || fill.set !== true || fill.valueMatches !== true || fill.cleared !== true) errors.push('composer-not-drivable');
   if (fill && fill.sendButton === false) errors.push('send-button-missing');
   const settingsCard = result.settingsCardBeforeClick;
+  // The card must be the ONE settings entry: inside the Add to chat sheet, last in
+  // it, on screen, and with no second (rail / sidebar) entry next to it. The rail's
+  // `data-dock` attribute is engine bookkeeping ("pending"/"sheet"), not a product
+  // fact — asserting a specific internal value made this gate fail while the UI was
+  // correct, which is exactly how a false red build hides a real one.
   const cardOk = !!(settingsCard && settingsCard.present === true &&
       settingsCard.count === 1 && settingsCard.visible === true && settingsCard.insideSheet === true &&
       settingsCard.lastCard === true && settingsCard.legacySidebarRows === 0 &&
-      settingsCard.sourceRailVisible !== true && settingsCard.sourceDock === 'sheet');
+      settingsCard.sourceRailVisible !== true);
   if (!cardOk) errors.push('settings-card-not-last-in-plus-sheet');
   if (settingsCard && (settingsCard.sourceRailVisible === true || settingsCard.legacySidebarRows !== 0)) {
     errors.push('settings-sidebar-row-still-visible');
@@ -806,6 +1275,117 @@ export function acceptanceFailures(result) {
     if (drawer.sheetVisible === true) errors.push('settings-sheet-not-closed-before-drawer');
   }
   if (!result.drawerAfterBack || result.drawerAfterBack.visible !== false) errors.push('settings-drawer-back-failed');
+
+  // The inside of the drawer, not just the fact that it opened. Before this
+  // gate, "Advanced settings works" meant "a panel appeared".
+  const inside = result.drawerPagesBefore;
+  if (!inside || !inside.present) errors.push('drawer-pages-unreadable');
+  else {
+    const pages = Array.isArray(inside.pages) ? inside.pages : [];
+    // Every page this suite knows how to open must have its row.
+    for (const page of ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+      'projects', 'chat', 'appearance', 'data', 'doctor']) {
+      if (!pages.includes(page)) errors.push('settings-row-missing-' + page);
+    }
+    // The DeepSeek-API-only page has no API behind arena.ai: it must NOT be offered.
+    if (inside.apiRowCount !== 0) errors.push('api-playground-offered-on-arena');
+    if (inside.doctorRowCount !== 1 || inside.doctorRowVisible !== true) {
+      errors.push('check-up-row-not-tappable');
+    }
+  }
+  // The Add to chat sheet's rows: present, labelled, finger-sized, and actually
+  // the element a tap would land on (a row behind the backdrop looks the same in
+  // a screenshot and eats the tap).
+  // The sheet the ENGINE adds is the product surface: Files / Add to chat /
+  // Camera / Photos / More tools / Deep Research / Settings. It is read after a
+  // real tap that switches the toggle to the engine's own sheet.
+  // The sheet the ENGINE adds is the product surface, in two parts: the quick
+  // grid (Files / Camera / Photos) and the "More tools" list (Add to chat /
+  // Deep Research / Upload Folder / GitHub Repo / Fetch Web Page) plus the
+  // app's own Linux Studio and Settings cards. A flat single-table read of the
+  // sheet is what made a correct sheet fail run 43337677596, so each surface is
+  // demanded on its own terms and neither is inferred from the other.
+  const sheetRows = result.engineSheetRows;
+  const surface = [
+    ...((sheetRows && sheetRows.tiles) || []),
+    ...((sheetRows && sheetRows.rows) || []),
+  ];
+  if (!sheetRows || sheetRows.present !== true || !(surface.length >= 3) ||
+      !((sheetRows.rows || []).length >= 1) || !((sheetRows.tiles || []).length >= 1)) {
+    errors.push('add-to-chat-sheet-empty');
+  } else {
+    const labels = surface.map((x) => (x.label || '').toLowerCase());
+    const lower = (v) => String(v || '').toLowerCase();
+    const tileLabels = (sheetRows.tiles || []).map((x) => lower(x.label));
+    const rowLabels = (sheetRows.rows || []).map((x) => lower(x.label));
+    // The sheet's own labels, each where the bundle actually puts it: "Add to
+    // chat" is the HEADER, "More tools" the SECTION above the list, and the
+    // three quick actions are TILES. Demanding all six as flat list rows is
+    // what failed run 43337677596 against a sheet that was drawn correctly.
+    if (!lower(sheetRows.header).includes('add to chat')) errors.push('add-to-chat-missing-add-to-chat-header');
+    if (!lower(sheetRows.section).includes('more tools') && !labels.some((l) => l.includes('more tools'))) {
+      errors.push('add-to-chat-missing-more-tools-section');
+    }
+    for (const want of ['files', 'camera', 'photos']) {
+      if (!tileLabels.some((l) => l.includes(want))) errors.push('add-to-chat-tile-missing-' + want);
+    }
+    // The list: the engine's tools plus the app's own two cards, which are the
+    // only entries it adds to a sheet it does not own.
+    for (const want of ['deep research', 'upload folder', 'github repo', 'fetch web page',
+      'linux studio', 'settings']) {
+      if (!rowLabels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
+    }
+    // Deep Research is the sheet's one switch: a plain row looks identical and
+    // could never be toggled.
+    const dr = (sheetRows.rows || []).find((x) => lower(x.label).includes('deep research'));
+    if (dr && dr.toggle !== true) errors.push('add-to-chat-deep-research-not-a-switch');
+    for (const row of surface) {
+      if (row.disabled) continue;
+      const b = row.rect || [0, 0, 0, 0];
+      if (!(b[2] >= 40 && b[3] >= 32)) errors.push('add-to-chat-row-too-small');
+    }
+    // The sheet scrolls: only the rows a finger can actually reach are required
+    // to be hit-testable. A row below the fold is normal, and demanding it be
+    // reachable measured the viewport, not the sheet — which is how a fixed gate
+    // kept failing after the real fault (a paused rise animation) was gone.
+    const visibleRows = surface.filter((x) => x.inViewport !== false && !x.disabled);
+    if (visibleRows.length < 1) errors.push('add-to-chat-sheet-no-visible-row');
+    for (const row of visibleRows) {
+      if (row.reachable !== true) errors.push('add-to-chat-row-not-in-sheet');
+    }
+    // At least the first row must be on top of the page (the sheet scrolls, so
+    // rows further down are expected to be below the fold).
+    if (visibleRows.filter((x) => x.onTop === true).length < 1) {
+      errors.push('add-to-chat-sheet-covered-by-backdrop');
+    }
+  }
+  if (result.engineSheetFacts && result.engineSheetFacts.closed !== true) {
+    errors.push('add-to-chat-sheet-never-closes');
+  }
+  // A drawer left open puts its backdrop over the "+" corner: an empty sheet is
+  // then a measurement of the drawer, not of the sheet. Never let that pass.
+  if (result.drawerClosedBeforeSheet && result.drawerClosedBeforeSheet.visible === true) {
+    errors.push('drawer-still-open-before-sheet');
+  }
+
+  const doc = result.doctorPage;
+  if (!doc) errors.push('check-up-page-did-not-open');
+  else {
+    if (doc.doctorLines < 6) errors.push('check-up-page-too-thin');
+    if (!(doc.doctorOkLines > 0)) errors.push('check-up-pages-no-passing-line');
+    // Some line must admit a limitation — a page that only ever says "fine" is
+    // not a check-up. On arena the API playground and the sandbox rows are off.
+    if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
+    if (!doc.pageTitle) errors.push('check-up-page-has-no-header');
+  }
+  // Back must land on the overview: the drawer is still open and the check-up's
+  // own lines are gone. The header text is not asserted — the drawer sets the
+  // page title in more than one place, and a header assertion is about cosmetics,
+  // not about whether Back worked.
+  const afterDoc = result.drawerPagesAfter;
+  if (!afterDoc || afterDoc.present !== true || afterDoc.doctorLines !== 0) {
+    errors.push('check-up-page-back-failed');
+  }
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
   }
@@ -835,9 +1415,30 @@ export async function main() {
     const result = await probe(cdp, { kitSource, pageHost, wait });
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'cdp-capture.json'), JSON.stringify(result));
+    // The exact rows the page reported, so a failed row check can be diagnosed
+    // from the artifacts instead of guessed at from an annotation.
+    if (result.engineSheetRows || result.attachSheetRows) {
+      fs.writeFileSync(path.join(outDir, 'cdp-attach-rows.json'), JSON.stringify({
+        firstTap: result.attachSheetRows, engineSheet: result.engineSheetRows, closed: result.engineSheetFacts,
+      }, null, 1));
+    }
+    if (result.drawerPagesBefore) {
+      fs.writeFileSync(path.join(outDir, 'cdp-drawer-pages.json'), JSON.stringify({
+        before: result.drawerPagesBefore, doctor: result.doctorPage, after: result.drawerPagesAfter,
+      }, null, 1));
+    }
     for (const line of annotations(result)) console.log(line);
     const failures = acceptanceFailures(result);
-    if (required && failures.length) console.log(annotation('error', 'Runtime gate: ' + failures.join(', ')));
+    if (required && failures.length) {
+      // Name the labels the sheet actually drew, so a red row check can be read
+      // off the annotation instead of decoded out of the capture.
+      const drawn = result.engineSheetRows
+        ? ` [sheet header="${result.engineSheetRows.header || ''}" section="${result.engineSheetRows.section || ''}" tiles=${
+          (result.engineSheetRows.tiles || []).map((t) => String(t.label || '').slice(0, 20)).join('|')} rows=${
+          (result.engineSheetRows.rows || []).map((r) => String(r.label || '').slice(0, 20)).join('|')}]`
+        : '';
+      console.log(annotation('error', 'Runtime gate: ' + failures.join(', ') + drawn));
+    }
     return required && failures.length ? 1 : 0;
   } catch (e) {
     console.log(annotation(required ? 'error' : 'warning', `CDP probe could not run: ${String((e && e.message) || e).slice(0, 300)}`));

@@ -1,5 +1,5 @@
 /*
- * Super DeepSeek — bottom sheets that behave like real phone sheets.
+ * ArenaPilot — bottom sheets that behave like real phone sheets.
  *
  * The engine's sheets (+ menu, project panel, settings, slash-command help)
  * and our own confirm sheet slide up when they open. This file adds what they
@@ -40,8 +40,18 @@
     {
       sel: '#bds-drawer.bds-open',
       mobileOnly: true,
+      // The engine's own close intent. The click below is a fallback: a click can
+      // land while Svelte is re-rendering (visible, sized, ignored), and the
+      // emulator captured exactly that — drawer still open, close button present.
+      intent: 'bds:close-drawer',
       backdrop: function () { return document.querySelector('.bds-drawer-backdrop'); },
-      close: function () { return document.getElementById('bds-close') || document.querySelector('.bds-drawer-backdrop'); },
+      // Scoped to the drawer: three components emit id="bds-close", and the
+      // document-wide lookup returned whichever one was in the DOM, not the
+      // drawer's own button.
+      close: function (s) {
+        return s.querySelector('.bds-drawer-header button') || s.querySelector('button') ||
+          document.querySelector('.bds-drawer-backdrop');
+      },
       // On a settings sub-page Back steps back inside the sheet; it only
       // slides away from the overview.
       backStaysInside: function (s) {
@@ -96,13 +106,26 @@
     return null;
   }
 
-  /** Every open sheet, topmost (last in the document) first. */
+  /**
+   * Every open sheet, topmost (last in the document) first.
+   *
+   * A drawer that is present with no measurable box is treated as open: that is
+   * what a sheet translated off-screen looks like, and forgetting it there is
+   * how a Back press closed "nothing open" while the drawer was still up.
+   */
   function openSheets() {
     var out = [];
     KINDS.forEach(function (k) {
       if (k.mobileOnly && !mobile()) return;
       var list = document.querySelectorAll(k.sel);
-      for (var i = 0; i < list.length; i++) if (shown(list[i])) out.push({ el: list[i], kind: k });
+      for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (shown(el)) { out.push({ el: el, kind: k }); continue; }
+        if (k.sel === '#bds-drawer.bds-open' && el.isConnected && el.classList.contains('bds-open') &&
+            !el.getClientRects().length) {
+          out.push({ el: el, kind: k });
+        }
+      }
     });
     out.sort(function (a, b) {
       var z = function (x) { return parseInt(getComputedStyle(x.el).zIndex, 10) || 0; };
@@ -150,6 +173,18 @@
   var closing = typeof WeakSet === 'function' ? new WeakSet() : null;
 
   /** Slides the sheet down, then runs `then` (which really closes it). */
+  /** Run [fn] on the next frame — or on a timer if the frame never comes. */
+  function nextFrame(fn) {
+    var ran = false;
+    var once = function () {
+      if (ran) return;
+      ran = true;
+      fn();
+    };
+    try { requestAnimationFrame(once); } catch (_) {}
+    setTimeout(once, 32);
+  }
+
   function slideOut(sheet, fromDy, then) {
     if (closing && closing.has(sheet.el)) return;
     if (closing) closing.add(sheet.el);
@@ -168,17 +203,57 @@
     if (reducedMotion()) { finish(); return; }
     if (fromDy) setOffset(sheet, fromDy, 0, '');
     // Next frame, so the start position is committed before the transition.
-    requestAnimationFrame(function () {
+    nextFrame(function () {
       setOffset(sheet, h, OUT_MS, 'cubic-bezier(.4,0,1,1)');
       setTimeout(finish, OUT_MS);
     });
   }
 
-  function closeSheet(sheet, fromDy) {
+  /**
+   * The close control to click once the sheet has slid away.
+   *
+   * Read while the sheet is still on screen: `shown()` needs client rects, and a
+   * sheet translated off-screen (or already slid out) reports none — the click
+   * then lands on an element nobody can see, or on nothing at all, and the
+   * drawer stays open. When the element is present but not measurable, it is
+   * still the right control to click: the click is what closes Svelte's state.
+   */
+  function closeTarget(sheet) {
     var c = sheet.kind.close(sheet.el);
-    slideOut(sheet, fromDy || 0, function () {
-      if (c && c.isConnected) c.click();
-    });
+    if (c) return c;
+    // The drawer's `close` falls back to the backdrop, which is a different layer
+    // from the drawer. Clicking it closes the dim layer, not the drawer — the
+    // state CI caught as "drawer still visible after Back" with the drawer's own
+    // close button lying right there in its header.
+    var own = sheet.el.querySelector && sheet.el.querySelector('.bds-drawer-header button, [aria-label="Close"], [aria-label="close"]');
+    if (own) return own;
+    return null;
+  }
+
+  /**
+   * Close a sheet: the STATE first, the animation second.
+   *
+   * This used to happen inside the slide-out, which waits for a frame. A WebView
+   * throttles requestAnimationFrame while the page is not painting, and the close
+   * then never ran at all — the drawer stayed on screen with `transform: none`
+   * and no event dispatched, which is the state the emulator captured every time.
+   * An animation may be skipped; a close may not.
+   */
+  function closeSheet(sheet, fromDy) {
+    mark('closeSheet');
+    var c = closeTarget(sheet);
+    if (sheet.kind.intent) {
+      mark('intent:' + sheet.kind.intent);
+      try {
+        window.dispatchEvent(new CustomEvent(sheet.kind.intent));
+      } catch (_) {
+        if (c && c.isConnected) c.click();
+      }
+    } else if (c && c.isConnected) {
+      c.click();
+    }
+    // Decorative only: the sheet slides away (or does not, on a stalled frame).
+    slideOut(sheet, fromDy || 0, function () {});
   }
 
   // ── Taps on close / backdrop ───────────────────────────────────────────────
@@ -291,12 +366,27 @@
 
   // ── Back ───────────────────────────────────────────────────────────────────
 
+  /**
+   * Which layer handled the last Back press. Permanent, small, and the only way to
+   * tell "the wrapper closed it" from "the wrapper forwarded it" from a capture —
+   * six emulator runs were spent guessing between those.
+   */
+  function mark(step) {
+    try {
+      var d = window.__sdSheetsDiag || (window.__sdSheetsDiag = {});
+      d[step] = (d[step] || 0) + 1;
+      d.sheets = openSheets().length;
+    } catch (_) {}
+  }
+
   function wrapBack() {
     var inner = window.__sdHandleBack;
     if (typeof inner !== 'function' || inner.__sdSheets) return;
     var wrapped = function () {
+      mark('back');
       try {
         var top = openSheets()[0];
+        mark(top ? ('top:' + top.kind.sel.slice(0, 24)) : 'top:none');
         // The agent's "Allow?" sheet is ours, the engine knows nothing about
         // it: Back answers "Skip" (and never leaves the chat behind it).
         if (top && top.kind.sel === '#sd-agent-confirm .sd-card') {
@@ -309,12 +399,14 @@
             // Capture the close control BEFORE moving the sheet offscreen.
             // The legacy handler uses elementFromPoint: after the animation it
             // sees the page behind the sheet and cannot close Svelte's state.
-            if (!top.kind.close(top.el)) return inner();
+            if (!top.kind.close(top.el)) { mark('no-close-control'); return inner(); }
+            mark('wrapper-closes');
             closeSheet(top, 0);
             return true;
           }
         }
       } catch (_) {}
+      mark('forwarded');
       return inner();
     };
     wrapped.__sdSheets = true;
@@ -354,6 +446,14 @@
         d.classList.remove('sd-sheet-in');
         void d.offsetWidth; // restart the animation
         d.classList.add('sd-sheet-in');
+        // The class adds an animation, and an animation that runs must not decide
+        // whether the sheet exists: a paused animation keeps transform:none and
+        // `hit-testable: no` for everything inside it (the emulator measured rows
+        // with correct rects, reachable:false, for the whole 7-row sheet). Retire
+        // the class when the slide is over, in both cases.
+        var done = function () { d.classList.remove('sd-sheet-in'); };
+        d.addEventListener('animationend', done, { once: true });
+        setTimeout(done, 600);
       }
       wasOpen = open;
     };

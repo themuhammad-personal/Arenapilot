@@ -19,7 +19,7 @@ test('live request capture is exact, origin-bound, and structural: no tokens/con
   assert.equal(requestFacts(request({ userMessage: { content: PROMPT + 'EXTRA PRIVATE MEMORY' } })).promptDelivered, false);
   // v2 defaults: the engine's own instruction block in front of the prompt is
   // still a clean delivery — but only the engine's block, never other text
-  const injected = requestFacts(request({ userMessage: { content: '<SuperDeepSeek>\nENGINE INSTRUCTIONS\n</SuperDeepSeek>\n\n' + PROMPT } }));
+  const injected = requestFacts(request({ userMessage: { content: '<ArenaPilot>\nENGINE INSTRUCTIONS\n</ArenaPilot>\n\n' + PROMPT } }));
   assert.equal(injected.promptExact, false);
   assert.equal(injected.promptDelivered, true);
   assert.equal(requestFacts(request({ userMessage: { content: 'SOMETHING ELSE\n\n' + PROMPT } })).promptDelivered, false);
@@ -158,6 +158,32 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     composerFill: { engine: true, set: true, valueMatches: true, sendButton: true, sendDisabledWhileFilled: false, cleared: true },
     drawer: { present: true, visible: true, rect: [0, 0, 300, 600], backdrop: true, railDock: 'sheet', sheetVisible: false },
     drawerAfterBack: { present: true, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: false },
+    // the Add to chat sheet's rows, all on top and finger-sized
+    engineSheetFacts: { closed: true },
+    // the sheet's two surfaces: the quick grid of tiles, then the "More tools"
+    // list, with the app's own Linux Studio / Settings cards last.
+    engineSheetRows: {
+      present: true, count: 7, header: 'Add to chat', section: 'More tools',
+      tiles: ['Files', 'Camera', 'Photos']
+        .map((label, i) => ({ label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
+      // "Add to chat" is the sheet's HEADER, not a row; Deep Research is its one
+      // switch. The app's own Linux Studio and Settings cards come last.
+      rows: ['Upload Folder', 'Attach Project', 'Deep Research',
+        'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings']
+        .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: label === 'Deep Research', onTop: true, reachable: true, disabled: false })),
+    },
+    // inside the drawer: every page row, no DeepSeek-API row, a real check-up
+    drawerPagesBefore: {
+      present: true, headerTitle: 'Advanced settings',
+      pages: ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+        'projects', 'chat', 'appearance', 'data', 'doctor'],
+      apiRowCount: 0, apiRowVisible: false, doctorRowCount: 1, doctorRowVisible: true,
+    },
+    doctorPage: {
+      present: true, doctorLines: 9, doctorOkLines: 4, doctorOffLines: 3,
+      doctorWarnLines: 1, pageTitle: 'Check-up',
+    },
+    drawerPagesAfter: { present: true, doctorLines: 0, pageTitle: 'Advanced settings' },
   };
   assert.deepEqual(acceptanceFailures(good), []);
   const loginWall = {
@@ -191,6 +217,87 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     ...good, drawer: { ...good.drawer, railDock: 'sidebar' },
   }).includes('settings-drawer-opened-by-wrong-entry'));
   assert.ok(acceptanceFailures({}).length);
+  // the drawer's insides are gated too — a panel that opens onto dead rows is not
+  // a working Settings screen, and a check-up that only ever says "fine" is not
+  // a check-up.
+  // The Add to chat sheet: rows that exist but cannot receive the tap (a backdrop
+  // over them) look perfect in a screenshot and swallow every touch.
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: { ...good.engineSheetRows, count: 0, rows: [], tiles: [] },
+  }).includes('add-to-chat-sheet-empty'), 'an empty Add to chat sheet must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      // Camera is a quick-grid tile, not a list row: the tile is where a tap lands.
+      tiles: good.engineSheetRows.tiles.map((t) => (t.label === 'Camera' ? { ...t, reachable: false } : t)),
+    },
+  }).includes('add-to-chat-row-not-in-sheet'), 'a tile the sheet does not own must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      header: '',
+    },
+  }).includes('add-to-chat-missing-add-to-chat-header'), 'the sheet must name itself');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => (/deep research/i.test(r.label) ? { ...r, toggle: false } : r)),
+    },
+  }).includes('add-to-chat-deep-research-not-a-switch'), 'Deep Research must be the switch it claims to be');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      tiles: good.engineSheetRows.tiles.map((t) => ({ ...t, rect: [0, 0, 20, 12] })),
+    },
+  }).includes('add-to-chat-row-too-small'), 'a tile too small for a finger must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => ({ ...r, rect: [0, 0, 20, 12] })),
+    },
+  }).includes('add-to-chat-row-too-small'), 'a row too small for a finger must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Deep Research'),
+      count: 7,
+    },
+  }).includes('add-to-chat-row-missing-deep-research'), 'a missing sheet row must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Settings'),
+      count: 7,
+    },
+  }).includes('add-to-chat-row-missing-settings'), 'the app\u2019s own Settings card must be present');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => ({ ...r, onTop: false })),
+      tiles: good.engineSheetRows.tiles.map((t) => ({ ...t, onTop: false })),
+    },
+  }).includes('add-to-chat-sheet-covered-by-backdrop'), 'a sheet entirely under its backdrop must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetFacts: { closed: false },
+  }).includes('add-to-chat-sheet-never-closes'), 'a sheet that cannot be dismissed must fail');
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesBefore: { ...good.drawerPagesBefore, apiRowCount: 1 },
+  }).includes('api-playground-offered-on-arena'), 'the DeepSeek-only API page must stay off arena');
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesBefore: { ...good.drawerPagesBefore, pages: ['prompts', 'doctor'] },
+  }).includes('settings-row-missing-memory'), 'a missing page row must fail the gate');
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: { ...good.doctorPage, doctorOffLines: 0 },
+  }).includes('check-up-page-hides-limitations'), 'a check-up must admit at least one limitation');
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: { ...good.doctorPage, doctorLines: 2 },
+  }).includes('check-up-page-too-thin'));
+  assert.ok(acceptanceFailures({
+    ...good, doctorPage: undefined,
+  }).includes('check-up-page-did-not-open'));
+  assert.ok(acceptanceFailures({
+    ...good, drawerPagesAfter: { ...good.drawerPagesAfter, doctorLines: 4 },
+  }).includes('check-up-page-back-failed'), 'Back must leave the check-up page');
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
   assert.deepEqual(acceptanceFailures({

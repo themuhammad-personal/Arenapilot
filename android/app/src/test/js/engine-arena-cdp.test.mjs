@@ -20,7 +20,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
+import { ATTACH_SHEET_ROWS as ATTACH_SHEET_ROWS_EXPRESSION, FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '../../../../..');
@@ -86,7 +86,18 @@ function pageContext() {
       documentElement: html, body,
       createElement: (tag) => { const n = el(tag); let t = ''; Object.defineProperty(n, 'textContent', { get: () => t, set: (v) => { t = String(v); } }); n.style = {}; n.appendChild = (k) => { n.children.push(k); }; n.addEventListener = () => {}; return n; },
       querySelectorAll: (sel) => [html, ...descendants(html)].filter((n) => matches(n, sel)),
+      // The probe asks what is on top at a point (a tap must not go through an
+      // overlay). The fixture's rects are all the same, so the deepest match wins.
+      elementFromPoint: (x, y) => {
+        let top = null;
+        for (const n of descendants(html)) {
+          const r = n.getBoundingClientRect();
+          if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) top = n;
+        }
+        return top;
+      },
       querySelector: (sel) => [html, ...descendants(html)].find((n) => matches(n, sel)) || null,
+      getElementById: (id) => [html, ...descendants(html)].find((n) => n.getAttribute('id') === id) || null,
     },
   };
   ctx.window = ctx;
@@ -231,6 +242,30 @@ async function startFakeCdp(opts = {}) {
         if (marker === 'hit') {
           return value(JSON.stringify({ chain: ['button[aria-label=Add files]', 'div.flex.items-center', 'form'], viewport: [320, 616], mobileCss: true }));
         }
+        if (marker === 'cardpos') {
+          // What a real page reports for the Settings card: on screen, and the
+          // element at its centre is the card itself.
+          return value(JSON.stringify({ y: 530, h: 52, vh: 616, inViewport: true, hitInsideCard: true }));
+        }
+        if (marker === 'backexp') {
+          return value(JSON.stringify({ before: { tag: 'before', open: true, box: [320, 542] },
+            marks: [{ tag: 't700', open: false, box: [0, 0] }], events: ['bds:close-drawer'], headerButton: true }));
+        }
+        if (marker === 'drawerstate') {
+          return value(JSON.stringify({ open: false, box: [0, 0], transform: 'none', display: 'none',
+            opacity: '1', inlineTransform: '', closeButtons: 2 }));
+        }
+        if (marker === 'rowhit') {
+          return value(JSON.stringify({ hitInsideRow: true, vh: 800, y: 420 }));
+        }
+        if (marker === 'top') {
+          return value(['div.bds-sheet-section', 'div.bds-attach-dropdown', 'body'].join(' < '));
+        }
+        if (marker === 'backdiag') {
+          return value(JSON.stringify({ handled: 'true', drawer: true, drawerOpenClass: false, closeExists: true,
+            closeConnected: true, closeRects: 1, closeBox: [0, 0, 32, 32], headerButton: true,
+            headerButtonSame: true, subpageBack: false, wrappedBySheets: true }));
+        }
         if (marker === 'sheet') {
           const o = state.sheetOpen ? 1 : 0;
           return value(JSON.stringify({ dropdown: o, backdrop: o, header: o, items: o * 4, title: o, expanded: null, btnClass: 'bds-plus-btn' }));
@@ -255,7 +290,71 @@ async function startFakeCdp(opts = {}) {
             ? { present: true, visible: true, rect: [0, 0, 320, 600], backdrop: true, railDock: 'sheet', sheetVisible: state.sheetOpen }
             : { present: false, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: state.sheetOpen }));
         }
-        if (marker === 'back') { state.drawerOpen = false; return value(true); }
+        if (marker === 'enginesheet') {
+          return value(JSON.stringify({ closed: true }));
+        }
+        if (marker === 'attachrows') {
+          if (opts.emptySheet) return value(JSON.stringify({ present: true, count: 0, rows: [], tiles: [] }));
+          // The sheet has two surfaces: the quick grid of icon tiles and the
+          // "More tools" list below it. Reading only the list is what made a
+          // correct sheet fail run 43337677596 (Files/Camera/Photos live in the
+          // grid), so the fake carries both, with the app's own two cards last.
+          const tiles = ['Files', 'Camera', 'Photos'].map((label, i) => ({
+            label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false,
+            reachable: true, onTop: !(opts.coveredRow && label === 'Camera'), disabled: false,
+          }));
+          const rows = ['Add to chat', 'Upload Folder', 'Attach Project', 'Deep Research',
+            'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings'].map((label, i) => ({
+            label, rect: [16, 240 + i * 56, 288, 48], inViewport: true,
+            toggle: label === 'Deep Research' && !opts.drNotSwitch, reachable: true, onTop: true, disabled: false,
+          }));
+          return value(JSON.stringify({
+            present: true,
+            count: rows.length,
+            rows,
+            tiles,
+            header: opts.sheetHeader || 'Add to chat',
+            section: opts.sheetSection || 'More tools',
+          }));
+        }
+        if (marker === 'drawerpages') {
+          // The drawer's rendered rows. On arena the DeepSeek-API-only page is
+          // absent by rule; the doctor row is present and its page prints at
+          // least one passing line and one admitted limitation.
+          const open = state.drawerOpen && !opts.drawerNeverOpens;
+          const pages = ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
+            'projects', 'chat', 'appearance', 'data', 'doctor'];
+          if (opts.apiRowBack) pages.push('api');
+          if (opts.noDoctorRow) pages.splice(pages.indexOf('doctor'), 1);
+          const onDoctor = state.onDoctorPage === true && !opts.doctorNeverOpens;
+          return value(JSON.stringify({
+            present: open,
+            headerTitle: 'Advanced settings',
+            pages: open ? pages : [],
+            rowCount: open ? pages.length : 0,
+            apiRowCount: open ? (opts.apiRowBack ? 1 : 0) : 0,
+            doctorRowCount: open && !opts.noDoctorRow ? 1 : 0,
+            doctorRowVisible: open && !opts.noDoctorRow,
+            apiRowVisible: open && opts.apiRowBack === true,
+            doctorLines: onDoctor ? (opts.thinDoctorPage ? 2 : 9) : 0,
+            doctorOkLines: onDoctor ? 4 : 0,
+            doctorOffLines: onDoctor ? (opts.doctorHidesLimits ? 0 : 3) : 0,
+            doctorWarnLines: onDoctor ? 1 : 0,
+            doctorFirstLine: onDoctor ? 'Message box found' : '',
+            pageTitle: onDoctor && !opts.doctorPageUntitled ? 'Check-up' : 'Advanced settings'
+          }));
+        }
+        if (marker === 'attachopen') { state.sheetOpen = true; return value(true); }
+        if (marker === 'attachclose') { state.sheetOpen = false; return value(true); }
+        if (marker === 'cardclick') {
+          if (!state.sheetOpen) return value(false);
+          state.clickedSettingsCard = true; state.sheetOpen = false;
+          if (!opts.drawerNeverOpens && !opts.cardNeverOpens) state.drawerOpen = true;
+          return value(true);
+        }
+        if (marker === 'back') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
+        if (marker === 'drawerclose') { state.drawerOpen = false; state.onDoctorPage = false; return value(true); }
+        if (/bds-back-btn/.test(expr)) state.onDoctorPage = false; // Back, real or scripted
         if (marker === 'fillset') {
           if (opts.fillBroken) return value(JSON.stringify({ engine: true, set: false, valueMatches: false }));
           return value(JSON.stringify({ engine: true, set: true, valueMatches: true }));
@@ -271,6 +370,7 @@ async function startFakeCdp(opts = {}) {
           if (expr.includes('Add files') && expr.includes(':not(.bds-plus-btn)')) return opts.siteButton === false ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('bds-plus-btn')) return opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44);
           if (expr.includes('Add files')) return opts.siteButton === false ? (opts.noToggle ? value(JSON.stringify({ found: false })) : found(60, 700, 44, 44)) : found(60, 700, 44, 44);
+          if (expr.includes("data-bds-page") && expr.includes('doctor')) return found(160, 420, 280, 52);
           if (expr.includes('sd-arena-settings-item')) {
             return state.sheetOpen && !opts.noCard && !opts.cardNeverOpens
               ? found(160, 560, 280, 52) : value(JSON.stringify({ found: false }));
@@ -279,6 +379,11 @@ async function startFakeCdp(opts = {}) {
             return value(JSON.stringify({ found: false }));
           }
           return value(JSON.stringify({ found: false }));
+        }
+        if (state.drawerOpen && !opts.doctorNeverOpens && expr.includes('scrollIntoView') && expr.includes('doctor')) {
+          // Reading the check-up row's box brings that page into view.
+          state.onDoctorPage = true;
+          return value(JSON.stringify({ x: 160, y: 420, w: 280, h: 52 }));
         }
         try {
           if (marker === 'snap') calls.at(-1).label = (/snap\("([^"]+)"/.exec(expr) || [])[1];
@@ -318,7 +423,7 @@ async function runProbe(opts) {
 test('the probe runs every step against a DevTools page and returns the engine’s facts', async () => {
   const { result } = await runProbe();
   const names = result.steps.map((s) => s.name);
-  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
+  assert.deepEqual(names, ['enable', 'reload', 'facts', 'install-kit', 'snap:anon-page', 'plus-hit-test', 'plus-sheet-facts', 'engine-plus-sheet', 'arena-original-plus-trigger', 'mode-switch', 'attach-sheet-rows', 'drawer-pages', 'doctor-page', 'drawer-pages-after', 'engine-sheet-rows', 'engine-sheet-close', 'settings-drawer', 'composer-fill', 'facts-after', 'export-kit', 'network']);
   assert.deepEqual(result.steps.filter((s) => !s.ok), [], 'every step succeeded');
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.engine.rail.label, 'Advanced settings');
@@ -336,10 +441,17 @@ test('the engine’s "+" sheet is opened with a REAL pointer click on its toggle
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
     'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
-    'mouseMoved@160,560', 'mousePressed@160,560', 'mouseReleased@160,560',
-  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, then tap its Settings card');
+    // the Settings card is pressed by running the row's own handler (a JS click, no
+    // coordinates): its rect can sit below the fold of the scroll container, and CI
+    // measured exactly that while the hit-test at the same point still landed on it
+    'mouseMoved@160,420', 'mousePressed@160,420', 'mouseReleased@160,420',
+    // then one more tap on the engine's own "+" to read its own sheet
+    'mouseMoved@60,700', 'mousePressed@60,700', 'mouseReleased@60,700',
+  ], 'tap the Plus, verify Arena’s original Plus, reopen Add to chat, tap its Settings card, then the check-up row');
   const keys = fake.calls.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => `${c.params.type}:${c.params.key}`);
-  assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
+  // Every key this probe presses is Escape, and there are at least the two that
+  // close the sheet: no typing, nothing that could send a message.
+  assert.deepEqual(keys, ['keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape', 'keyDown:Escape', 'keyUp:Escape'].slice(0, keys.length));
   assert.ok(keys.length >= 2 && keys.every((k) => k.endsWith('Escape')));
   assert.equal(result.engineSheet.dropdown, 1, 'after the click the sheet is on the page');
   assert.equal(result.engine.attach.dropdown, 0, 'and before it, it was not');
@@ -369,7 +481,7 @@ test('the kit is installed from capture.js verbatim, and its snapshots come back
   const { fake, result } = await runProbe();
   const install = fake.calls.find((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:install*/'));
   assert.equal(install.params.expression, `/*sdp:install*/${KIT}`);
-  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
+  assert.deepEqual(result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page', 'add-to-chat-sheet']);
   const by = Object.fromEntries(result.kitExport.snaps[0].landmarks.map((l) => [l.selector, l]));
   assert.equal(by['textarea[name="message"]'].count, 1);
   assert.equal(by['textarea[name="message"]'].first.placeholder, 'Ask anything');
@@ -381,7 +493,7 @@ test('Arena’s original Plus is exercised only when the real button is present'
   const present = await runProbe({});
   assert.equal(present.result.siteToggle.found, true);
   assert.ok(present.fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.x === 60 && c.params.y === 700), 'clicked at the button');
-  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'settings-drawer']);
+  assert.deepEqual(present.result.kitExport.snaps.map((s) => s.label), ['anon-page', 'engine-plus-sheet', 'arena-original-plus-trigger', 'add-to-chat-sheet', 'settings-drawer', 'doctor-page', 'add-to-chat-sheet']);
 });
 
 test('a page without the engine’s toggle is reported, not clicked', async () => {
@@ -480,11 +592,29 @@ test('Settings is clicked as the last card in Add to chat, closes that sheet, an
   assert.equal(result.drawerAfterBack.visible, false, 'the engine’s Back closes Settings');
   assert.equal(result.drawerAfterBack.railDock, 'sheet');
   assert.ok(result.steps.find((s) => s.name === 'settings-drawer').ok);
-  assert.ok(fake.calls.some((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed' && c.params.x === 160 && c.params.y === 560),
-    'the Settings card receives a physical click');
+  // The card is pressed by running its own handler (a JS click, no coordinates):
+  // its rect can sit below the fold of the scrollable sheet, where a coordinate
+  // click is clipped — CI measured rect y=941 on a 616px screen. A real pointer is
+  // still what opens the sheet and what presses the row inside the drawer.
+  assert.equal(result.settingsCardClick && result.settingsCardClick.js, true,
+    'the Settings card is pressed through its own handler, not a clipped coordinate');
+  assert.ok(fake.calls.some((c) => c.method === 'Runtime.evaluate' && c.params.expression.startsWith('/*sdp:cardclick*/')));
   const noCard = await runProbe({ noCard: true });
   assert.equal(noCard.result.drawer.present, false);
   assert.ok(noCard.result.steps.find((s) => s.name === 'settings-drawer').ok, 'missing card is reported rather than throwing');
+});
+
+test('the drawer is closed by intent before the sheet is measured through the “+”', async () => {
+  // Measured on the emulator (run 43331807615): the Settings card worked, the
+  // drawer stayed open, its backdrop lay over the "+" corner, and the tap that was
+  // meant to open Add to chat was swallowed — reported as 'add-to-chat-sheet-empty'
+  // while the sheet had never been asked. The sheet step now closes the drawer by
+  // intent first and records that it is gone.
+  const { fake, result } = await runProbe();
+  assert.deepEqual(result.drawerClosedBeforeSheet, { sent: true, visible: false });
+  const marks = fake.calls.filter((c) => c.method === 'Runtime.evaluate').map((c) => (/^\/\*sdp:([a-z]+)\*\//.exec(c.params.expression) || [])[1]);
+  assert.ok(marks.indexOf('drawerclose') < marks.indexOf('attachopen') || !marks.includes('attachopen'),
+    'the drawer is closed before the sheet is opened by intent');
 });
 
 test('the composer fill is captured without ever sending: fill, settle, read, clear', async () => {
@@ -498,8 +628,8 @@ test('the composer fill is captured without ever sending: fill, settle, read, cl
   // the Plus buttons and Settings card — nothing that could send a message
   assert.ok(!fake.calls.some((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key !== 'Escape'), 'no typing, no Enter — nothing that could send');
   const clicks = fake.calls.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mousePressed').map((c) => `${c.params.x},${c.params.y}`);
-  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,560'],
-    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then click its Settings card');
+  assert.deepEqual(clicks, ['60,700', '60,700', '60,700', '160,420', '60,700'],
+    'tap the internal Plus, Arena’s original Plus, open Add to chat once more, then the check-up row');
 });
 
 test('a broken composer or a dead drawer fails the runtime gate', async () => {
@@ -583,10 +713,144 @@ test('N0 acceptance gate rejects a missing skin target or Send overflow without 
   assert.ok(!acceptanceFailures(consentGate).includes('send-outside-composer'));
 });
 
-test('the default output is the readable summary, the engine’s own markup and the composer’s controls — no payload', async () => {
+test('a row below the fold of the scrolling sheet is not a fault; a covered one is', async () => {
+  // Measured on the emulator (run 43333312429): after the rise animation was
+  // retired, the FIRST row of the 7-row sheet became reachable:true while the
+  // other six reported reachable:false — they sit below the sheet's fold, which
+  // is what a scrolling sheet does. The gate had been demanding every row be
+  // hit-testable, so it measured the viewport rather than the sheet. Now only the
+  // rows a finger can reach must be reachable, and at least one must be on top.
+  const { result } = await runProbe();
+  const below = JSON.parse(JSON.stringify(result));
+  below.engineSheetRows.rows = below.engineSheetRows.rows.map((row, i) => (i === 0
+    ? { ...row, reachable: true, onTop: true, inViewport: true }
+    : { ...row, reachable: false, onTop: false, inViewport: false }));
+  assert.deepEqual(acceptanceFailures(below), [], 'rows below the fold are not failures');
+
+  const covered = JSON.parse(JSON.stringify(below));
+  covered.engineSheetRows.rows[0] = { ...covered.engineSheetRows.rows[0], reachable: false, onTop: false };
+  assert.ok(acceptanceFailures(covered).includes('add-to-chat-row-not-in-sheet'),
+    'a visible row that a tap cannot reach is still a fault');
+
+  // Deep Research is a SWITCH row. A sheet that draws it as a plain row looks
+  // identical in a screenshot and can never turn the feature on.
+  const notASwitch = JSON.parse(JSON.stringify(below));
+  notASwitch.engineSheetRows.rows = notASwitch.engineSheetRows.rows.map((row) => (
+    /deep research/i.test(row.label) ? { ...row, toggle: false } : row));
+  assert.ok(acceptanceFailures(notASwitch).includes('add-to-chat-deep-research-not-a-switch'));
+
+  // The two labels the sheet prints outside its rows: "Add to chat" is the
+  // HEADER and "More tools" the SECTION above the list. A sheet with both
+  // missing is not the sheet the product promises.
+  for (const [key, err] of [['header', 'add-to-chat-missing-add-to-chat-header'],
+    ['section', 'add-to-chat-missing-more-tools-section']]) {
+    const bare = JSON.parse(JSON.stringify(below));
+    bare.engineSheetRows[key] = '';
+    assert.ok(acceptanceFailures(bare).includes(err), `${key} missing must fail`);
+  }
+
+  // The three quick actions are tiles, not rows: one missing must fail by name.
+  const noCamera = JSON.parse(JSON.stringify(below));
+  noCamera.engineSheetRows.tiles = noCamera.engineSheetRows.tiles.filter((t) => !/camera/i.test(t.label));
+  assert.ok(acceptanceFailures(noCamera).includes('add-to-chat-tile-missing-camera'));
+
+  const nothingVisible = JSON.parse(JSON.stringify(below));
+  nothingVisible.engineSheetRows.rows = nothingVisible.engineSheetRows.rows.map((row) => ({ ...row, inViewport: false }));
+  nothingVisible.engineSheetRows.tiles = nothingVisible.engineSheetRows.tiles.map((t) => ({ ...t, inViewport: false }));
+  assert.ok(acceptanceFailures(nothingVisible).includes('add-to-chat-sheet-no-visible-row'));
+});
+
+test('the sheet reader finds the switch on the row itself, and needs the centre on screen', () => {
+  // Run 43342755419's own dump reported toggle:false for the Deep Research row:
+  // the reader looked for the switch class on a DESCENDANT, but the bundle puts
+  // `.bds-attach-toggle` on the row element itself. Run the shipped expression
+  // against a minimal DOM so the classifier is tested, not a copy of it.
+  const rows = [
+    { label: 'Deep Research', cls: 'bds-attach-item bds-attach-toggle', rect: [10, 100, 300, 60] },
+    { label: 'Fetch Web Page', cls: 'bds-attach-item', rect: [10, 400, 300, 60] }, // centre below a 420px viewport? no: 430 > 420
+    { label: 'Settings', cls: 'bds-attach-item', rect: [10, 500, 300, 60] },
+  ];
+  const mk = (r) => {
+    const el = {
+      className: r.cls,
+      disabled: false,
+      textContent: r.label,
+      matches: (sel) => sel.split(',').map((x) => x.trim()).some((c) => r.cls.split(' ').includes(c.replace('.', '').replace('[aria-pressed]', ''))),
+      querySelector: () => null,
+      contains: () => false,
+      getAttribute: () => null,
+      getBoundingClientRect: () => ({ x: r.rect[0], y: r.rect[1], width: r.rect[2], height: r.rect[3] }),
+    };
+    return el;
+  };
+  const elements = rows.map(mk);
+  const sheet = {
+    querySelectorAll: (sel) => (sel === '.bds-attach-item' ? elements : []),
+    querySelector: () => null,
+  };
+  const sandbox = {
+    window: { innerWidth: 320, innerHeight: 420 },
+    document: { querySelector: (sel) => (sel === '.bds-attach-dropdown' ? sheet : null), elementFromPoint: () => null },
+    JSON,
+  };
+  const out = JSON.parse(vm.runInNewContext(ATTACH_SHEET_ROWS_EXPRESSION, sandbox));
+  assert.equal(out.present, true);
+  assert.equal(out.count, 3);
+  assert.equal(out.rows[0].toggle, true, 'the switch is on the row, not a child');
+  assert.equal(out.rows[1].toggle, false);
+  // A row whose centre is off screen cannot be tapped there, however much of its
+  // top edge is visible: GitHub Repo showed 8px at the fold in run 43337677596.
+  assert.equal(out.rows[0].inViewport, true);
+  assert.equal(out.rows[1].inViewport, false, 'centre below the viewport is not in view');
+  assert.equal(out.rows[2].inViewport, false);
+  assert.deepEqual(out.tiles, [], 'no quick grid here');
+  assert.equal(out.header, '', 'header text is read from the sheet, never invented');
+});
+
+test('a row clipped by the scrolling list is not in view even when its rect says so', () => {
+  // Run 43344536996: Attach Project measured y=575..636 with a 616px window, so
+  // its centre (605.5) was inside the WINDOW — but the .bds-sheet-list clips the
+  // rows and its bottom edge was above that centre. Reachability said no, and
+  // the window-only rule called the row visible: a normal scroll read as a red
+  // gate. The clip has to be applied per scrolling ancestor.
+  const row = {
+    label: 'Attach Project',
+    rect: [18, 575, 284, 61],
+    matches: () => false,
+    querySelector: () => null,
+    children: [],
+    getAttribute: () => null,
+  };
+  const list = { rect: [18, 300, 284, 300], overflowY: 'auto' }; // bottom edge 600 < centre 605.5
+  const el = {
+    className: 'bds-attach-item',
+    disabled: false,
+    textContent: row.label,
+    children: [],
+    matches: () => false,
+    querySelector: () => null,
+    getAttribute: () => null,
+    getBoundingClientRect: () => ({ x: 18, y: 575, width: 284, height: 61 }),
+    parentElement: {
+      getBoundingClientRect: () => ({ x: list.rect[0], y: list.rect[1], width: list.rect[2], height: list.rect[3] }),
+      parentElement: null,
+    },
+  };
+  const sheet = { querySelectorAll: (sel) => (sel === '.bds-attach-item' ? [el] : []), querySelector: () => null };
+  const sandbox = {
+    window: { innerWidth: 320, innerHeight: 616 },
+    getComputedStyle: () => ({ overflowY: 'auto', overflowX: 'visible', overflow: 'visible' }),
+    document: { querySelector: () => sheet, elementFromPoint: () => el },
+    JSON,
+  };
+  const out = JSON.parse(vm.runInNewContext(ATTACH_SHEET_ROWS_EXPRESSION, sandbox));
+  assert.equal(out.rows[0].inViewport, false, 'the list clips it: a tap at its centre lands elsewhere');
+});
+
+test('the default output is the readable summary, the facts, the engine’s markup and the composer’s controls — no payload', async () => {
   const { result } = await runProbe();
   const lines = annotations(result);
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 4);
   assert.match(lines[0], /^::notice::CDP probe: page=arena\.ai\/text\/direct /);
   assert.match(lines[0], /rail=no "Advanced [Ss]ettings"/i);
   assert.match(lines[0], /settingsCard\(present=yes last=yes inSheet=yes sourceRail=no title="Settings"\)/);
@@ -597,10 +861,10 @@ test('the default output is the readable summary, the engine’s own markup and 
   assert.match(lines[0], /skin\(active=yes composer=has sendInside=yes sendRect=\[250,520,44,44\] viewport=320 settingsDock=sheet settingsLabel=none\)/);
   assert.match(lines[0], /drawer\(visible=yes dock=sheet backCloses=yes\)/);
   assert.match(lines[0], /all steps ran/);
-  assert.match(lines[1], /^::notice::CDP engine markup: \{"mount":/);
-  assert.match(lines[2], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
+  assert.match(lines[2], /^::notice::CDP engine markup: \{"mount":/);
+  assert.match(lines[3], /^::notice::CDP composer controls: \[\{"tag":"button","aria":"Add files"/);
   assert.ok(lines.every((l) => l.length < 4096), 'each fits an annotation');
-  assert.equal(summaryAnnotations(result).length, 3);
+  assert.equal(summaryAnnotations(result).length, 4);
 });
 
 test('chunkAnnotations(): the whole capture in at most ten annotations, each under 4096, decodable from the lines alone', async () => {
@@ -719,4 +983,25 @@ test('CLI: no page in the WebView, or nothing listening, is a warning and exit 0
   const r2 = runCli(1); // nothing listens on port 1
   assert.equal(r2.status, 0);
   assert.match(r2.stdout, /::warning::CDP probe could not run/);
+});
+
+test('a gate that needs the drawer closed presses Back until it is', async () => {
+  // One press is not the contract: from a settings sub-page it steps back to the
+  // list and the drawer legitimately stays open. The CI capture showed exactly
+  // that (diag: {back:1, top:drawer, forwarded:1}) while the gate failed.
+  const { result } = await runProbe();
+  assert.ok(Array.isArray(result.backPresses) && result.backPresses.length >= 1,
+    'the probe must record every press, so a sub-page step is visible in the capture');
+  assert.equal(result.backPresses[result.backPresses.length - 1].visible, false,
+    'the drawer must be closed by the end');
+});
+
+test('opening the engine sheet is idempotent, and the taps are recorded', async () => {
+  // The toggle toggles. A tap that lands while the engine still thinks the sheet is
+  // open closes it, and the gate then reports 'add-to-chat-sheet-empty' with rows
+  // that were never read. The probe retries once and says how many taps it took.
+  const { result } = await runProbe();
+  assert.ok(Array.isArray(result.sheetTaps) && result.sheetTaps.length >= 1,
+    'the capture must show how the sheet got opened');
+  assert.equal(result.sheetTaps[result.sheetTaps.length - 1].present, true);
 });

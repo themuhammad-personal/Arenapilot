@@ -319,16 +319,22 @@ test('__sdUrl and __sdApi resolve per site, and never for a look-alike host', ()
 // ── 5. The hardcoded-site seams, and their fallbacks ────────────────────────
 
 test('the bundle reads the site surfaces instead of hardcoding DeepSeek', () => {
-  // content.js: long-work home detection, three "go home" navigations, and the
+  // content.js: long-work home detection, TWO "go home" navigations, and the
   // two "are we inside a conversation" gates that used to test for /chat/s/.
-  assert.equal(times(CONTENT, '__sdUrl'), 19, 'content.js seam count changed — re-audit the patched sites');
+  //
+  // It was three until the third one went with the memory-import dialog's
+  // "jump to chat.deepseek.com" (that dialog now copies its prompt and reads the
+  // pasted answer: importing from another AI no longer opens another AI). One
+  // __sdUrl seam per navigation plus the home literal in each: 19 → 17
+  // references, 5 → 4 home literals, 3 → 2 navigations.
+  assert.equal(times(CONTENT, '__sdUrl'), 17, 'content.js seam count changed — re-audit the patched sites');
   assert.equal(times(CONTENT, 'location.href.includes((window.__sdUrl&&window.__sdUrl.session)||"/chat/s/")'), 2);
   assert.equal(times(CONTENT, 'window.__sdUrl?window.__sdUrl.atHome(e)'), 1, 'long-work home check');
-  assert.equal(times(CONTENT, 'window.location.href=(window.__sdUrl&&window.__sdUrl.home)||"https://chat.deepseek.com/"'), 3,
-    'three go-home navigations');
+  assert.equal(times(CONTENT, 'window.location.href=(window.__sdUrl&&window.__sdUrl.home)||"https://chat.deepseek.com/"'), 2,
+    'two go-home navigations');
   // Every patched site keeps its DeepSeek literal, so a bundle staged without
   // sd-site.js still behaves exactly as before.
-  assert.equal(times(CONTENT, 'https://chat.deepseek.com/'), 5, '1 config literal + 4 fallbacks');
+  assert.equal(times(CONTENT, 'https://chat.deepseek.com/'), 4, '1 config literal + 3 fallbacks');
 
   assert.equal(times(NATIVE, '__sdUrl'), 2, 'sd-native.js go-home seam');
   assert.equal(times(NATIVE, "|| 'https://chat.deepseek.com/'"), 1);
@@ -347,7 +353,7 @@ test('the bundle reads the site surfaces instead of hardcoding DeepSeek', () => 
 
 test('the injected order still puts sd-site.js first', () => {
   const main = fs.readFileSync(
-    path.join(here, '../../main/java/com/superdeepseek/app/MainActivity.kt'), 'utf8');
+    path.join(here, '../../main/java/com/arenadeck/app/MainActivity.kt'), 'utf8');
   const harness = fs.readFileSync(
     path.join(here, '../../../../../tools/harness/harness.mjs'), 'utf8');
   assert.ok(main.indexOf('readAsset("sd-site.js")') < main.indexOf('readAsset("injected.js")'),

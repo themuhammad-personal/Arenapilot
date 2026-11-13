@@ -1,5 +1,5 @@
 // The engine's tag parser (content.js: pxe) and the built-in system prompt,
-// after the Super DeepSeek rebrand: the model is taught SDS: tags, and every
+// after the ArenaPilot rebrand: the model is taught APH: tags, and every
 // parser still understands the BDS: tags found in older chats.
 // Run: npm run test:engine
 import { test } from 'node:test';
@@ -64,8 +64,8 @@ function engineFn(name) {
 const parse = engineFn('pxe');
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
-test('SDS MCP tags are parsed', () => {
-  const r = parse('Plan.\n<SDS:AUTO:MCP url="sandbox" tool="run">{"command":"ls -la"}</SDS:AUTO:MCP>');
+test('APH MCP tags are parsed', () => {
+  const r = parse('Plan.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls -la"}</APH:AUTO:MCP>');
   assert.deepEqual(plain(r.autoRequests.mcpCalls), [{ serverUrl: 'sandbox', toolName: 'run', args: { command: 'ls -la' } }]);
   assert.equal(r.containsControlTags, true);
 });
@@ -75,15 +75,15 @@ test('BDS tags from older chats still work', () => {
   assert.deepEqual(plain(r.autoRequests.mcpCalls), [{ serverUrl: 'exa', toolName: 'search', args: { q: 'x' } }]);
 });
 
-test('SDS create_file and LONG_WORK are parsed and hidden from the visible text', () => {
-  const r = parse('Hi <SDS:LONG_WORK>\n<SDS:create_file fileName="a.py">\n\n```python\nprint(1)\n```\n\n</SDS:create_file>\n</SDS:LONG_WORK> done');
+test('APH create_file and LONG_WORK are parsed and hidden from the visible text', () => {
+  const r = parse('Hi <APH:LONG_WORK>\n<APH:create_file fileName="a.py">\n\n```python\nprint(1)\n```\n\n</APH:create_file>\n</APH:LONG_WORK> done');
   assert.deepEqual(plain(r.createFiles), [{ fileName: 'a.py', content: 'print(1)\n' }]);
   assert.equal(r.longWorkOpen, true);
   assert.equal(r.longWorkClose, true);
-  assert.ok(!r.visibleText.includes('SDS'));
+  assert.ok(!r.visibleText.includes('APH'));
 });
 
-test('every tag means the same with SDS: as with BDS:', () => {
+test('every tag means the same with APH: as with BDS:', () => {
   const samples = [
     '<X:AUTO:REQUEST_WEB_FETCH>https://example.com</X:AUTO:REQUEST_WEB_FETCH>',
     '<X:AUTO:REQUEST_GITHUB_FETCH>owner/repo</X:AUTO:REQUEST_GITHUB_FETCH>',
@@ -98,21 +98,21 @@ test('every tag means the same with SDS: as with BDS:', () => {
     '<X:pptx>const p = new PptxGenJS();</X:pptx>',
   ];
   for (const sample of samples) {
-    const sds = plain(parse(sample.replaceAll('X:', 'SDS:')));
+    const sds = plain(parse(sample.replaceAll('X:', 'APH:')));
     const old = plain(parse(sample.replaceAll('X:', 'BDS:')));
     assert.deepEqual(sds, old, sample);
     assert.equal(sds.containsControlTags, true, sample);
   }
 });
 
-test('the built-in system prompt is Super DeepSeek, SDS and sandbox-first', () => {
+test('the built-in system prompt is ArenaPilot, APH and sandbox-first', () => {
   const i = CONTENT.indexOf(',sdsLegacyPrompt=[');
   const j = CONTENT.indexOf('].join(', i);
   const lines = vm.runInNewContext(CONTENT.slice(i + ',sdsLegacyPrompt='.length, j + 1));
   // One line explains the old name, so the model can map it; nothing else may use it.
   const prompt = lines.filter((l) => !l.startsWith('Older messages, memories')).join('\n');
   assert.equal(lines.length - prompt.split('\n').length, 1);
-  assert.match(prompt, /^You are Super DeepSeek/);
+  assert.match(prompt, /^You are ArenaPilot/);
   assert.match(prompt, /YOUR LINUX SANDBOX/);
   assert.match(prompt, /Never claim that you cannot run code/);
   assert.doesNotMatch(prompt, /<BDS:|\bBDS\b|Better ?DeepSeek|you cannot execute code yourself/i);
@@ -154,13 +154,13 @@ test('stored data from Better DeepSeek is renamed once, and only once', async ()
   const run = vm.runInContext(`${code};sdsRebrandStored`, ctx);
   await run();
   const out = JSON.parse(JSON.stringify(B));
-  assert.equal(out.skills[0].name, 'SDS helper');
-  assert.equal(out.skills[0].content, 'Wrap in <SuperDeepSeek>x</SuperDeepSeek>, keep BDS_TOKEN.');
-  assert.equal(out.memories[0].text, 'User likes Super DeepSeek and Super DeepSeek.');
-  assert.equal(out.settings.customSystemPrompts[0].content, 'You are SDS.');
-  assert.equal(out.settings.systemPromptEntries[0].content, 'Use <SDS:create_file> tags.');
+  assert.equal(out.skills[0].name, 'APH helper');
+  assert.equal(out.skills[0].content, 'Wrap in <ArenaPilot>x</ArenaPilot>, keep BDS_TOKEN.');
+  assert.equal(out.memories[0].text, 'User likes ArenaPilot and ArenaPilot.');
+  assert.equal(out.settings.customSystemPrompts[0].content, 'You are APH.');
+  assert.equal(out.settings.systemPromptEntries[0].content, 'Use <APH:create_file> tags.');
   assert.equal(out.settings.unrelated, 'Better DeepSeek', 'only the listed fields are touched');
-  assert.equal(out.settings.sdsBrandVersion, 1);
+  assert.equal(out.settings.sdsBrandVersion, 2, 'the rename that also moved SDS: tags to APH:');
   assert.equal(saved.length, 1);
   await run();
   assert.equal(saved.length, 1, 'second run is a no-op');
@@ -170,7 +170,7 @@ test('old default prompts are still recognised after the rename', () => {
   const isLegacy = engineFn('fmt');
   const N1 = Number(/\bN1=(\d+)/.exec(CONTENT)[1]);
   assert.equal(isLegacy({ systemPrompt: 'You are Better DeepSeek inside a tool-enabled extension. More…' }), true);
-  assert.equal(isLegacy({ systemPrompt: 'You are Super DeepSeek inside a tool-enabled extension.' }), true);
+  assert.equal(isLegacy({ systemPrompt: 'You are ArenaPilot inside a tool-enabled extension.' }), true);
   assert.equal(isLegacy({ systemPrompt: 'You are now Better DeepSeek.\nWhen using <BDS:LONG_WORK>...</BDS:LONG_WORK>:' }), true);
   assert.equal(isLegacy({ systemPrompt: 'My own prompt' }), false);
   assert.equal(isLegacy({ systemPrompt: 'You are Better DeepSeek inside a tool-enabled extension.', systemPromptTemplateVersion: N1 }), false);
@@ -295,7 +295,7 @@ test('a click that does not empty the composer is not a send', async () => {
   // DeepSeek ignores the send button while an attachment uploads (it only
   // shows a toast): the old loop called that a success and left the engine
   // text sitting in the composer.
-  const page = { composer: composer('[SDS:AUTO] Search Result'), uploading: false, clicks: 0 };
+  const page = { composer: composer('[APH:AUTO] Search Result'), uploading: false, clicks: 0 };
   let uploadedAt = 4000;
   page.button = { disabled: false, querySelector: () => null, click() {
     page.clicks++;

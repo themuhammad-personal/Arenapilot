@@ -53,7 +53,7 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.SuperDeepSeek">
+        android:theme="@style/Theme.ArenaPilot">
         <!-- configChanges must cover every input-peripheral configuration change.
              MainActivity is a single-WebView host whose onCreate always
              loads arena.ai, so any unhandled config change destroys and
@@ -71,7 +71,7 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|smallestScreenSize|uiMode|density|fontScale"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.SuperDeepSeek.Starting">
+            android:theme="@style/Theme.ArenaPilot.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -120,7 +120,7 @@
             android:label="Linux Studio"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|smallestScreenSize|uiMode|density|fontScale"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.SuperDeepSeek.NoActionBar" />
+            android:theme="@style/Theme.ArenaPilot.NoActionBar" />
 
         <service
             android:name=".SandboxService"
