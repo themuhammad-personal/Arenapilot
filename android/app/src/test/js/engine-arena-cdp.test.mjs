@@ -294,20 +294,27 @@ async function startFakeCdp(opts = {}) {
           return value(JSON.stringify({ closed: true }));
         }
         if (marker === 'attachrows') {
-          if (opts.emptySheet) return value(JSON.stringify({ present: true, count: 0, rows: [] }));
-          const labels = ['Files', 'Add to chat', 'Camera', 'Photos', 'More tools', 'Deep Research'];
+          if (opts.emptySheet) return value(JSON.stringify({ present: true, count: 0, rows: [], tiles: [] }));
+          // The sheet has two surfaces: the quick grid of icon tiles and the
+          // "More tools" list below it. Reading only the list is what made a
+          // correct sheet fail run 43337677596 (Files/Camera/Photos live in the
+          // grid), so the fake carries both, with the app's own two cards last.
+          const tiles = ['Files', 'Camera', 'Photos'].map((label, i) => ({
+            label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false,
+            reachable: true, onTop: !(opts.coveredRow && label === 'Camera'), disabled: false,
+          }));
+          const rows = ['Add to chat', 'Upload Folder', 'Attach Project', 'Deep Research',
+            'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings'].map((label, i) => ({
+            label, rect: [16, 240 + i * 56, 288, 48], inViewport: true,
+            toggle: label === 'Deep Research' && !opts.drNotSwitch, reachable: true, onTop: true, disabled: false,
+          }));
           return value(JSON.stringify({
             present: true,
-            count: labels.length,
-            rows: labels.map((label, i) => ({
-              label,
-              rect: [16, 300 + i * 56, 288, 48],
-              inViewport: true,
-              toggle: label === 'Add to chat',
-              reachable: true,
-              onTop: !(opts.coveredRow && label === 'Camera'),
-              disabled: false,
-            })),
+            count: rows.length,
+            rows,
+            tiles,
+            header: opts.sheetHeader || 'Add to chat',
+            section: opts.sheetSection || 'More tools',
           }));
         }
         if (marker === 'drawerpages') {
@@ -725,8 +732,31 @@ test('a row below the fold of the scrolling sheet is not a fault; a covered one 
   assert.ok(acceptanceFailures(covered).includes('add-to-chat-row-not-in-sheet'),
     'a visible row that a tap cannot reach is still a fault');
 
+  // Deep Research is a SWITCH row. A sheet that draws it as a plain row looks
+  // identical in a screenshot and can never turn the feature on.
+  const notASwitch = JSON.parse(JSON.stringify(below));
+  notASwitch.engineSheetRows.rows = notASwitch.engineSheetRows.rows.map((row) => (
+    /deep research/i.test(row.label) ? { ...row, toggle: false } : row));
+  assert.ok(acceptanceFailures(notASwitch).includes('add-to-chat-deep-research-not-a-switch'));
+
+  // The two labels the sheet prints outside its rows: "Add to chat" is the
+  // HEADER and "More tools" the SECTION above the list. A sheet with both
+  // missing is not the sheet the product promises.
+  for (const [key, err] of [['header', 'add-to-chat-missing-add-to-chat-header'],
+    ['section', 'add-to-chat-missing-more-tools-section']]) {
+    const bare = JSON.parse(JSON.stringify(below));
+    bare.engineSheetRows[key] = '';
+    assert.ok(acceptanceFailures(bare).includes(err), `${key} missing must fail`);
+  }
+
+  // The three quick actions are tiles, not rows: one missing must fail by name.
+  const noCamera = JSON.parse(JSON.stringify(below));
+  noCamera.engineSheetRows.tiles = noCamera.engineSheetRows.tiles.filter((t) => !/camera/i.test(t.label));
+  assert.ok(acceptanceFailures(noCamera).includes('add-to-chat-tile-missing-camera'));
+
   const nothingVisible = JSON.parse(JSON.stringify(below));
   nothingVisible.engineSheetRows.rows = nothingVisible.engineSheetRows.rows.map((row) => ({ ...row, inViewport: false }));
+  nothingVisible.engineSheetRows.tiles = nothingVisible.engineSheetRows.tiles.map((t) => ({ ...t, inViewport: false }));
   assert.ok(acceptanceFailures(nothingVisible).includes('add-to-chat-sheet-no-visible-row'));
 });
 

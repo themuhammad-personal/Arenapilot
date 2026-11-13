@@ -405,25 +405,34 @@ export const DRAWER_PAGES_FACTS = `/*sdp:drawerpages*/(function () {
  * Deliberately non-destructive: tapping "Files" opens the system picker and would
  * hang the run, so a row is proven by its label, its size and a hit-test at its
  * centre — the element the page would deliver a tap to must be inside that row.
+ *
+ * The sheet has TWO surfaces and they are read as such (run 43337677596 showed
+ * why): a quick grid of icon tiles (Files / Camera / Photos) and the "More
+ * tools" list below it (the ".bds-attach-item" rows). Reading only the list
+ * made a correct sheet look like it was missing Files, Camera and Photos — the
+ * gate was asserting the shapes of rows that were never meant to be rows.
  */
 export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function r(el) { try { var b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; } catch (e) { return null; } }
-  var sheet = q('.bds-attach-dropdown') || q('.bds-attach-menu');
-  var rows = sheet ? Array.prototype.slice.call(sheet.querySelectorAll('.bds-attach-item')) : [];
-  var out = rows.map(function (el) {
+  function fact(el) {
     var b = r(el);
     var hit = null;
-    if (b && b[2] > 0 && b[3] > 0) {
-      try { hit = document.elementFromPoint(b[0] + b[2] / 2, b[1] + b[3] / 2); } catch (e) { hit = null; }
-    }
     var own = null;
     if (b && b[2] > 0 && b[3] > 0) {
-      // The row's own content, also finger-sized (a scrollable sheet can clip it).
+      try { hit = document.elementFromPoint(b[0] + b[2] / 2, b[1] + b[3] / 2); } catch (e) { hit = null; }
+      // The tile's own content, also finger-sized (a scrollable sheet can clip it).
       try { own = document.elementFromPoint(Math.min(b[0] + b[2] / 2, window.innerWidth - 2), Math.min(b[1] + b[3] / 2, window.innerHeight - 2)); } catch (e2) { own = null; }
     }
+    var vw = window.innerWidth || 0;
     var vh = window.innerHeight || 0;
-    var inView = !!(b && b[3] > 0 && b[1] + b[3] > 0 && b[1] < vh);
+    // "In viewport" means the point a finger would land on — the row's CENTRE —
+    // is on screen. A row clipped to a sliver at the sheet's fold (run
+    // 43337677596: GitHub Repo showed 8 px) is not tappable there; it is a row
+    // behind the scroll, exactly like one wholly below the fold.
+    var cy = b ? b[1] + b[3] / 2 : -1;
+    var cx = b ? b[0] + b[2] / 2 : -1;
+    var inView = !!(b && b[2] > 0 && b[3] > 0 && cx >= 0 && cx <= vw && cy >= 0 && cy <= vh);
     return {
       label: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
       rect: b,
@@ -439,8 +448,25 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
       onTop: !!(own && (el === own || (el.contains && el.contains(own)))),
       disabled: !!(el.disabled || el.getAttribute('aria-disabled') === 'true')
     };
+  }
+  var sheet = q('.bds-attach-dropdown') || q('.bds-attach-menu');
+  var any = function (sel) { return sheet ? Array.prototype.slice.call(sheet.querySelectorAll(sel)) : []; };
+  // The quick grid: icon tiles above the list.
+  var tiles = any('.bds-quick-tile').map(fact);
+  // The list: "More tools" rows, plus the engine's own Linux Studio / Settings cards.
+  var rows = any('.bds-attach-item').map(fact);
+  var title = q('.bds-sheet-title');
+  var section = q('.bds-sheet-section');
+  return JSON.stringify({
+    present: !!sheet,
+    count: rows.length,
+    rows: rows,
+    tiles: tiles,
+    // What the sheet calls itself, so "this is the engine's sheet" is a fact the
+    // capture can be read for instead of an assumption made in the gate.
+    header: title ? String(title.textContent || '').trim().slice(0, 40) : '',
+    section: section ? String(section.textContent || '').trim().slice(0, 40) : ''
   });
-  return JSON.stringify({ present: !!sheet, count: out.length, rows: out });
 })()`;
 
 export const SETTINGS_CARD_FACTS = `/*sdp:settingscard*/(function () {
@@ -1113,7 +1139,10 @@ export function factsLine(result) {
     sheetTaps: result.sheetTaps || null,
     diag: (result.backDiagnosis && result.backDiagnosis.diag) || null,
     exp: result.backExperiment || null,
-    sheet: pick(result.engineSheetRows, ['present', 'count']),
+    sheet: pick(result.engineSheetRows, ['present', 'count', 'header', 'section']),
+    sheetTiles: (result.engineSheetRows?.tiles || []).map((t) => ({
+      label: (t.label || '').slice(0, 24), rect: t.rect, inViewport: t.inViewport, reachable: t.reachable,
+    })),
     pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
     doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),
     launch: pick(result.launch || {}, ['noticeShown', 'secondBootAlive']),
@@ -1250,15 +1279,47 @@ export function acceptanceFailures(result) {
   // The sheet the ENGINE adds is the product surface: Files / Add to chat /
   // Camera / Photos / More tools / Deep Research / Settings. It is read after a
   // real tap that switches the toggle to the engine's own sheet.
+  // The sheet the ENGINE adds is the product surface, in two parts: the quick
+  // grid (Files / Camera / Photos) and the "More tools" list (Add to chat /
+  // Deep Research / Upload Folder / GitHub Repo / Fetch Web Page) plus the
+  // app's own Linux Studio and Settings cards. A flat single-table read of the
+  // sheet is what made a correct sheet fail run 43337677596, so each surface is
+  // demanded on its own terms and neither is inferred from the other.
   const sheetRows = result.engineSheetRows;
-  if (!sheetRows || sheetRows.present !== true || !(sheetRows.count >= 3)) {
+  const surface = [
+    ...((sheetRows && sheetRows.tiles) || []),
+    ...((sheetRows && sheetRows.rows) || []),
+  ];
+  if (!sheetRows || sheetRows.present !== true || !(surface.length >= 3) ||
+      !((sheetRows.rows || []).length >= 1) || !((sheetRows.tiles || []).length >= 1)) {
     errors.push('add-to-chat-sheet-empty');
   } else {
-    const labels = sheetRows.rows.map((x) => (x.label || '').toLowerCase());
-    for (const want of ['add to chat', 'deep research', 'camera', 'photos']) {
-      if (!labels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
+    const labels = surface.map((x) => (x.label || '').toLowerCase());
+    const lower = (v) => String(v || '').toLowerCase();
+    const tileLabels = (sheetRows.tiles || []).map((x) => lower(x.label));
+    const rowLabels = (sheetRows.rows || []).map((x) => lower(x.label));
+    // The sheet's own labels, each where the bundle actually puts it: "Add to
+    // chat" is the HEADER, "More tools" the SECTION above the list, and the
+    // three quick actions are TILES. Demanding all six as flat list rows is
+    // what failed run 43337677596 against a sheet that was drawn correctly.
+    if (!lower(sheetRows.header).includes('add to chat')) errors.push('add-to-chat-missing-add-to-chat-header');
+    if (!lower(sheetRows.section).includes('more tools') && !labels.some((l) => l.includes('more tools'))) {
+      errors.push('add-to-chat-missing-more-tools-section');
     }
-    for (const row of sheetRows.rows) {
+    for (const want of ['files', 'camera', 'photos']) {
+      if (!tileLabels.some((l) => l.includes(want))) errors.push('add-to-chat-tile-missing-' + want);
+    }
+    // The list: the engine's tools plus the app's own two cards, which are the
+    // only entries it adds to a sheet it does not own.
+    for (const want of ['deep research', 'upload folder', 'github repo', 'fetch web page',
+      'linux studio', 'settings']) {
+      if (!rowLabels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
+    }
+    // Deep Research is the sheet's one switch: a plain row looks identical and
+    // could never be toggled.
+    const dr = (sheetRows.rows || []).find((x) => lower(x.label).includes('deep research'));
+    if (dr && dr.toggle !== true) errors.push('add-to-chat-deep-research-not-a-switch');
+    for (const row of surface) {
       if (row.disabled) continue;
       const b = row.rect || [0, 0, 0, 0];
       if (!(b[2] >= 40 && b[3] >= 32)) errors.push('add-to-chat-row-too-small');
@@ -1267,7 +1328,7 @@ export function acceptanceFailures(result) {
     // to be hit-testable. A row below the fold is normal, and demanding it be
     // reachable measured the viewport, not the sheet — which is how a fixed gate
     // kept failing after the real fault (a paused rise animation) was gone.
-    const visibleRows = sheetRows.rows.filter((x) => x.inViewport !== false && !x.disabled);
+    const visibleRows = surface.filter((x) => x.inViewport !== false && !x.disabled);
     if (visibleRows.length < 1) errors.push('add-to-chat-sheet-no-visible-row');
     for (const row of visibleRows) {
       if (row.reachable !== true) errors.push('add-to-chat-row-not-in-sheet');
@@ -1348,7 +1409,16 @@ export async function main() {
     }
     for (const line of annotations(result)) console.log(line);
     const failures = acceptanceFailures(result);
-    if (required && failures.length) console.log(annotation('error', 'Runtime gate: ' + failures.join(', ')));
+    if (required && failures.length) {
+      // Name the labels the sheet actually drew, so a red row check can be read
+      // off the annotation instead of decoded out of the capture.
+      const drawn = result.engineSheetRows
+        ? ` [sheet header="${result.engineSheetRows.header || ''}" section="${result.engineSheetRows.section || ''}" tiles=${
+          (result.engineSheetRows.tiles || []).map((t) => String(t.label || '').slice(0, 20)).join('|')} rows=${
+          (result.engineSheetRows.rows || []).map((r) => String(r.label || '').slice(0, 20)).join('|')}]`
+        : '';
+      console.log(annotation('error', 'Runtime gate: ' + failures.join(', ') + drawn));
+    }
     return required && failures.length ? 1 : 0;
   } catch (e) {
     console.log(annotation(required ? 'error' : 'warning', `CDP probe could not run: ${String((e && e.message) || e).slice(0, 300)}`));

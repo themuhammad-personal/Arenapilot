@@ -160,10 +160,17 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     drawerAfterBack: { present: true, visible: false, rect: null, backdrop: false, railDock: 'sheet', sheetVisible: false },
     // the Add to chat sheet's rows, all on top and finger-sized
     engineSheetFacts: { closed: true },
+    // the sheet's two surfaces: the quick grid of tiles, then the "More tools"
+    // list, with the app's own Linux Studio / Settings cards last.
     engineSheetRows: {
-      present: true, count: 6,
-      rows: ['Files', 'Add to chat', 'Camera', 'Photos', 'More tools', 'Deep Research']
-        .map((label, i) => ({ label, rect: [16, 300 + i * 56, 288, 48], toggle: label === 'Add to chat', onTop: true, reachable: true, disabled: false })),
+      present: true, count: 7, header: 'Add to chat', section: 'More tools',
+      tiles: ['Files', 'Camera', 'Photos']
+        .map((label, i) => ({ label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
+      // "Add to chat" is the sheet's HEADER, not a row; Deep Research is its one
+      // switch. The app's own Linux Studio and Settings cards come last.
+      rows: ['Upload Folder', 'Attach Project', 'Deep Research',
+        'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings']
+        .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: label === 'Deep Research', onTop: true, reachable: true, disabled: false })),
     },
     // inside the drawer: every page row, no DeepSeek-API row, a real check-up
     drawerPagesBefore: {
@@ -216,14 +223,33 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   // The Add to chat sheet: rows that exist but cannot receive the tap (a backdrop
   // over them) look perfect in a screenshot and swallow every touch.
   assert.ok(acceptanceFailures({
-    ...good, engineSheetRows: { ...good.engineSheetRows, count: 0, rows: [] },
+    ...good, engineSheetRows: { ...good.engineSheetRows, count: 0, rows: [], tiles: [] },
   }).includes('add-to-chat-sheet-empty'), 'an empty Add to chat sheet must fail');
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
-      rows: good.engineSheetRows.rows.map((r) => (r.label === 'Camera' ? { ...r, reachable: false } : r)),
+      // Camera is a quick-grid tile, not a list row: the tile is where a tap lands.
+      tiles: good.engineSheetRows.tiles.map((t) => (t.label === 'Camera' ? { ...t, reachable: false } : t)),
     },
-  }).includes('add-to-chat-row-not-in-sheet'), 'a row the sheet does not own must fail');
+  }).includes('add-to-chat-row-not-in-sheet'), 'a tile the sheet does not own must fail');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      header: '',
+    },
+  }).includes('add-to-chat-missing-add-to-chat-header'), 'the sheet must name itself');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.map((r) => (/deep research/i.test(r.label) ? { ...r, toggle: false } : r)),
+    },
+  }).includes('add-to-chat-deep-research-not-a-switch'), 'Deep Research must be the switch it claims to be');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
+      tiles: good.engineSheetRows.tiles.map((t) => ({ ...t, rect: [0, 0, 20, 12] })),
+    },
+  }).includes('add-to-chat-row-too-small'), 'a tile too small for a finger must fail');
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
@@ -234,13 +260,21 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
       rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Deep Research'),
-      count: 5,
+      count: 7,
     },
   }).includes('add-to-chat-row-missing-deep-research'), 'a missing sheet row must fail');
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
+      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Settings'),
+      count: 7,
+    },
+  }).includes('add-to-chat-row-missing-settings'), 'the app\u2019s own Settings card must be present');
+  assert.ok(acceptanceFailures({
+    ...good, engineSheetRows: {
+      ...good.engineSheetRows,
       rows: good.engineSheetRows.rows.map((r) => ({ ...r, onTop: false })),
+      tiles: good.engineSheetRows.tiles.map((t) => ({ ...t, onTop: false })),
     },
   }).includes('add-to-chat-sheet-covered-by-backdrop'), 'a sheet entirely under its backdrop must fail');
   assert.ok(acceptanceFailures({
