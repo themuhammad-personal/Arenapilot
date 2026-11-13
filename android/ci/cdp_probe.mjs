@@ -424,15 +424,31 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
       // The tile's own content, also finger-sized (a scrollable sheet can clip it).
       try { own = document.elementFromPoint(Math.min(b[0] + b[2] / 2, window.innerWidth - 2), Math.min(b[1] + b[3] / 2, window.innerHeight - 2)); } catch (e2) { own = null; }
     }
-    var vw = window.innerWidth || 0;
-    var vh = window.innerHeight || 0;
     // "In viewport" means the point a finger would land on — the row's CENTRE —
-    // is on screen. A row clipped to a sliver at the sheet's fold (run
-    // 43337677596: GitHub Repo showed 8 px) is not tappable there; it is a row
-    // behind the scroll, exactly like one wholly below the fold.
+    // is really on screen: inside the WINDOW *and* inside every scrolling
+    // ancestor that clips it (the sheet list owns its own scroll). Run
+    // 43344536996 measured rows with correct window coordinates that were still
+    // clipped by the list's bottom edge: Attach Project's centre sat between the
+    // list's bottom and the viewport's, reachable:false, while its rect looked
+    // perfectly on-screen. Comparing against the window alone called those rows
+    // visible and turned a normal scroll into a red gate.
     var cy = b ? b[1] + b[3] / 2 : -1;
     var cx = b ? b[0] + b[2] / 2 : -1;
-    var inView = !!(b && b[2] > 0 && b[3] > 0 && cx >= 0 && cx <= vw && cy >= 0 && cy <= vh);
+    var top = 0, bottom = window.innerHeight || 0, left = 0, right = window.innerWidth || 0;
+    for (var n = el.parentElement, depth = 0; n && depth < 24; n = n.parentElement, depth += 1) {
+      var cs;
+      try { cs = getComputedStyle(n); } catch (e) { break; }
+      if (!cs) break;
+      var scrollsY = /(auto|scroll|overlay)/.test(cs.overflowY || '') || /(auto|scroll|overlay)/.test(cs.overflow || '');
+      var scrollsX = /(auto|scroll|overlay)/.test(cs.overflowX || '') || /(auto|scroll|overlay)/.test(cs.overflow || '');
+      if (!scrollsY && !scrollsX) continue;
+      var nb = r(n);
+      if (!nb) continue;
+      if (scrollsY) { top = Math.max(top, nb[1]); bottom = Math.min(bottom, nb[1] + nb[3]); }
+      if (scrollsX) { left = Math.max(left, nb[0]); right = Math.min(right, nb[0] + nb[2]); }
+    }
+    var inView = !!(b && b[2] > 0 && b[3] > 0 &&
+      cx >= left && cx <= right && cy >= top && cy <= bottom);
     return {
       label: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
       rect: b,

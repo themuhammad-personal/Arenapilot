@@ -807,6 +807,46 @@ test('the sheet reader finds the switch on the row itself, and needs the centre 
   assert.equal(out.header, '', 'header text is read from the sheet, never invented');
 });
 
+test('a row clipped by the scrolling list is not in view even when its rect says so', () => {
+  // Run 43344536996: Attach Project measured y=575..636 with a 616px window, so
+  // its centre (605.5) was inside the WINDOW — but the .bds-sheet-list clips the
+  // rows and its bottom edge was above that centre. Reachability said no, and
+  // the window-only rule called the row visible: a normal scroll read as a red
+  // gate. The clip has to be applied per scrolling ancestor.
+  const row = {
+    label: 'Attach Project',
+    rect: [18, 575, 284, 61],
+    matches: () => false,
+    querySelector: () => null,
+    children: [],
+    getAttribute: () => null,
+  };
+  const list = { rect: [18, 300, 284, 300], overflowY: 'auto' }; // bottom edge 600 < centre 605.5
+  const el = {
+    className: 'bds-attach-item',
+    disabled: false,
+    textContent: row.label,
+    children: [],
+    matches: () => false,
+    querySelector: () => null,
+    getAttribute: () => null,
+    getBoundingClientRect: () => ({ x: 18, y: 575, width: 284, height: 61 }),
+    parentElement: {
+      getBoundingClientRect: () => ({ x: list.rect[0], y: list.rect[1], width: list.rect[2], height: list.rect[3] }),
+      parentElement: null,
+    },
+  };
+  const sheet = { querySelectorAll: (sel) => (sel === '.bds-attach-item' ? [el] : []), querySelector: () => null };
+  const sandbox = {
+    window: { innerWidth: 320, innerHeight: 616 },
+    getComputedStyle: () => ({ overflowY: 'auto', overflowX: 'visible', overflow: 'visible' }),
+    document: { querySelector: () => sheet, elementFromPoint: () => el },
+    JSON,
+  };
+  const out = JSON.parse(vm.runInNewContext(ATTACH_SHEET_ROWS_EXPRESSION, sandbox));
+  assert.equal(out.rows[0].inViewport, false, 'the list clips it: a tap at its centre lands elsewhere');
+});
+
 test('the default output is the readable summary, the facts, the engine’s markup and the composer’s controls — no payload', async () => {
   const { result } = await runProbe();
   const lines = annotations(result);
