@@ -440,7 +440,11 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
       // and not reachable until someone scrolls. Kept as its own fact so the
       // gate can demand scrolling instead of failing on geometry.
       inViewport: inView,
-      toggle: !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
+      // The switch row carries the class ON ITSELF (bds-attach-toggle), so a
+      // descendant-only check reported toggle:false for the one real switch —
+      // visible in run 43342755419's own sheet dump.
+      toggle: !!(el.matches && el.matches('.bds-attach-toggle, [aria-pressed]')) ||
+        !!el.querySelector('[role="switch"], .bds-attach-toggle, [aria-pressed]'),
       // Two facts, not one: is the row inside the scrollable sheet, and is it on
       // top of the page where a finger would land? A row below the fold is normal
       // (the sheet scrolls); a row under the backdrop swallows every tap.

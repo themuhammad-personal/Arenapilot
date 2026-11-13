@@ -20,7 +20,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
+import { ATTACH_SHEET_ROWS as ATTACH_SHEET_ROWS_EXPRESSION, FACTS as FACTS_EXPRESSION, FILL_SET, FILL_BUTTON, FILL_CLEAR, DRAWER_FACTS as DRAWER_EXPRESSION, SETTINGS_CARD_FACTS, acceptanceFailures, annotation, annotations, chunkAnnotations, connect, packChunks, probe, report, slim, summarize, summaryAnnotations, unpackChunks } from '../../../../ci/cdp_probe.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '../../../../..');
@@ -758,6 +758,53 @@ test('a row below the fold of the scrolling sheet is not a fault; a covered one 
   nothingVisible.engineSheetRows.rows = nothingVisible.engineSheetRows.rows.map((row) => ({ ...row, inViewport: false }));
   nothingVisible.engineSheetRows.tiles = nothingVisible.engineSheetRows.tiles.map((t) => ({ ...t, inViewport: false }));
   assert.ok(acceptanceFailures(nothingVisible).includes('add-to-chat-sheet-no-visible-row'));
+});
+
+test('the sheet reader finds the switch on the row itself, and needs the centre on screen', () => {
+  // Run 43342755419's own dump reported toggle:false for the Deep Research row:
+  // the reader looked for the switch class on a DESCENDANT, but the bundle puts
+  // `.bds-attach-toggle` on the row element itself. Run the shipped expression
+  // against a minimal DOM so the classifier is tested, not a copy of it.
+  const rows = [
+    { label: 'Deep Research', cls: 'bds-attach-item bds-attach-toggle', rect: [10, 100, 300, 60] },
+    { label: 'Fetch Web Page', cls: 'bds-attach-item', rect: [10, 400, 300, 60] }, // centre below a 420px viewport? no: 430 > 420
+    { label: 'Settings', cls: 'bds-attach-item', rect: [10, 500, 300, 60] },
+  ];
+  const mk = (r) => {
+    const el = {
+      className: r.cls,
+      disabled: false,
+      textContent: r.label,
+      matches: (sel) => sel.split(',').map((x) => x.trim()).some((c) => r.cls.split(' ').includes(c.replace('.', '').replace('[aria-pressed]', ''))),
+      querySelector: () => null,
+      contains: () => false,
+      getAttribute: () => null,
+      getBoundingClientRect: () => ({ x: r.rect[0], y: r.rect[1], width: r.rect[2], height: r.rect[3] }),
+    };
+    return el;
+  };
+  const elements = rows.map(mk);
+  const sheet = {
+    querySelectorAll: (sel) => (sel === '.bds-attach-item' ? elements : []),
+    querySelector: () => null,
+  };
+  const sandbox = {
+    window: { innerWidth: 320, innerHeight: 420 },
+    document: { querySelector: (sel) => (sel === '.bds-attach-dropdown' ? sheet : null), elementFromPoint: () => null },
+    JSON,
+  };
+  const out = JSON.parse(vm.runInNewContext(ATTACH_SHEET_ROWS_EXPRESSION, sandbox));
+  assert.equal(out.present, true);
+  assert.equal(out.count, 3);
+  assert.equal(out.rows[0].toggle, true, 'the switch is on the row, not a child');
+  assert.equal(out.rows[1].toggle, false);
+  // A row whose centre is off screen cannot be tapped there, however much of its
+  // top edge is visible: GitHub Repo showed 8px at the fold in run 43337677596.
+  assert.equal(out.rows[0].inViewport, true);
+  assert.equal(out.rows[1].inViewport, false, 'centre below the viewport is not in view');
+  assert.equal(out.rows[2].inViewport, false);
+  assert.deepEqual(out.tiles, [], 'no quick grid here');
+  assert.equal(out.header, '', 'header text is read from the sheet, never invented');
 });
 
 test('the default output is the readable summary, the facts, the engine’s markup and the composer’s controls — no payload', async () => {
