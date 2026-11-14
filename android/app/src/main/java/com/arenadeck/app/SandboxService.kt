@@ -107,6 +107,24 @@ class SandboxService : Service() {
             main.post { refresh(app, Sandbox.get(app).activeCount) }
         }
         val active = intent?.getIntExtra(EXTRA_ACTIVE, Sandbox.get(this).activeCount) ?: 0
+        if (!enterForeground(active)) {
+            // Could not become a foreground service at all (background-start
+            // restriction, revoked permission). The sandbox itself keeps working;
+            // it is just not protected while the app is in the background.
+            started = false
+            stopSelf()
+        }
+        return START_NOT_STICKY
+    }
+
+    /**
+     * Every `startForegroundService()` MUST be answered by `startForeground()` within
+     * ~5 s, or Android kills the whole app with a RemoteServiceException. Calling
+     * `stopSelf()` straight after a failed `startForeground()` is exactly that
+     * crash — so a failure is retried once with the simplest form (no explicit
+     * type, minimal notification) before the service gives up.
+     */
+    private fun enterForeground(active: Int): Boolean {
         try {
             val n = buildNotification(active)
             if (Build.VERSION.SDK_INT >= 34) {
@@ -115,11 +133,24 @@ class SandboxService : Service() {
                 startForeground(NOTIFICATION_ID, n)
             }
             started = true
+            return true
         } catch (t: Throwable) {
-            Log.w(TAG, "startForeground failed", t)
-            stopSelf()
+            Log.w(TAG, "startForeground failed, retrying with a minimal notification", t)
         }
-        return START_NOT_STICKY
+        return try {
+            val minimal = NotificationCompat.Builder(this, CHANNEL)
+                    .setSmallIcon(R.drawable.ic_stat_sandbox)
+                    .setContentTitle(getString(R.string.sandbox_title))
+                    .setOngoing(true)
+                    .setSilent(true)
+                    .build()
+            startForeground(NOTIFICATION_ID, minimal)
+            started = true
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "startForeground failed for good", t)
+            false
+        }
     }
 
     override fun onDestroy() {
