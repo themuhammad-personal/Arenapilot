@@ -98,7 +98,7 @@ test('classifyTurn: what is a problem and what is not', () => {
   assert.equal(run({ ok: false, kind: 'network', status: 0 }), 'error');
   assert.equal(run({ ok: false, kind: 'stream-error', message: 'x' }), 'error');
   assert.equal(run({ ok: false, kind: 'broken' }), 'error');
-  assert.equal(run({ empty: true }), 'error');
+  assert.equal(run({ empty: true }), 'empty');
   assert.equal(run({ ok: false, kind: 'http', status: 413 }), 'toobig');
   for (const st of [400, 401, 403]) assert.equal(run({ ok: false, kind: 'http', status: st }), 'fatal', String(st));
 });
@@ -217,4 +217,12 @@ test('diagnose() reports the recovery state', async () => {
   const d = JSON.parse(JSON.stringify(win.__sdAgent.diagnose()));
   assert.equal(d.agent.recovery.cuts, 1);
   assert.equal(d.agent.recovery.last.kind, 'cut');
+});
+
+test('an empty reply never sends a message by itself (the harness caught this): it tells the user', async () => {
+  const { turn, sent, toasts } = load();
+  turn({ ...OK, empty: true, chars: 0 });
+  await wait(80);
+  assert.equal(sent.length, 0);
+  assert.ok(toasts.some((m) => /empty reply/.test(m)));
 });

@@ -679,6 +679,8 @@
   //              last message in case arena never received it
   //   fatal   400 / 401 / 403: sign-in, captcha or a malformed request —
   //           retrying cannot help, so say so instead of looping
+  //   empty   a stream with no text: ambiguous, so it only tells the user and
+  //           offers the Continue chip — it never sends a message by itself
   // Each path has a small budget (re-armed by the user's own next message), and
   // none of it runs after Stop.
 
@@ -726,12 +728,16 @@
   }
 
   function classifyTurn(d) {
-    if (!d.ok || d.empty) {
+    if (!d.ok) {
       var st = Number(d.status) || 0;
       if (st === 413) return 'toobig';
       if (st === 400 || st === 401 || st === 403) return 'fatal';
       return 'error';
     }
+    // A stream with no text at all is ambiguous (a model that answered with
+    // nothing, or a page that mocks the network), so it is never retried by
+    // sending a message: the user is told and the Continue chip is offered.
+    if (d.empty) return 'empty';
     if (/length|max[_-]?(?:output[_-]?)?tokens/i.test(String(d.finishReason || ''))) return 'cut';
     if (endsInsideToolCall(lastAssistantRaw())) return 'cut';
     return null;
@@ -780,6 +786,12 @@
 
   function scheduleRecovery(kind, d) {
     if (recover.pending) return;
+    if (kind === 'empty') {
+      toast(t('Arena returned an empty reply. Tap Continue (or send "continue") to retry.',
+        'Arena খালি উত্তর দিয়েছে। আবার চেষ্টা করতে Continue চাপুন (বা "continue" পাঠান)।'));
+      setTimeout(function () { maybeOfferContinue(); }, 1500);
+      return;
+    }
     if (kind === 'fatal') {
       toast(Number(d.status) === 400
         ? t('Arena rejected the request (HTTP 400). Send your message again.', 'Arena অনুরোধটি গ্রহণ করেনি (HTTP 400)। মেসেজটি আবার পাঠান।')
