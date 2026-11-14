@@ -48,6 +48,14 @@ internal class SandboxTools(
                 .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", s)))
                 .put("isError", isError)
 
+        /** The line the model reads after a write: what happened, and how big the piece was. */
+        internal fun writeSummary(path: String, content: String, append: Boolean): String {
+            val bytes = content.toByteArray(Charsets.UTF_8).size
+            val lines = content.count { it == '\n' } + if (content.endsWith("\n") || content.isEmpty()) 0 else 1
+            return if (append) "Appended to $path ($bytes bytes, $lines lines)."
+            else "Wrote $path ($bytes bytes, $lines lines)."
+        }
+
         /** MCP transport success is not shell-command success. Preserve failed,
          * timed-out and stopped commands as tool errors for the agent loop. */
         internal fun executionFailed(r: Sandbox.ExecResult): Boolean =
@@ -127,10 +135,13 @@ internal class SandboxTools(
                             "max_lines" to int("Lines to return, default 400, max 2000."),
                             required = listOf("path"))))
             .put(tool("write_file",
-                    "Create or overwrite a file in the sandbox with the given content (parent directories are created).",
+                    "Create or overwrite a file in the sandbox with the given content (parent directories are created). " +
+                            "A single reply has an output limit, so write a large file in parts: the first part with write_file, " +
+                            "then every further part with append=true (the content is added to the end of the file).",
                     schema(
                             "path" to str("File path (relative to ${Sandbox.WORKSPACE} or absolute)."),
-                            "content" to str("The complete file content."),
+                            "content" to str("The file content (the whole file, or one part of it when append=true)."),
+                            "append" to bool("Add the content to the end of the file instead of replacing it (for writing a big file in several calls)."),
                             required = listOf("path", "content"))))
             .put(tool("edit_file",
                     "Replace an exact snippet in a sandbox file. old_text must match exactly once (whitespace included) unless replace_all=true. Prefer this over rewriting big files.",
@@ -269,9 +280,10 @@ internal class SandboxTools(
     private fun writeFile(args: JSONObject): JSONObject {
         val path = Sandbox.guestPath(required(args, "path"))
         val content = required(args, "content")
+        val append = args.optBoolean("append", false)
         val bytes = content.toByteArray(Charsets.UTF_8)
-        sandbox.writeFile(path, bytes)
-        return text("Wrote $path (${bytes.size} bytes, ${content.count { it == '\n' } + if (content.endsWith("\n") || content.isEmpty()) 0 else 1} lines).")
+        sandbox.writeFile(path, bytes, append)
+        return text(writeSummary(path, content, append))
     }
 
     private fun editFile(args: JSONObject): JSONObject {

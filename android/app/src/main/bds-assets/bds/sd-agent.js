@@ -129,7 +129,7 @@
         var cm = close.exec(s);
         if (cm) { body = s.slice(i + 1, cm.index); end = cm.index + cm[0].length; }
       }
-      out.push({ attrs: parseAttrs(attrsRaw), body: body });
+      out.push({ attrs: parseAttrs(attrsRaw), body: body, closed: selfClosing || end > i + 1 });
       re.lastIndex = end;
     }
     return out;
@@ -227,13 +227,40 @@
     return out;
   }
 
+  function onArena() {
+    try { return !!(window.__sdSite && window.__sdSite.id === 'arena'); } catch (_) { return false; }
+  }
+
+  /**
+   * The id of the open chat. DeepSeek's page is /chat/s/{id}; arena's is /c/{id}.
+   * This only knew DeepSeek's, so on arena it was always null — and every
+   * feature that starts with "if (!sid) return" (the keep-going nudge, the
+   * Continue chip, the exact-arguments repair) silently did nothing. A fresh
+   * arena chat has no id in the URL yet, so arena falls back to a placeholder.
+   */
   function sessionId() {
-    var m = String(location.href || '').match(/\/chat\/s\/([^/?#]+)/);
-    return m ? m[1] : null;
+    var href = String(location.href || '');
+    var m = href.match(/\/chat\/s\/([^/?#]+)/);
+    if (m) return m[1];
+    if (onArena()) {
+      m = href.match(/\/c\/([^/?#]+)/);
+      return m ? m[1] : 'arena';
+    }
+    return null;
   }
 
   /** Chat history through the engine's own hook (it adds the auth header). */
   function requestHistory(sid) {
+    // arena has no history endpoint the engine may call. injected.js records
+    // the raw turns the page itself sent and received (the exact text, not the
+    // markdown-rendered DOM) and hands them over in DeepSeek's message shape.
+    if (onArena()) {
+      try {
+        var rec = window.__sdArena;
+        if (rec && typeof rec.history === 'function') return Promise.resolve(rec.history());
+      } catch (_) {}
+      return Promise.resolve(null);
+    }
     return new Promise(function (resolve) {
       var done = false;
       var timer = null;
@@ -369,6 +396,8 @@
   }
 
   function resume() {
+    recover.cuts = 0;
+    recover.errs = 0;
     flow.nudges = 0;
     flow.base = flow.calls;
     if (window.__sdAgentStopped) window.__sdAgentStopped = false;
@@ -612,6 +641,7 @@
   }
 
   function maybeNudge(callsAtEnd) {
+    if (recover.pending) return;
     if (flow.calls !== callsAtEnd || flow.nudges >= MAX_NUDGES || window.__sdAgentStopped || !autoContinue()) return;
     // Only inside a task the agent works on for the current instruction.
     if (flow.calls === flow.base) return;
@@ -632,6 +662,179 @@
     // After the automatic path has had its chance, offer the human one.
     flow.timers.push(setTimeout(function () { maybeOfferContinue(); }, NUDGE_AT + 1500));
   }
+
+  // ── Recovery: a server error or a cut-off reply must not end the task ───────
+  //
+  // Direct Chat is where tasks used to die: arena answered with an error (rate
+  // limit, 5xx, a dropped stream) or the reply hit the output limit in the middle
+  // of a tool call, and nothing noticed — the loop just stopped and the user saw
+  // a half-finished task. injected.js now reports every finished turn as
+  // `bds:arena-turn`; this decides what to do about the bad ones:
+  //   cut     the reply ended on the output limit, or inside a tool call
+  //           -> ask the model to continue, in smaller pieces
+  //   toobig  arena rejected the message as too large (HTTP 413)
+  //           -> ask the model to re-run with less output
+  //   error   429 / 5xx / dropped stream / empty reply
+  //           -> wait (back-off) and ask the model to carry on, restating the
+  //              last message in case arena never received it
+  //   fatal   400 / 401 / 403: sign-in, captcha or a malformed request —
+  //           retrying cannot help, so say so instead of looping
+  //   empty   a stream with no text: ambiguous, so it only tells the user and
+  //           offers the Continue chip — it never sends a message by itself
+  // Each path has a small budget (re-armed by the user's own next message), and
+  // none of it runs after Stop.
+
+  var recover = { cuts: 0, errs: 0, pending: false, timer: null, last: null };
+  var MAX_CUTS = 3;
+  var MAX_ERRS = 3;
+
+  function arenaTurns() {
+    try {
+      var rec = window.__sdArena;
+      return rec && typeof rec.history === 'function' ? rec.history() : [];
+    } catch (_) { return []; }
+  }
+
+  function lastAssistantRaw() {
+    var h = arenaTurns();
+    for (var i = h.length - 1; i >= 0; i--) {
+      if (String(h[i].role).toUpperCase() === 'ASSISTANT') return String(h[i].content || '');
+    }
+    return '';
+  }
+
+  function lastUserRaw() {
+    try {
+      var rec = window.__sdArena;
+      return rec && typeof rec.lastUser === 'function' ? String(rec.lastUser() || '') : '';
+    } catch (_) { return ''; }
+  }
+
+  /** The reply ends inside a tool call (opening tag without its end). */
+  function endsInsideToolCall(text) {
+    var s = String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/`[^`\n]*`/g, ' ');
+    var opens = (s.match(/<(?:APH|[BS]DS):(?:AUTO:)?MCP\b/gi) || []).length;
+    if (!opens) return false;
+    var tags = parseTags(s);
+    if (tags.length < opens) return true;
+    return !tags[tags.length - 1].closed;
+  }
+
+  function middleCut(text, max) {
+    var s = String(text || '');
+    if (s.length <= max) return s;
+    var head = Math.floor(max * 0.4);
+    return s.slice(0, head) + '\n…[cut]…\n' + s.slice(s.length - (max - head));
+  }
+
+  function classifyTurn(d) {
+    if (!d.ok) {
+      var st = Number(d.status) || 0;
+      if (st === 413) return 'toobig';
+      if (st === 400 || st === 401 || st === 403) return 'fatal';
+      return 'error';
+    }
+    // A stream with no text at all is ambiguous (a model that answered with
+    // nothing, or a page that mocks the network), so it is never retried by
+    // sending a message: the user is told and the Continue chip is offered.
+    if (d.empty) return 'empty';
+    if (/length|max[_-]?(?:output[_-]?)?tokens/i.test(String(d.finishReason || ''))) return 'cut';
+    if (endsInsideToolCall(lastAssistantRaw())) return 'cut';
+    return null;
+  }
+
+  function why(d) {
+    if (d.kind === 'http') return 'HTTP ' + d.status;
+    if (d.kind === 'network') return 'network error';
+    if (d.kind === 'broken') return 'the stream was interrupted';
+    if (d.kind === 'stream-error') return String(d.message || 'stream error').slice(0, 120);
+    if (d.empty) return 'empty reply';
+    return 'error';
+  }
+
+  function backoffMs(d, n) {
+    var rate = Number(d.status) === 429 || /rate|too many|quota|limit/i.test(String(d.message || ''));
+    var steps = rate ? [15000, 30000, 60000] : [3000, 8000, 20000];
+    return steps[Math.min(n, steps.length) - 1];
+  }
+
+  function recoveryBody(kind, d) {
+    if (kind === 'cut') {
+      return 'Your last reply was cut off by the output length limit. Continue exactly where it stopped and do not repeat anything. ' +
+        'If it stopped inside a tool call, send that call again in smaller pieces: write a large file in several parts ' +
+        '(write_file for the first part, then write_file with append=true for each further part) and keep every reply well under 3000 words.';
+    }
+    if (kind === 'toobig') {
+      return 'The server rejected the last message because it was too large. The result of your last action did not reach you. ' +
+        'Run it again with much less output (filter with grep, head or tail, or write it to a file and read the file in parts) and continue the task.';
+    }
+    var last = middleCut(lastUserRaw(), 6000);
+    return 'The previous request failed on the server (' + why(d) + '). Continue the task from where you were; do not redo work that is already finished.' +
+      (last ? ' If you never received my last message, it is repeated here:\n---\n' + last + '\n---' : '');
+  }
+
+  function fireRecovery(kind, d, tries) {
+    if (window.__sdAgentStopped) { recover.pending = false; return; }
+    if ((generating() || state.pending > 0 || mcpPending) && tries < 25) {
+      recover.timer = setTimeout(function () { fireRecovery(kind, d, tries + 1); }, 800);
+      return;
+    }
+    recover.pending = false;
+    recover.last = { kind: kind, at: Date.now() };
+    sendNudge(recoveryBody(kind, d), false);
+  }
+
+  function scheduleRecovery(kind, d) {
+    if (recover.pending) return;
+    if (kind === 'empty') {
+      toast(t('Arena returned an empty reply. Tap Continue (or send "continue") to retry.',
+        'Arena খালি উত্তর দিয়েছে। আবার চেষ্টা করতে Continue চাপুন (বা "continue" পাঠান)।'));
+      setTimeout(function () { maybeOfferContinue(); }, 1500);
+      return;
+    }
+    if (kind === 'fatal') {
+      toast(Number(d.status) === 400
+        ? t('Arena rejected the request (HTTP 400). Send your message again.', 'Arena অনুরোধটি গ্রহণ করেনি (HTTP 400)। মেসেজটি আবার পাঠান।')
+        : t('Arena refused the request (HTTP ' + d.status + '). Sign in again or finish the check on the page, then send your message.',
+            'Arena অনুরোধ প্রত্যাখ্যান করেছে (HTTP ' + d.status + ')। আবার সাইন ইন করুন বা পেজের যাচাই শেষ করে মেসেজ পাঠান।'));
+      return;
+    }
+    if (!autoContinue()) {
+      toast(t('The reply did not finish (' + why(d) + '). Send "continue" to carry on.', 'উত্তরটি শেষ হয়নি (' + why(d) + ')। চালিয়ে যেতে "continue" পাঠান।'));
+      return;
+    }
+    var n = kind === 'error' ? ++recover.errs : ++recover.cuts;
+    var max = kind === 'error' ? MAX_ERRS : MAX_CUTS;
+    if (n > max) {
+      toast(t('Arena keeps failing (' + why(d) + '). Stopped retrying — send a message to continue.',
+        'Arena বারবার ব্যর্থ হচ্ছে (' + why(d) + ')। আর চেষ্টা করা হচ্ছে না — চালিয়ে যেতে মেসেজ পাঠান।'));
+      return;
+    }
+    var delay = kind === 'error' ? backoffMs(d, n) : 1200;
+    recover.pending = true;
+    if (kind === 'error') {
+      toast(t('Arena error (' + why(d) + '). Retrying in ' + Math.round(delay / 1000) + ' s (' + n + '/' + max + ')…',
+        'Arena ত্রুটি (' + why(d) + ')। ' + Math.round(delay / 1000) + ' সেকেন্ডে আবার চেষ্টা (' + n + '/' + max + ')…'));
+    } else if (kind === 'cut') {
+      toast(t('The reply was cut off. Asking the AI to continue…', 'উত্তর মাঝপথে কেটে গেছে। AI-কে চালিয়ে যেতে বলা হচ্ছে…'));
+    } else {
+      toast(t('The last result was too large. Asking the AI to shorten it…', 'শেষ ফলাফল অনেক বড় ছিল। AI-কে ছোট করতে বলা হচ্ছে…'));
+    }
+    recover.timer = setTimeout(function () { fireRecovery(kind, d, 0); }, delay);
+  }
+
+  function onArenaTurn(ev) {
+    try {
+      var d = ev && ev.detail;
+      if (typeof d === 'string') d = JSON.parse(d);
+      if (!d || !onArena() || window.__sdAgentStopped) return;
+      var kind = classifyTurn(d);
+      if (!kind) { recover.errs = 0; return; }
+      scheduleRecovery(kind, d);
+    } catch (_) {}
+  }
+
+  try { window.addEventListener('bds:arena-turn', onArenaTurn); } catch (_) {}
 
   // ── Reply-end detection ─────────────────────────────────────────────────────
   //
@@ -1616,7 +1819,8 @@
         active: Number(i.active) || 0, mode: i.mode || null, reason: i.reason || null };
     } catch (_) { out.sandbox = { error: 'unavailable' }; }
     out.agent = { active: state.active, pending: state.pending, nudges: flow.nudges, calls: flow.calls,
-      stopped: !!window.__sdAgentStopped };
+      stopped: !!window.__sdAgentStopped,
+      recovery: { cuts: recover.cuts, errs: recover.errs, pending: recover.pending, last: recover.last } };
     try {
       if (window.__sdHealth && typeof window.__sdHealth.status === 'function') {
         var h = window.__sdHealth.status();
@@ -1664,5 +1868,10 @@
     _statusText: statusText,
     _statusShort: statusShort,
     _scrollGuard: guard,
+    _sessionId: sessionId,
+    _requestHistory: requestHistory,
+    _classifyTurn: classifyTurn,
+    _endsInsideToolCall: endsInsideToolCall,
+    _recovery: recover,
   };
 })();
