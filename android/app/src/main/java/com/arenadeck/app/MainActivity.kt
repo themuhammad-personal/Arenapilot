@@ -1481,7 +1481,12 @@ class MainActivity : ComponentActivity() {
         handler.removeCallbacksAndMessages(null)
         closePopupWindow()
         try {
+            // Detach before destroy(): destroying a WebView that is still in the
+            // view tree can crash or leak the Activity on some WebView versions.
+            (officialWebView.parent as? ViewGroup)?.removeView(officialWebView)
+            officialWebView.stopLoading()
             officialWebView.removeJavascriptInterface("AndroidBridge")
+            officialWebView.webViewClient = WebViewClient()
             officialWebView.destroy()
         } catch (_: Exception) {}
         super.onDestroy()
