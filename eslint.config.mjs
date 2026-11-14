@@ -44,6 +44,8 @@ export default tseslint.config(
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
           caughtErrorsIgnorePattern: "^_",
+          // `catch (e) {}` is the engine's best-effort idiom; do not warn on it.
+          caughtErrors: "none",
         },
       ],
       // `catch (_) {}` is the deliberate "best effort" idiom in the engine.

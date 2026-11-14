@@ -64,6 +64,16 @@ to be reshaped in place:
 The plan with acceptance criteria for every phase is in
 [docs/arena/ROADMAP-4-BN.md](docs/arena/ROADMAP-4-BN.md) (Bengali, as the owner wrote it).
 
+## Status & audit (v2.0.1)
+
+What is proven, what is not, and the prioritised plan live in
+[docs/arena/AUDIT-PLAN-2026-BN.md](docs/arena/AUDIT-PLAN-2026-BN.md) (Bengali). In short: the native
+shell builds, passes its unit tests and boots on an API-34 emulator in CI; the end-to-end flow on a
+**logged-in account on a real phone** is not yet automated-proven. If a feature misbehaves, open the
+page's console (or tell us) and send the output of `window.__sdAgent.diagnose()`.
+
+Checks you can run without Android: `npm ci && npm test && npm run lint`.
+
 ## Install
 
 1. Download **[arenapilot-latest.apk](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)**

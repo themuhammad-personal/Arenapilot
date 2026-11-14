@@ -1686,7 +1686,8 @@ class MainActivity : ComponentActivity() {
                     val skipped = ArrayList(readSkipped)
                     overflow.forEach { skipped.add(SkippedFile(it.lastPathSegment ?: "file", "file-cap-exceeded")) }
                     val json = buildShareActionJson(request.text, files, skipped)
-                    runOnUiThread { deliverPageAction(json) }
+                    // The read ran off-thread: the Activity may be gone by now.
+                    runOnUiThread { if (!isFinishing && !isDestroyed) deliverPageAction(json) }
                 }.start()
             }
         }
@@ -1705,6 +1706,7 @@ class MainActivity : ComponentActivity() {
         if (pendingPageActions.isEmpty()) return
         val queued = ArrayList(pendingPageActions)
         pendingPageActions.clear()
+        if (!::officialWebView.isInitialized || isDestroyed) return
         queued.forEach { officialWebView.evaluateJavascript(buildPageActionScript(it), null) }
     }
 
