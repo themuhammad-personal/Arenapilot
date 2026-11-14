@@ -16,7 +16,7 @@ val bdsBuildId: Long = (project.findProperty("bdsBuildId") as String?)?.toLongOr
 // not cosmetic: with an older versionName inside the APK, every launch sees a
 // "newer" release on GitHub and offers the same update forever.
 // Falls back to this literal for a local build without the property.
-val bdsVersionName: String = (project.findProperty("bdsVersionName") as String?)?.takeIf { it.isNotBlank() } ?: "2.0.1"
+val bdsVersionName: String = (project.findProperty("bdsVersionName") as String?)?.takeIf { it.isNotBlank() } ?: "2.1.0"
 
 // The model list is DATA, not code: published as a release asset of this repo and
 // shipped in the APK so the very first launch works offline. Staged from the
