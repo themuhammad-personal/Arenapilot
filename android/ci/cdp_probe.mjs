@@ -1283,9 +1283,12 @@ export function acceptanceFailures(result) {
   else {
     const pages = Array.isArray(inside.pages) ? inside.pages : [];
     // Every page this suite knows how to open must have its row.
-    for (const page of ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
-      'projects', 'chat', 'appearance', 'data', 'doctor']) {
+    for (const page of ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor']) {
       if (!pages.includes(page)) errors.push('settings-row-missing-' + page);
+    }
+    // v2.2.0 scope: these pages were removed on purpose and must not come back.
+    for (const page of ['deep_research', 'commands', 'appearance', 'data']) {
+      if (pages.includes(page)) errors.push('settings-row-should-be-removed-' + page);
     }
     // The DeepSeek-API-only page has no API behind arena.ai: it must NOT be offered.
     if (inside.apiRowCount !== 0) errors.push('api-playground-offered-on-arena');
@@ -1331,14 +1334,13 @@ export function acceptanceFailures(result) {
     }
     // The list: the engine's tools plus the app's own two cards, which are the
     // only entries it adds to a sheet it does not own.
-    for (const want of ['deep research', 'upload folder', 'github repo', 'fetch web page',
-      'linux studio', 'settings']) {
+    for (const want of ['upload folder', 'attach project', 'linux studio', 'settings']) {
       if (!rowLabels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
     }
-    // Deep Research is the sheet's one switch: a plain row looks identical and
-    // could never be toggled.
-    const dr = (sheetRows.rows || []).find((x) => lower(x.label).includes('deep research'));
-    if (dr && dr.toggle !== true) errors.push('add-to-chat-deep-research-not-a-switch');
+    // v2.2.0 scope: these cards were removed on purpose and must not come back.
+    for (const gone of ['deep research', 'github repo', 'fetch web page']) {
+      if (rowLabels.some((l) => l.includes(gone))) errors.push('add-to-chat-row-should-be-removed-' + gone.replace(/ /g, '-'));
+    }
     for (const row of surface) {
       if (row.disabled) continue;
       const b = row.rect || [0, 0, 0, 0];

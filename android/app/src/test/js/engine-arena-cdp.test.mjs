@@ -303,10 +303,10 @@ async function startFakeCdp(opts = {}) {
             label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false,
             reachable: true, onTop: !(opts.coveredRow && label === 'Camera'), disabled: false,
           }));
-          const rows = ['Add to chat', 'Upload Folder', 'Attach Project', 'Deep Research',
-            'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings'].map((label, i) => ({
+          const rows = ['Add to chat', 'Upload Folder', 'Attach Project',
+            'Linux Studio', 'Settings'].map((label, i) => ({
             label, rect: [16, 240 + i * 56, 288, 48], inViewport: true,
-            toggle: label === 'Deep Research' && !opts.drNotSwitch, reachable: true, onTop: true, disabled: false,
+            toggle: false, reachable: true, onTop: true, disabled: false,
           }));
           return value(JSON.stringify({
             present: true,
@@ -322,8 +322,7 @@ async function startFakeCdp(opts = {}) {
           // absent by rule; the doctor row is present and its page prints at
           // least one passing line and one admitted limitation.
           const open = state.drawerOpen && !opts.drawerNeverOpens;
-          const pages = ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
-            'projects', 'chat', 'appearance', 'data', 'doctor'];
+          const pages = ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor'];
           if (opts.apiRowBack) pages.push('api');
           if (opts.noDoctorRow) pages.splice(pages.indexOf('doctor'), 1);
           const onDoctor = state.onDoctorPage === true && !opts.doctorNeverOpens;
@@ -734,10 +733,10 @@ test('a row below the fold of the scrolling sheet is not a fault; a covered one 
 
   // Deep Research is a SWITCH row. A sheet that draws it as a plain row looks
   // identical in a screenshot and can never turn the feature on.
-  const notASwitch = JSON.parse(JSON.stringify(below));
-  notASwitch.engineSheetRows.rows = notASwitch.engineSheetRows.rows.map((row) => (
-    /deep research/i.test(row.label) ? { ...row, toggle: false } : row));
-  assert.ok(acceptanceFailures(notASwitch).includes('add-to-chat-deep-research-not-a-switch'));
+  // (v2.2.0: the card was removed; it must not come back.)
+  const revived = JSON.parse(JSON.stringify(below));
+  revived.engineSheetRows.rows.push({ label: 'Deep Research', rect: [16, 600, 288, 48], inViewport: true, toggle: true, reachable: true, onTop: true, disabled: false });
+  assert.ok(acceptanceFailures(revived).includes('add-to-chat-row-should-be-removed-deep-research'));
 
   // The two labels the sheet prints outside its rows: "Add to chat" is the
   // HEADER and "More tools" the SECTION above the list. A sheet with both

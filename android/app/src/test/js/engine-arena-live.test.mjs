@@ -168,15 +168,13 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
         .map((label, i) => ({ label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
       // "Add to chat" is the sheet's HEADER, not a row; Deep Research is its one
       // switch. The app's own Linux Studio and Settings cards come last.
-      rows: ['Upload Folder', 'Attach Project', 'Deep Research',
-        'GitHub Repo', 'Fetch Web Page', 'Linux Studio', 'Settings']
-        .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: label === 'Deep Research', onTop: true, reachable: true, disabled: false })),
+      rows: ['Upload Folder', 'Attach Project', 'Linux Studio', 'Settings']
+        .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
     },
     // inside the drawer: every page row, no DeepSeek-API row, a real check-up
     drawerPagesBefore: {
       present: true, headerTitle: 'Advanced settings',
-      pages: ['prompts', 'memory', 'language', 'deep_research', 'mcp', 'commands',
-        'projects', 'chat', 'appearance', 'data', 'doctor'],
+      pages: ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor'],
       apiRowCount: 0, apiRowVisible: false, doctorRowCount: 1, doctorRowVisible: true,
     },
     doctorPage: {
@@ -241,9 +239,9 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
-      rows: good.engineSheetRows.rows.map((r) => (/deep research/i.test(r.label) ? { ...r, toggle: false } : r)),
+      rows: [...good.engineSheetRows.rows, { label: 'Deep Research', rect: [16, 500, 288, 48], inViewport: true, toggle: true, onTop: true, reachable: true, disabled: false }],
     },
-  }).includes('add-to-chat-deep-research-not-a-switch'), 'Deep Research must be the switch it claims to be');
+  }).includes('add-to-chat-row-should-be-removed-deep-research'), 'a removed Deep Research card must not return');
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
@@ -259,10 +257,10 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,
-      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Deep Research'),
-      count: 7,
+      rows: good.engineSheetRows.rows.filter((r) => r.label !== 'Attach Project'),
+      count: 6,
     },
-  }).includes('add-to-chat-row-missing-deep-research'), 'a missing sheet row must fail');
+  }).includes('add-to-chat-row-missing-attach-project'), 'a missing sheet row must fail');
   assert.ok(acceptanceFailures({
     ...good, engineSheetRows: {
       ...good.engineSheetRows,

@@ -962,7 +962,7 @@ test('the smoke gate checks the drawers rows, not just that it opened', async ()
   const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
   assert.match(src, /DRAWER_PAGES_FACTS/, 'the probe no longer reads the drawer rows');
   assert.match(src, /data-bds-page/, 'the probe no longer identifies rows by page');
-  for (const page of ['doctor', 'deep_research', 'appearance']) {
+  for (const page of ['doctor', 'memory', 'mcp', 'projects']) {
     assert.ok(src.includes(`'${page}'`), `the gate does not require the ${page} row`);
   }
   assert.match(
