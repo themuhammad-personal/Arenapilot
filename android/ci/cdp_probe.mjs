@@ -834,6 +834,18 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
       const rows = facts && Array.isArray(facts.pages) ? facts.pages : [];
       const doctorIndex = rows.indexOf('doctor');
       if (doctorIndex < 0) throw new Error('no check-up row in the drawer');
+      // The drawer slides up. On a loaded CI emulator it can still be on its way
+      // (top edge at the bottom of the viewport) when the card click's pause ends,
+      // and a row measured then reads as "outside the viewport" - a timing flake
+      // (run 43688788677), not an app fault. Measure only once it has settled.
+      for (let i = 0; i < 20; i += 1) {
+        let notRisen = null;
+        try {
+          notRisen = await evalValue(cdp, '/*sdp:drawerrise*/(function () { var d = document.querySelector("#bds-drawer"); if (!d) return null; return d.getBoundingClientRect().top < innerHeight - 120 ? 0 : 1; })()');
+        } catch { break; }
+        if (notRisen !== 1) break;
+        await pause(300);
+      }
       const box = await evalValue(cdp, `(function () {
         var rows = Array.prototype.slice.call(document.querySelectorAll('#bds-drawer .bds-set-row'));
         var row = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; })[0];
