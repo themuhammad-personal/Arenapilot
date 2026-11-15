@@ -1394,6 +1394,64 @@ export function acceptanceFailures(result) {
   return errors;
 }
 
+
+// ── Direct Mode modalities on the real pages (v2.3.0) ────────────────────────
+// arena.ai has four Direct home pages. The engine must call each of them Direct
+// Mode and name its modality; before v2.3.0 only /text/direct passed. Read from
+// the real page in the emulator, after the app has injected the engine.
+export const MODALITY_ROUTES = [
+  { path: '/code/direct', modality: 'webdev' },
+  { path: '/search/direct', modality: 'search' },
+  { path: '/image/direct', modality: 'image' },
+];
+
+const MODALITY_FACTS = `/*sdp:modality*/JSON.stringify((function () {
+  var s = window.__sdSite;
+  var ta = document.querySelector('textarea[name="message"]');
+  var out = { path: location.pathname, composer: !!ta, engine: !!s, mode: null, modality: null, profile: null };
+  try { out.mode = s && s.arenaMode(); } catch (e) { out.mode = 'error:' + e.message; }
+  try { out.modality = s && s.arenaModality(); } catch (e) { out.modality = 'error:' + e.message; }
+  try { out.profile = s && s.modalityProfile(out.modality).id; } catch (e) {}
+  return out;
+})())`;
+
+/** Failures for one route's facts. A page without a composer (sign-in or a bot
+ * challenge) is reported as skipped, never as a pass and never as a fault. */
+export function modalityFailures(route, facts) {
+  if (!facts) return [`modality-${route.modality}-unreadable`];
+  if (facts.composer !== true) return [];
+  const errors = [];
+  if (facts.engine !== true) errors.push(`modality-${route.modality}-engine-not-injected`);
+  else {
+    if (facts.mode !== 'direct') errors.push(`modality-${route.modality}-mode-${facts.mode}`);
+    if (facts.modality !== route.modality) errors.push(`modality-${route.modality}-got-${facts.modality}`);
+  }
+  return errors;
+}
+
+async function probeModalityRoutes(cdp, host, wait) {
+  const rows = [];
+  for (const route of MODALITY_ROUTES) {
+    let facts = null;
+    try {
+      await cdp.send('Page.navigate', { url: `https://${host}${route.path}` });
+      await sleepMs(Math.min(wait, 12000));
+      facts = await evalJson(cdp, MODALITY_FACTS);
+    } catch (e) {
+      facts = null;
+      rows.push({ route, facts, error: String((e && e.message) || e).slice(0, 160) });
+      continue;
+    }
+    rows.push({ route, facts });
+  }
+  // Leave the WebView where the later smoke steps (sandbox, live message) expect it.
+  try {
+    await cdp.send('Page.navigate', { url: `https://${host}/text/direct` });
+    await sleepMs(Math.min(wait, 8000));
+  } catch { /* the later steps report their own page problems */ }
+  return rows;
+}
+
 export async function main() {
   const reportFile = arg('report', null);
   if (reportFile) return report(reportFile);
@@ -1431,6 +1489,20 @@ export async function main() {
     }
     for (const line of annotations(result)) console.log(line);
     const failures = acceptanceFailures(result);
+    // Direct Mode on Code / Search / Image, on the real pages.
+    try {
+      const rows = await probeModalityRoutes(cdp, pageHost, wait);
+      fs.writeFileSync(path.join(outDir, 'cdp-modalities.json'), JSON.stringify(rows, null, 1));
+      for (const row of rows) {
+        const f = row.facts;
+        console.log(annotation('notice', `Direct modality ${row.route.path}: ${f
+          ? `composer=${f.composer} engine=${f.engine} mode=${f.mode} modality=${f.modality} profile=${f.profile}${f.composer ? '' : ' (no composer: sign-in/challenge page, not counted)'}`
+          : `unreadable (${row.error || 'no facts'})`}`));
+        failures.push(...modalityFailures(row.route, f));
+      }
+    } catch (e) {
+      console.log(annotation('warning', `modality probe could not run: ${String((e && e.message) || e).slice(0, 200)}`));
+    }
     if (required && failures.length) {
       // Name the labels the sheet actually drew, so a red row check can be read
       // off the annotation instead of decoded out of the capture.

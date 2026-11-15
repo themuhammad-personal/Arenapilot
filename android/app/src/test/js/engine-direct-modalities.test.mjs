@@ -192,3 +192,18 @@ test('Battle and Side-by-side bodies are still never rewritten', async () => {
     assert.equal(JSON.parse(p.sent[0].init.body).userMessage.content, 'x', mode);
   }
 });
+
+// ── the emulator gate for the three non-Text pages ──────────────────────────
+
+test('emulator gate: Code, Search and Image must be Direct with the right modality', async () => {
+  const { MODALITY_ROUTES, modalityFailures } = await import('../../../../ci/cdp_probe.mjs');
+  assert.deepEqual(MODALITY_ROUTES.map((r) => r.path), ['/code/direct', '/search/direct', '/image/direct']);
+  const [code] = MODALITY_ROUTES;
+  const good = { composer: true, engine: true, mode: 'direct', modality: 'webdev', profile: 'webdev' };
+  assert.deepEqual(modalityFailures(code, good), []);
+  assert.deepEqual(modalityFailures(code, { ...good, mode: 'unknown' }), ['modality-webdev-mode-unknown'], 'the pre-v2.3.0 behaviour fails the gate');
+  assert.deepEqual(modalityFailures(code, { ...good, modality: 'chat' }), ['modality-webdev-got-chat']);
+  assert.deepEqual(modalityFailures(code, { ...good, engine: false }), ['modality-webdev-engine-not-injected']);
+  assert.deepEqual(modalityFailures(code, { composer: false }), [], 'a sign-in or challenge page is skipped, not failed');
+  assert.deepEqual(modalityFailures(code, null), ['modality-webdev-unreadable']);
+});
