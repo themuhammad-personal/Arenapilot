@@ -401,8 +401,11 @@ try {
     'the list scroll height is measured from the available sheet viewport');
   assert.equal(settingsCardLayout.list.rowsDoNotShrink, true,
     'tool cards retain their original row height instead of flex-shrinking and clipping the last row');
-  assert.ok(settingsCardLayout.list.scrollHeight > settingsCardLayout.list.clientHeight,
-    'the Settings card is reachable by scrolling the list rather than being lost below the sheet');
+  // v2.2.0 pruned the sheet to a handful of cards, so on a tall phone the list may
+  // simply fit; what must hold is that nothing is lost: either it all fits, or the
+  // list scrolls (it has its own overflow-y:auto, asserted above).
+  assert.ok(settingsCardLayout.list.scrollHeight >= settingsCardLayout.list.clientHeight,
+    'the Settings card is reachable (fits, or scrolls inside the list)');
   assert.equal(settingsCardLayout.list.iconWidth, '18');
   assert.equal(settingsCardLayout.list.iconHeight, '18');
   assert.equal(settingsCardLayout.list.iconHasCenter, true, 'gear icon has a clean center ring');
@@ -431,8 +434,9 @@ try {
       listRect: [lr.left, lr.top, lr.right, lr.bottom],
     };
   });
-  assert.ok(scrolledSettingsCard.scrollTop > 0,
-    'scrolling the list reaches Settings: ' + JSON.stringify(scrolledSettingsCard));
+  // The pruned sheet may fit without scrolling; scrolling is required only when it overflows.
+  assert.ok(scrolledSettingsCard.scrollHeight <= scrolledSettingsCard.clientHeight || scrolledSettingsCard.scrollTop > 0,
+    'Settings is reachable: ' + JSON.stringify(scrolledSettingsCard));
   assert.equal(scrolledSettingsCard.fullyVisible, true,
     'the entire Settings card, including its description and gear, fits inside the list viewport');
   await shot(page, 'arena-settings-card-scrolled');

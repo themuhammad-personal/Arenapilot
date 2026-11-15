@@ -47,3 +47,11 @@ test('the sandbox prompt carries the engineering-discipline rules', () => {
   assert.ok(injected.includes('numbered plan'));
   assert.ok(injected.includes('same error appears twice'));
 });
+
+test('toasts never swallow taps (a toast over the composer must not block Send)', () => {
+  const css = readFileSync(join(dir, 'content.css'), 'utf8');
+  assert.ok(css.includes('#bds-root>#bds-toast-stack,#bds-root>#bds-toast-stack *{pointer-events:none}'));
+  assert.ok(css.lastIndexOf('#bds-root>#bds-toast-stack') > css.indexOf('#bds-root>*{pointer-events:auto}'),
+    'the toast rule must come after the generic #bds-root>* rule');
+  assert.ok(!css.includes('box-shadow:var(--bds-shadow);pointer-events:auto;animation:bds-toast-in'));
+});
