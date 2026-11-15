@@ -18,6 +18,9 @@ on:
       # Reliability rebuild (v2.0): this is the working branch the owner's
       # install is built from, so it must build, test and publish like main.
       - arena/e90647be-arenapilot
+      # Stabilisation branches build + test on every push (release stays gated
+      # to main / the arena branch above).
+      - "stabilize/**"
     tags:
       - "v*"
   pull_request:

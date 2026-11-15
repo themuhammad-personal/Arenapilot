@@ -44,6 +44,25 @@ mode; Battle / Side-by-side / Agent mode pages stay untouched.
 | 🔎 **Research deeply** | Multi-step Deep Research with page fetching, source ranking and a context guard. |
 | 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; the Android shell adds device integration and Linux Studio. |
 
+## v2.2.0 — focused scope (Direct Mode first)
+
+The app now keeps only what Direct Mode needs. Battle, Side-by-side and Agent mode stay the
+official arena.ai pages, untouched.
+
+| Kept | Removed from the UI |
+|---|---|
+| **+ sheet:** Camera, Photos, Files, Upload folder, Attach project, Linux Studio, Settings | GitHub-repo import, Fetch-web-page, Deep Research card |
+| **Settings:** Prompts & personas, Memory, Language, Linux & Agent, MCP servers, Projects, Chat & messages, Check-up | Deep Research, Slash commands, Custom CSS, Integrations & backup |
+| **Agent engine:** Linux sandbox (run / job / read / write / edit / list / install / preview / export) + MCP tools | |
+
+The sandbox prompt now also teaches the model a working method: plan first, inspect before
+editing, verify with real output, change approach after a repeated error, and check the original
+request before finishing (`injected.js`, pinned by `engine-scope-prune.test.mjs`).
+
+> **Honest note:** the engine is a prebuilt bundle, so the removed entries are removed at their
+> entry points (settings rows, sheet cards), not by deleting the underlying code. Nothing in the
+> bundle can reach them any more from the UI.
+
 ## The in-place mobile redesign (N0 in progress)
 
 The first generation showed the website as-is and the owner's complaints (settings buried,
