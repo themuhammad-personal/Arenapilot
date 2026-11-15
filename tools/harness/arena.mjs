@@ -428,6 +428,19 @@ try {
     window.__sdSettle = { top, n: prev && prev.top === top ? prev.n + 1 : 0 };
     return window.__sdSettle.n >= 3;
   });
+  // Re-scroll and re-measure until the card is fully inside the list, instead of trusting
+  // one sample: the sheet re-measures its own max-height after it rises, and a sample
+  // taken in that window sees a transiently clipped list. A card that never becomes
+  // visible still fails below, with the rects in the message.
+  await wait(() => {
+    const it = document.querySelector('#sd-arena-settings-item');
+    const ls = it && it.parentElement;
+    if (!ls) return false;
+    ls.scrollTop = ls.scrollHeight;
+    const l = ls.getBoundingClientRect();
+    const r = it.getBoundingClientRect();
+    return r.top >= l.top - 1 && r.bottom <= l.bottom + 1;
+  }, 4000).catch(() => {});
   const scrolledSettingsCard = await page.evaluate(() => {
     const item = document.querySelector('#sd-arena-settings-item');
     const list = item && item.parentElement;
