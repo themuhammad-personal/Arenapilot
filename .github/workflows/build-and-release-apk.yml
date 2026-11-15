@@ -517,9 +517,11 @@ jobs:
             সম্পর্ক নেই। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট ও শর্তাবলির অধীনেই এটি ব্যবহার করছেন।
 
             #### What is inside
-            - The ArenaPilot engine on top of arena.ai Direct Chat: an AI agent
-              with its own Linux sandbox (run code, files, export results), Deep
-              Research, personas, projects, skills, MCP tools and widgets
+            - The ArenaPilot engine on top of arena.ai Direct Chat (Text, Code,
+              Search and Image pages): an AI agent with its own Linux sandbox
+              (run code, files, export results), projects, opt-in memory, MCP
+              tools and widgets, guided by an agent playbook (persist, verify,
+              work inside chat limits, resume from progress files)
             - **+ menu file cards**: text-like files are delivered through the chat
               itself (every model receives them); images go through arena's own picker
             - Privacy defaults (v2): **app instructions are ON** (the tools and
