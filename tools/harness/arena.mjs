@@ -432,6 +432,9 @@ try {
     const item = document.querySelector('#sd-arena-settings-item');
     const list = item && item.parentElement;
     if (!list || !item) return { hasList: !!list, fullyVisible: false };
+    // A CSS `scroll-behavior: smooth` would animate this jump and a measurement taken
+    // right after reads a half-scrolled list (the CI flake). Jump instantly.
+    list.style.scrollBehavior = 'auto';
     list.scrollTop = list.scrollHeight;
     const lr = list.getBoundingClientRect();
     const ir = item.getBoundingClientRect();
@@ -449,7 +452,7 @@ try {
   assert.ok(scrolledSettingsCard.scrollHeight <= scrolledSettingsCard.clientHeight || scrolledSettingsCard.scrollTop > 0,
     'Settings is reachable: ' + JSON.stringify(scrolledSettingsCard));
   assert.equal(scrolledSettingsCard.fullyVisible, true,
-    'the entire Settings card, including its description and gear, fits inside the list viewport');
+    'the entire Settings card, including its description and gear, fits inside the list viewport: ' + JSON.stringify(scrolledSettingsCard));
   await shot(page, 'arena-settings-card-scrolled');
 
   stage = 'settings-sheet-card-open';
