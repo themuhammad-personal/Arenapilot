@@ -417,6 +417,17 @@ try {
   await shot(page, 'arena-settings-card');
 
   stage = 'settings-card-scroll-reachability';
+  // The sheet rises into place; measuring mid-rise reads a card that is still
+  // moving (a timing flake seen in CI). Wait until its position holds still for
+  // three polls (300 ms) before asserting anything about geometry.
+  await wait(() => {
+    const el = document.querySelector('#sd-arena-settings-item');
+    if (!el) return false;
+    const top = Math.round(el.getBoundingClientRect().top * 10);
+    const prev = window.__sdSettle;
+    window.__sdSettle = { top, n: prev && prev.top === top ? prev.n + 1 : 0 };
+    return window.__sdSettle.n >= 3;
+  });
   const scrolledSettingsCard = await page.evaluate(() => {
     const item = document.querySelector('#sd-arena-settings-item');
     const list = item && item.parentElement;
