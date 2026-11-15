@@ -64,13 +64,24 @@ to be reshaped in place:
 The plan with acceptance criteria for every phase is in
 [docs/arena/ROADMAP-4-BN.md](docs/arena/ROADMAP-4-BN.md) (Bengali, as the owner wrote it).
 
-## Status & audit (v2.0.1)
+## Status & audit (v2.1.0)
 
-What is proven, what is not, and the prioritised plan live in
-[docs/arena/AUDIT-PLAN-2026-BN.md](docs/arena/AUDIT-PLAN-2026-BN.md) (Bengali). In short: the native
-shell builds, passes its unit tests and boots on an API-34 emulator in CI; the end-to-end flow on a
-**logged-in account on a real phone** is not yet automated-proven. If a feature misbehaves, open the
-page's console (or tell us) and send the output of `window.__sdAgent.diagnose()`.
+**v2.1.0 fixes why Direct Chat tasks died halfway.** The engine was ported from a DeepSeek build and
+never learned arena's own signals: its stream format (`a0:`/`ad:`/`a3:` lines), its error codes, or its
+`/c/{id}` URLs. Result: a rate limit (429), a dropped stream, a reply cut off by the output limit, or a
+cut-off tool call ended the task silently, and the keep-going / Continue / exact-arguments features never
+ran on arena at all. Now:
+
+- every finished turn is read from arena's real stream (finish reason, errors, raw text);
+- a cut-off reply, a 429/5xx/dropped stream, or a 413 triggers a **bounded, Stop-respecting recovery**
+  (back-off, "continue in smaller pieces", last message restated) — a 400/401/403 is explained, never looped;
+- `write_file` takes `append=true` so big files are written in parts;
+- oversized messages are cut in the **middle**, so the end of a tool result (the error) survives.
+
+Evidence, root causes and — just as important — **what is still not proven** (a logged-in account on a
+real phone) are in [docs/arena/DIRECT-MODE-V2.1-BN.md](docs/arena/DIRECT-MODE-V2.1-BN.md) (Bengali). The earlier
+audit is [AUDIT-PLAN-2026-BN.md](docs/arena/AUDIT-PLAN-2026-BN.md). If a feature misbehaves, open the page's
+console and send the output of `window.__sdAgent.diagnose()` (it now includes `agent.recovery`).
 
 Checks you can run without Android: `npm ci && npm test && npm run lint`.
 

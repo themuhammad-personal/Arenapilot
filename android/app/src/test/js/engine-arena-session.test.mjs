@@ -218,25 +218,30 @@ test('the two id reads go through the helper, keeping their own patterns', () =>
 // has a different shape (and is not even fetched — see engine-injected-payload).
 // These tests make that trade-off impossible to change by accident.
 
-test('sd-agent’s sessionId() reads DeepSeek’s marker only — arena yields null on purpose', () => {
-  const sessionId = (href) => {
-    const ctx = vm.createContext({ location: { href } });
-    vm.runInContext(fnSourceOf(AGENT, 'sessionId'), ctx);
+test('sd-agent’s sessionId() reads DeepSeek’s /chat/s/ and arena’s /c/ — and never returns null on arena', () => {
+  const sessionId = (href, site) => {
+    const ctx = vm.createContext({ location: { href }, window: { __sdSite: { id: site } } });
+    vm.runInContext(fnSourceOf(AGENT, 'onArena') + '\n' + fnSourceOf(AGENT, 'sessionId'), ctx);
     return vm.runInContext('sessionId()', ctx);
   };
-  assert.equal(sessionId('https://chat.deepseek.com/a/chat/s/abc-123'), 'abc-123');
-  assert.equal(sessionId('https://arena.ai/c/8e4f2a10-77bd-4a1e-9f00-1234567890ab'), null);
-  assert.equal(sessionId('https://arena.ai/text/direct'), null);
+  assert.equal(sessionId('https://chat.deepseek.com/a/chat/s/abc-123', 'deepseek'), 'abc-123');
+  assert.equal(sessionId('https://chat.deepseek.com/', 'deepseek'), null);
+  assert.equal(sessionId('https://arena.ai/c/8e4f2a10-77bd-4a1e-9f00-1234567890ab', 'arena'), '8e4f2a10-77bd-4a1e-9f00-1234567890ab');
+  // A fresh arena chat has no id in the URL yet; the keep-going features must still run.
+  assert.equal(sessionId('https://arena.ai/text/direct', 'arena'), 'arena');
 });
 
-test('so exactArgs() hands arena’s payload back without waiting for a history that is not coming', () => {
-  const body = fnSourceOf(AGENT, 'exactArgs');
-  assert.ok(body.includes('var sid = sessionId();'));
-  assert.ok(body.includes('if (!sid) return Promise.resolve(payload);'),
-    'the early return is what spares arena a 5 s wait per tool call');
-  assert.match(AGENT, /var HISTORY_TIMEOUT_MS = 5000;/, 'the wait this protects arena from');
-  assert.equal(AGENT.split('chat\\/s\\/').length - 1, 1, 'one DeepSeek-only marker in the agent, and no arena twin');
-  assert.ok(!AGENT.includes("'/c/'") && !AGENT.includes('\\/c\\/'), 'nothing in sd-agent.js reads arena’s /c/ yet');
+test('…and on arena requestHistory() answers at once from the recorded turns, so it never waits 5 s per tool call', () => {
+  // This is the trap the previous version of this test guarded: a session id on arena
+  // would have sent requestHistory() into HISTORY_TIMEOUT_MS on EVERY tool call. The id
+  // is now read, but the arena branch returns before any timer or event listener exists.
+  const body = fnSourceOf(AGENT, 'requestHistory');
+  const arenaBranch = body.indexOf('if (onArena())');
+  const timer = body.indexOf('setTimeout');
+  assert.ok(arenaBranch >= 0, 'the arena branch exists');
+  assert.ok(timer > arenaBranch, 'it comes before the timeout is armed');
+  assert.ok(body.slice(arenaBranch, timer).includes('return Promise.resolve('), 'and it resolves immediately');
+  assert.match(AGENT, /var HISTORY_TIMEOUT_MS = 5000;/, 'the wait DeepSeek still has');
 });
 
 /** A function's source out of a plain (non-bundled) script, by brace matching. */

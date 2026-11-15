@@ -326,8 +326,21 @@ test('arena: an over-long message is truncated to the profile’s input limit', 
   const cfg = { modelInputLimits: { instant: 400, vision: 400, expert: 400, deepthink: 400 } };
   const { out } = await arenaRun(cfg, [[CREATE, turn('E1', 'x'.repeat(2000))]]);
   const content = JSON.parse(out[0].body).userMessage.content;
-  assert.equal(content.length, 400);
-  assert.ok(content.endsWith('...[truncated by ArenaPilot]...'));
+  assert.ok(content.length <= 400, 'never above the limit');
+  assert.ok(content.startsWith('<ArenaPilot>'), 'the head (system prompt) survives');
+  assert.ok(content.endsWith('xxxx'), 'the tail survives');
+  assert.match(content, /characters cut from the middle/);
+});
+
+test('arena: truncation cuts the MIDDLE, so the end of a tool result (the error) survives', async () => {
+  const body = 'HEAD-' + 'a'.repeat(3000) + '-ERROR: build failed at line 42';
+  const cfg = { systemPrompt: 'S', disableSystemPrompt: false, memories: [], disableMemory: true,
+    modelInputLimits: { instant: 600, vision: 600, expert: 600, deepthink: 600 } };
+  const { out } = await arenaRun(cfg, [[CREATE, turn('E1', body)]]);
+  const content = JSON.parse(out[0].body).userMessage.content;
+  assert.ok(content.length <= 600);
+  assert.ok(content.startsWith('<ArenaPilot>'), 'the injected instructions at the head survive');
+  assert.ok(content.endsWith('ERROR: build failed at line 42'));
 });
 
 test('arena: with nothing to inject the body is passed through untouched', async () => {

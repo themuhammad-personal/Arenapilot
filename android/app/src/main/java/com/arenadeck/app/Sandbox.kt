@@ -80,6 +80,9 @@ internal class Sandbox private constructor(private val app: Context) {
 
         /** Add one complete repository URL, not two list entries (base and
          * "/community"). Commented-out repositories are not enabled ones. */
+        /** `>` replaces the file, `>>` adds to its end (a big file written in several calls). */
+        internal fun writeRedirect(append: Boolean): String = if (append) ">>" else ">"
+
         internal fun withCommunityRepository(lines: List<String>): List<String> {
             val active = lines.map { it.substringBefore('#').trim() }
             if (active.any { it.endsWith("/community") }) return lines
@@ -811,9 +814,9 @@ internal class Sandbox private constructor(private val app: Context) {
             "${guestPath(path)} is larger than ${READ_KEEP / (1024 * 1024)} MB. " +
                     "Work on it with run instead (e.g. sed -n '1,400p', grep -n, head/tail, or a Python script)."
 
-    fun writeFile(path: String, content: ByteArray) {
+    fun writeFile(path: String, content: ByteArray, append: Boolean = false) {
         val r = exec(
-                "mkdir -p -- \"\$(dirname -- \"\$SD_PATH\")\" && cat > \"\$SD_PATH\"",
+                "mkdir -p -- \"\$(dirname -- \"\$SD_PATH\")\" && cat ${Companion.writeRedirect(append)} \"\$SD_PATH\"",
                 extraEnv = mapOf("SD_PATH" to guestPath(path)), timeoutSec = 60, stdin = content)
         if (r.exitCode != 0) throw IOException(r.output.trim().ifEmpty { "cannot write ${guestPath(path)}" })
         // Studio shows the write in its terminal and refreshes Files / Preview.

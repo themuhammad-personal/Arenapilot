@@ -109,4 +109,17 @@ class SandboxToolsTest {
         assertEquals("12.3s", SandboxTools.formatDuration(12345))
         assertEquals("2m 5s", SandboxTools.formatDuration(125000))
     }
+
+    @Test
+    fun `append writes to the end of the file, a plain write replaces it`() {
+        assertEquals(">>", Sandbox.writeRedirect(true))
+        assertEquals(">", Sandbox.writeRedirect(false))
+    }
+
+    @Test
+    fun `the write summary tells the model whether it replaced or appended`() {
+        assertEquals("Wrote /p (4 bytes, 2 lines).", SandboxTools.writeSummary("/p", "a\nb\n", append = false))
+        assertEquals("Appended to /p (5 bytes, 2 lines).", SandboxTools.writeSummary("/p", "ab\ncd", append = true))
+        assertEquals("Wrote /p (0 bytes, 0 lines).", SandboxTools.writeSummary("/p", "", append = false))
+    }
 }
