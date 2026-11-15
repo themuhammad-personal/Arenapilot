@@ -1806,10 +1806,12 @@
    */
   function diagnose() {
     var out = { version: 1, site: null, mode: null, composer: false, send: false,
-      generating: false, sandbox: null, agent: null, health: null, tools: null };
+      generating: false, sandbox: null, agent: null, health: null, tools: null, modality: null };
     try { out.site = (window.__sdSite && window.__sdSite.id) || null; } catch (_) {}
     try { out.mode = window.__sdSite && typeof window.__sdSite.arenaMode === 'function'
       ? window.__sdSite.arenaMode() : null; } catch (_) {}
+    try { out.modality = window.__sdSite && typeof window.__sdSite.arenaModality === 'function'
+      ? window.__sdSite.arenaModality() : null; } catch (_) {}
     try { out.composer = !!document.querySelector('textarea[name="message"]'); } catch (_) {}
     try { out.send = !!document.querySelector('button[aria-label="Send message"]'); } catch (_) {}
     try { out.generating = generating(); } catch (_) {}

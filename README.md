@@ -44,6 +44,33 @@ mode; Battle / Side-by-side / Agent mode pages stay untouched.
 | 🔎 **Research deeply** | Multi-step Deep Research with page fetching, source ranking and a context guard. |
 | 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; the Android shell adds device integration and Linux Studio. |
 
+## v2.3.0 — Direct Mode: Text, Code, Image and Search
+
+arena.ai's Direct Chat has four home pages — `/text/direct`, `/code/direct`, `/search/direct`,
+`/image/direct` — and every conversation lives at `/c/{id}`. Before v2.3.0 the engine only knew
+`/text/direct`; on the other three it reported "unknown" and **paused every tool**. Now each one is
+wired in natively (the modality names are read from arena's own shipped code: `chat`, `webdev`,
+`search`, `image`):
+
+| Direct Mode | Engine | What is added |
+|---|---|---|
+| **Text** | full agent engine (sandbox, MCP, memory, personas) | unchanged |
+| **Code** (`webdev`) | full agent engine | working rules for Arena Code: complete runnable code, run/syntax-check in the sandbox before answering, final code in one block or `export_file` |
+| **Search** | full agent engine | working rules for Arena Search: use the model's live search, cite URLs, never fake results, sandbox only for what search cannot do |
+| **Image** | engine stays out of the way | the prompt reaches the image model exactly as typed (a long instruction block would become part of the picture prompt) |
+
+Also in v2.3.0: a relaunch / renderer restart returns to the Direct page you were on (not always
+Text); the CI runtime gate now matches the v2.2.0 pruned scope (it was failing the emulator job
+by demanding the removed rows) and fails if a removed row comes back; `window.__sdAgent.diagnose()`
+reports `modality`. Battle, Side-by-side and Agent stay the untouched official pages.
+
+> **Honest note:** the four modalities are proven by unit tests that run the real `sd-site.js` and
+> `injected.js` against arena-shaped requests, and by the CI build. What is **not** proven here is a
+> logged-in session on a real phone in Code/Search/Image mode (arena needs a sign-in and a reCAPTCHA
+> token that only the page can mint). Message-list selectors were verified on Text only; the
+> composer shape (`textarea[name=message]`, "Add files", "Send message", the Direct control) was
+> checked on all four pages.
+
 ## v2.2.0 — focused scope (Direct Mode first)
 
 The app now keeps only what Direct Mode needs. Battle, Side-by-side and Agent mode stay the

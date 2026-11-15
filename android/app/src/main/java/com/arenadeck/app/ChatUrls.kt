@@ -25,6 +25,14 @@ internal object ChatUrls {
         if (uri.scheme != "https" || !site.isSiteHost(uri.host) || uri.port != -1) return null
         if (uri.rawQuery != null || uri.rawFragment != null || uri.rawUserInfo != null) return null
         val path = uri.rawPath ?: return null
+        if (site.id == "arena" && ARENA_DIRECT_HOME.matches(path)) return "https://${site.host}$path"
         return if (site.sessionPath.matches(path)) "https://${site.host}$path" else null
     }
+
+    /**
+     * arena.ai's four Direct Chat home pages (Text, Code, Search, Image). A
+     * relaunch lands on the one the user was in instead of always on Text.
+     * Battle / Side-by-side / Agent pages are deliberately not here.
+     */
+    private val ARENA_DIRECT_HOME = Regex("^/(text|code|search|image)/direct/?$")
 }

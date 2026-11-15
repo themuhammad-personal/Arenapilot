@@ -2,6 +2,7 @@ package com.arenadeck.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -85,13 +86,28 @@ class SiteTest {
     }
 
     @Test
+    fun `every Direct Mode home page is restorable, so a relaunch returns to Code Search or Image`() {
+        for (slug in listOf("text", "code", "search", "image")) {
+            assertEquals("https://arena.ai/$slug/direct", ChatUrls.restorable("https://arena.ai/$slug/direct", Sites.ARENA))
+            assertEquals("https://arena.ai/$slug/direct", ChatUrls.restorable("https://www.arena.ai/$slug/direct", Sites.ARENA))
+            assertTrue(isTrustedBridgeUrl("https://arena.ai/$slug/direct", Sites.ARENA))
+        }
+        // not on DeepSeek, and never with a query, other hosts or other modes
+        assertNull(ChatUrls.restorable("https://arena.ai/code/direct", Sites.DEEPSEEK))
+        assertNull(ChatUrls.restorable("https://arena.ai/code/direct?x=1", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai.evil.example/code/direct", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/video/direct", Sites.ARENA))
+    }
+
+    @Test
     fun `everything else on arena opens a new direct chat`() {
         listOf(
             null,
             "",
             "https://arena.ai/",
-            "https://arena.ai/text/direct",
             "https://arena.ai/text/direct?model_a=x",
+            "https://arena.ai/text/battle",
+            "https://arena.ai/code/side-by-side",
             "https://arena.ai/agent",
             "https://arena.ai/analytics/side-by-side?model_a=x&model_b=y",
             "http://arena.ai/c/abc",

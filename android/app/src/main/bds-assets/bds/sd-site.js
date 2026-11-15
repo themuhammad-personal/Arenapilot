@@ -405,6 +405,67 @@
     },
   };
 
+  // ── Direct Mode modalities (verified against arena.ai's own route table) ──
+  // arena serves four Direct Chat home routes and every conversation, whatever
+  // its modality, lives at /c/{id}. The request body carries the modality:
+  // chat | webdev (the "code" route) | search | image  (video / audio / auto /
+  // p2l also exist in arena's enum). Verified in arena's shipped chunks, not
+  // guessed: EEvaluationModality = {AUTO,CHAT,WEBDEV,SEARCH,IMAGE,P2L,VIDEO,AUDIO}.
+  var MODALITY_BY_SLUG = { text: 'chat', code: 'webdev', search: 'search', image: 'image' };
+  var DIRECT_HOME = /^\/(text|code|search|image)\/direct\/?$/;
+  var UNSUPPORTED_ROUTE = /^\/(text|code|search|image|video)\/(battle|side-by-side|arena|agent)(?:\/|$)|^\/agent(?:\/|$)/;
+  var lastModality = null;
+
+  var CODE_ADDENDUM = [
+    'MODE: Arena Code (WebDev). The user builds websites and apps here and Arena previews the code you write.',
+    '- Deliver complete, self-contained, runnable code (one index.html with inline CSS/JS unless a framework is requested). No placeholders, no "rest of the code here".',
+    '- When the sandbox is available, write the files there, run or syntax-check them and fix every error BEFORE the final answer; call the work done only from output you actually saw.',
+    '- Finish with the final code in one fenced block (no tool call in that reply) when it fits comfortably in one reply; for larger projects build it in parts in the sandbox, show it with preview and deliver it with export_file, and say so plainly.',
+    '- Responsive by default (mobile first), accessible, and no external network calls unless the user asks for them.',
+  ].join('\n');
+
+  var SEARCH_ADDENDUM = [
+    'MODE: Arena Search. You have live web search through Arena. Use it for anything that can be recent, specific or checkable instead of answering from memory.',
+    '- Cite the sources you used with their URLs. Say when sources disagree or when nothing reliable was found; never invent a source or a quote.',
+    '- Use the Linux sandbox only for what search cannot do (calculating, parsing a downloaded file, running code). Never use it to fake search results.',
+    '- Keep the answer direct: the finding first, then the evidence.',
+  ].join('\n');
+
+  var PROFILES = {
+    chat:   { id: 'chat',   label: 'Text',   inject: true,  tools: true,  addendum: '' },
+    webdev: { id: 'webdev', label: 'Code',   inject: true,  tools: true,  addendum: CODE_ADDENDUM },
+    search: { id: 'search', label: 'Search', inject: true,  tools: true,  addendum: SEARCH_ADDENDUM },
+    // An image model turns the whole message into a picture: the app's long
+    // instruction block would become part of the image prompt. Nothing is added.
+    image:  { id: 'image',  label: 'Image',  inject: false, tools: false, addendum: '' },
+    video:  { id: 'video',  label: 'Video',  inject: false, tools: false, addendum: '' },
+    audio:  { id: 'audio',  label: 'Audio',  inject: false, tools: false, addendum: '' },
+    // Max / auto-routing: the final modality is picked by arena; behave as chat.
+    auto:   { id: 'auto',   label: 'Max',    inject: true,  tools: true,  addendum: '' },
+  };
+
+  /** The profile for an arena modality name. A name we have not seen behaves
+   * like chat, so a rename cannot silently switch the engine off. */
+  function modalityProfile(name) {
+    var key = String(name == null ? '' : name).toLowerCase();
+    return PROFILES[key] || PROFILES.chat;
+  }
+
+  /** Remember the modality arena itself reported (request body field). */
+  function noteModality(name) {
+    if (typeof name === 'string' && name) lastModality = name.toLowerCase();
+    return lastModality;
+  }
+
+  /** Current modality: the route when it names one, otherwise the last one seen
+   * in a request body or on a home route (a /c/{id} URL does not say). */
+  function arenaModality() {
+    if (site.id !== 'arena') return null;
+    var m = /^\/(text|code|search|image)\//.exec(String(location.pathname || ''));
+    if (m && DIRECT_HOME.test(String(location.pathname || ''))) lastModality = MODALITY_BY_SLUG[m[1]];
+    return lastModality || 'chat';
+  }
+
   /** A /c/ URL is shared by chat modes; it is NOT proof of Direct Chat.
    * Read only Arena's own composer mode control, never model replies/tool UI.
    * Missing or unfamiliar evidence stays unknown (tool scanning fails closed).
@@ -412,9 +473,10 @@
   function arenaMode() {
     if (site.id !== 'arena') return null;
     var pathname = String(location.pathname || '');
-    if (/^\/text\/(battle|side-by-side|arena|agent)(?:\/|$)/.test(pathname)) return 'unsupported';
-    var directPath = /^\/text\/direct\/?$/.test(pathname);
+    if (UNSUPPORTED_ROUTE.test(pathname)) return 'unsupported';
+    var directPath = DIRECT_HOME.test(pathname);
     if (!directPath && !/^\/c\/[^/]+\/?$/.test(pathname)) return 'unknown';
+    if (directPath) arenaModality();
     try {
       var ta = document.querySelector('textarea[name="message"]');
       var form = ta && ta.closest('form');
@@ -432,6 +494,9 @@
   window.__sdSite = {
     arenaPrompt: ARENA_PROMPT,
     arenaMode: arenaMode,
+    arenaModality: arenaModality,
+    modalityProfile: modalityProfile,
+    noteModality: noteModality,
     version: VERSION,
     id: site.id,
     host: hostOf(),
