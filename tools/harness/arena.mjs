@@ -428,10 +428,26 @@ try {
     window.__sdSettle = { top, n: prev && prev.top === top ? prev.n + 1 : 0 };
     return window.__sdSettle.n >= 3;
   });
+  // Re-scroll and re-measure until the card is fully inside the list, instead of trusting
+  // one sample: the sheet re-measures its own max-height after it rises, and a sample
+  // taken in that window sees a transiently clipped list. A card that never becomes
+  // visible still fails below, with the rects in the message.
+  await wait(() => {
+    const it = document.querySelector('#sd-arena-settings-item');
+    const ls = it && it.parentElement;
+    if (!ls) return false;
+    ls.scrollTop = ls.scrollHeight;
+    const l = ls.getBoundingClientRect();
+    const r = it.getBoundingClientRect();
+    return r.top >= l.top - 1 && r.bottom <= l.bottom + 1;
+  }, 4000).catch(() => {});
   const scrolledSettingsCard = await page.evaluate(() => {
     const item = document.querySelector('#sd-arena-settings-item');
     const list = item && item.parentElement;
     if (!list || !item) return { hasList: !!list, fullyVisible: false };
+    // A CSS `scroll-behavior: smooth` would animate this jump and a measurement taken
+    // right after reads a half-scrolled list (the CI flake). Jump instantly.
+    list.style.scrollBehavior = 'auto';
     list.scrollTop = list.scrollHeight;
     const lr = list.getBoundingClientRect();
     const ir = item.getBoundingClientRect();
@@ -449,7 +465,7 @@ try {
   assert.ok(scrolledSettingsCard.scrollHeight <= scrolledSettingsCard.clientHeight || scrolledSettingsCard.scrollTop > 0,
     'Settings is reachable: ' + JSON.stringify(scrolledSettingsCard));
   assert.equal(scrolledSettingsCard.fullyVisible, true,
-    'the entire Settings card, including its description and gear, fits inside the list viewport');
+    'the entire Settings card, including its description and gear, fits inside the list viewport: ' + JSON.stringify(scrolledSettingsCard));
   await shot(page, 'arena-settings-card-scrolled');
 
   stage = 'settings-sheet-card-open';
