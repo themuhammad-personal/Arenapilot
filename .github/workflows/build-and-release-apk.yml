@@ -8,11 +8,11 @@ on:
       - qa/real-world-testing
       - arena/01a0cebd-deepseek
       - arena/01a0dc4d-deepseek
-      # arena.ai port (docs/arena/PLAN-BN.md): build + unit tests only — the
+      # arena.ai port (docs/PLAN.md): build + unit tests only — the
       # release job below is gated on tags/main, so nothing is published.
       - arena/43c0caca-super-deepseek
       - arena/7401e440-super-deepseek
-      # Roadmap 3 (docs/arena/ROADMAP-3-BN.md): privacy defaults flip + inline
+      # Roadmap 3 (docs/PLAN.md): privacy defaults flip + inline
       # file delivery — same build + unit tests only policy as above.
       - arena/0e0268d7-super-deepseek
       # Reliability rebuild (v2.0): this is the working branch the owner's
@@ -385,6 +385,11 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          # More guest memory: the second launch of the app was being ended by the
+          # system's low-memory killer (WebView sandbox process, reason=13).
+          ram-size: 4096M
+          heap-size: 576M
+          cores: 2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # One deliberate live probe per push whose HEAD commit message carries
           # the [arena-live-probe] marker (workflow_dispatch stays the other

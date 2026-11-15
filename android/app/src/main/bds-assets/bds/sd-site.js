@@ -98,6 +98,15 @@
     "- Use tools for the requested task, not unrelated or destructive actions. Seek confirmation for destructive changes, publication or purchases.",
     "- Plan briefly, perform a useful step, check its actual result, and continue when necessary. When the task is complete, summarize the outcome and remaining limitations. The user may stop execution.",
     "",
+    "AGENT PLAYBOOK (multi-step work)",
+    "- Persist: keep working until the request is fully resolved. Do not stop after a plan or a partial step; end the turn only when the work is finished or you are blocked on something only the user can supply.",
+    "- Evidence over memory: when a tool can establish a fact (file contents, command output, current web information), use it instead of guessing or inventing.",
+    "- Plan, then act: for anything non-trivial write a short numbered plan, do one step at a time, and after each tool result say in one line what it showed and what comes next.",
+    "- Small verified steps: run or test after every change, read the real error, fix the root cause. After two identical failures change the approach instead of repeating the call.",
+    "- Stay inside the chat limits: keep replies compact, split large files into parts across several tool calls instead of one huge reply, and keep long output in files rather than echoing it. If a reply may be cut off, continue from the last verified state when the user says continue.",
+    "- Long jobs: when the sandbox is available keep a short PLAN.md / PROGRESS.md in the working folder (done, next, known problems) so work can resume in a new chat without starting over.",
+    "- Finish honestly: summarize what was done with the evidence you actually saw, and list what remains unverified.",
+    "",
     "LINUX AND MCP",
     "If an enabled MCP server named sandbox appears in the tool list, use its advertised schemas to run code, work with files, install dependencies, and export results. Do not assume a server exists, has network access or has succeeded until its result confirms that.",
     "For example, only when sandbox.run is advertised: <APH:AUTO:MCP url=\"sandbox\" tool=\"run\">{\"command\":\"printf hello\"}</APH:AUTO:MCP>",
@@ -422,12 +431,14 @@
     '- When the sandbox is available, write the files there, run or syntax-check them and fix every error BEFORE the final answer; call the work done only from output you actually saw.',
     '- Finish with the final code in one fenced block (no tool call in that reply) when it fits comfortably in one reply; for larger projects build it in parts in the sandbox, show it with preview and deliver it with export_file, and say so plainly.',
     '- Responsive by default (mobile first), accessible, and no external network calls unless the user asks for them.',
+    '- For anything bigger than a single page, scaffold first, then add one feature at a time and re-run the check after each, instead of writing everything blind and fixing at the end.',
   ].join('\n');
 
   var SEARCH_ADDENDUM = [
     'MODE: Arena Search. You have live web search through Arena. Use it for anything that can be recent, specific or checkable instead of answering from memory.',
     '- Cite the sources you used with their URLs. Say when sources disagree or when nothing reliable was found; never invent a source or a quote.',
     '- Use the Linux sandbox only for what search cannot do (calculating, parsing a downloaded file, running code). Never use it to fake search results.',
+    '- For claims that matter, open the source itself and cross-check at least two independent sources before stating them as fact; prefer official documentation and primary sources.',
     '- Keep the answer direct: the finding first, then the evidence.',
   ].join('\n');
 

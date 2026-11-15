@@ -64,7 +64,7 @@ if [[ "$REPLACE" == 1 ]]; then
     if [[ -e "$SRC/$f" ]]; then rm -rf "$BUNDLE_DIR/$f"; cp -r "$SRC/$f" "$BUNDLE_DIR/$f"; fi
   done
   echo "  ⚠ our-skin.css, sd-site.js and any local-only files were kept. Re-run app tests."
-  echo "  ⚠ an upstream content.js has NO site-profile seam: re-apply it (see docs/ARCHITECTURE.md"
+  echo "  ⚠ an upstream content.js has NO site-profile seam: re-apply it (see docs/PLAN.md"
   echo "    'The site-profile seam') or npm run test:engine will fail on the seam anchors."
 else
   echo "▸ dry run only. Our committed bundle is a patched superset — port changes"

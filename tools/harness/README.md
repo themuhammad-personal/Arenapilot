@@ -94,7 +94,7 @@ The dedicated `Arena adapter integration` CI job is a failing gate, unlike
 the older report-only DeepSeek harness job. Screenshots are ignored artifacts.
 This does **not** prove live Arena protocol compatibility, real model compliance,
 lossless arguments after Markdown rendering, authenticated UI, or native Linux
-execution. Those are explicit next milestones in `docs/arena/ROADMAP-2-BN.md`.
+execution. Those are explicit next milestones in `docs/PLAN.md`.
 
 On a minimal Linux host without NSS, the bundled Chromium includes its libraries:
 

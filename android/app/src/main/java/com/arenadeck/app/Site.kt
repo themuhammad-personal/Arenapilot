@@ -90,7 +90,7 @@ internal object Sites {
      * Every value below is marked. `VERIFIED` comes from a public source that
      * reads arena.ai's own DOM/API (the `arena-utils` browser extension, a
      * published arena.ai API map). `MODELLED` is inferred and MUST be confirmed
-     * against a real capture — see docs/arena/PLAN-BN.md, Phase 0.
+     * against a real capture — see docs/PLAN.md.
      */
     val ARENA = SiteProfile(
         id = "arena",

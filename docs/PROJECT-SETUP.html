@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArenaPilot — প্রজেক্ট সেটআপ গাইড</title>
+<style>
+  :root{--bg:#0f1222;--card:#171b31;--line:#2a3050;--fg:#e8ebff;--mut:#9aa3d1;--acc:#6f86ff;--ok:#38d39f;--warn:#ffb454;--bad:#ff6b81}
+  @media (prefers-color-scheme:light){:root{--bg:#f4f6ff;--card:#fff;--line:#d9def5;--fg:#161a33;--mut:#566091;--acc:#3d5afe;--ok:#0f9d6b;--warn:#b86e00;--bad:#c62848}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 system-ui,"Noto Sans Bengali","Segoe UI",sans-serif}
+  main{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:1.6rem;margin:.2rem 0}
+  h2{font-size:1.25rem;margin:2rem 0 .6rem;display:flex;gap:.6rem;align-items:center}
+  h2 .n{background:var(--acc);color:#fff;border-radius:999px;min-width:1.9rem;height:1.9rem;display:inline-grid;place-items:center;font-size:.95rem}
+  p,li{color:var(--fg)}
+  .mut{color:var(--mut)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+  .note{border-left:4px solid var(--warn)} .danger{border-left:4px solid var(--bad)} .good{border-left:4px solid var(--ok)}
+  pre{background:#0a0d1c;color:#dfe5ff;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;margin:.4rem 0}
+  .copy{display:inline-block;background:var(--acc);color:#fff;border:0;border-radius:9px;padding:8px 14px;font:inherit;font-size:.9rem;cursor:pointer;min-height:40px}
+  .copy:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;background:rgba(111,134,255,.15);padding:1px 6px;border-radius:6px;font-size:.92em}
+  table{width:100%;border-collapse:collapse;font-size:.95rem} td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+  a{color:var(--acc)}
+  .tag{font-size:.75rem;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">ArenaPilot · v2.4.0 · stabilize/v2.1.0</p>
+  <h1>প্রজেক্ট সেটআপ গাইড</h1>
+  <p class="mut">লক্ষ্য: এক চ্যাটের লিমিট শেষ হলে নতুন চ্যাটে একই প্রজেক্ট খুলে ঠিক সেখান থেকেই কাজ চালিয়ে যাওয়া — সবকিছু নতুন করে ব্যাখ্যা না করে।</p>
+
+  <div class="card danger">
+    <b>⚠ আগে নিরাপত্তা</b>
+    <ul>
+      <li>এই চ্যাটে আপনি GitHub টোকেন (PAT) পেস্ট করেছেন। চ্যাট ও arena.ai/মডেল প্রদানকারীর কাছে সেটি চলে গেছে। <b>কাজ শেষ হলে GitHub → Settings → Developer settings → Fine-grained tokens থেকে টোকেনটি Revoke করুন</b> এবং দরকার হলে নতুন টোকেন বানান।</li>
+      <li><b>প্রজেক্টের instructions বা ফাইলে টোকেন লিখবেন না।</b> অ্যাপ প্রজেক্টের নির্দেশনা ও ফাইল arena.ai ও আপনার বাছাই করা মডেলের প্রদানকারীর কাছে পাঠায়। টোকেন শুধু প্রয়োজনের সময় নতুন চ্যাটের প্রথম বার্তায় দিন, আর শেষে বাতিল করুন।</li>
+      <li>টোকেনের অনুমতি কেবল এই একটি রিপোজিটরিতে (<code>Contents</code>: Read/Write, <code>Actions</code>: Read, <code>Workflows</code>: Write, <code>Pull requests</code>: Read/Write) সীমাবদ্ধ রাখুন এবং মেয়াদ ছোট রাখুন।</li>
+    </ul>
+  </div>
+
+  <h2><span class="n">1</span> অ্যাপ ইনস্টল ও আপডেট</h2>
+  <div class="card">
+    <ol>
+      <li>Releases থেকে APK নামান: <a href="https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk">arenapilot-latest.apk</a> (Android 8.0+)।</li>
+      <li>খুলে "এই উৎস থেকে ইনস্টলের অনুমতি" দিন। একই কী দিয়ে সাইন করা, তাই পুরোনো অ্যাপের ওপর আপডেট হয়ে বসবে।</li>
+      <li>arena.ai অ্যাকাউন্টে সাইন-ইন করুন এবং <b>Direct</b> মোড বাছুন (Text / Code / Search / Image)।</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">2</span> প্রজেক্ট বানান</h2>
+  <div class="card">
+    <p>অ্যাপের <b>+</b> বাটন চাপলে যে "Add to chat" শিট খোলে সেখান থেকে Project কার্ড/অপশন বা সেটিংসের Projects অংশ খুলুন, তারপর নতুন প্রজেক্ট বানান। (লেবেল সংস্করণভেদে একটু আলাদা হতে পারে — আমি এখানে ফোনে লাইভ যাচাই করিনি।)</p>
+    <table>
+      <tr><th>ঘর</th><th>কী দেবেন</th></tr>
+      <tr><td>নাম</td><td><code>ArenaPilot-Dev</code></td></tr>
+      <tr><td>Instructions</td><td>নিচের ধাপ ৩-এর ব্লক</td></tr>
+      <tr><td>ফাইল</td><td><code>docs/PLAN.md</code> ও <code>docs/PROGRESS.md</code> (ধাপ ৪)</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="n">3</span> Project Instructions (কপি করে বসান)</h2>
+  <div class="card">
+    <button class="copy" data-target="instr">কপি করুন</button>
+    <pre id="instr">তুমি ArenaPilot প্রজেক্টের সিনিয়র অ্যান্ড্রয়েড/ওয়েবভিউ ডেভেলপার ও এজেন্ট।
+
+প্রজেক্ট: https://github.com/themuhammad-personal/Arenapilot
+ব্রাঞ্চ: stabilize/v2.1.0 (স্টেবল হলে main-এ merge → Actions Release APK)
+লক্ষ্য: arena.ai Direct Mode (Text, Code, Image, Search) এ ইঞ্জিন নেটিভভাবে স্টেবল কাজ করা। Battle / Side-by-side / Agent পেজ অফিসিয়াল অবস্থায় অপরিবর্তিত থাকবে।
+
+কাজের নিয়ম (প্রতিটি নতুন চ্যাটে):
+1. শুরুতে docs/PROGRESS.md ও docs/PLAN.md পড়ো, তারপর git log --oneline -15 দেখো। না পড়ে কোড বদলাবে না।
+2. যা করার পরিকল্পনা করো তা আগে রিপোজিটরিতে (docs/PLAN.md) লেখো।
+3. এক সময়ে একটি কাজ। প্রতিটির পর: লোকাল টেস্ট (npm test) → commit → push → Actions-এর ফল দেখো। অনুমানে কোড লিখবে না; দরকারে official ডকুমেন্টেশন খুঁজে যাচাই করো।
+4. মিনিফাই করা ইঞ্জিন ফাইল (content.js, injected.js) বদলালে আগে প্যাটার্ন খুঁজে নিশ্চিত হও, তারপর ছোট, টেস্টসহ পরিবর্তন করো।
+5. সৎ থাকো: যা চোখে দেখোনি (আউটপুট, CI ফল) তা "সম্পন্ন" বলবে না। যা পারোনি তা স্পষ্ট বলো।
+6. কাজ শেষে docs/PROGRESS.md হালনাগাদ করে commit করো, যেন পরের চ্যাট সেখান থেকে ধরতে পারে।
+7. টোকেন/গোপন তথ্য কোনো ফাইল, commit বা লগে লিখবে না; remote URL-এ টোকেন রাখবে না (git -c http.extraHeader ব্যবহার করো)।
+8. উত্তর দাও ব্যবহারকারীর ভাষায় (বাংলা), সংক্ষিপ্ত ও প্রমাণসহ।
+
+শেষ নির্দেশ ফাইল: docs/PROGRESS.md-এ "পরবর্তী ধাপ" অংশ থেকে শুরু করো।</pre>
+  </div>
+
+  <h2><span class="n">4</span> প্রজেক্টে যে ফাইল যোগ করবেন</h2>
+  <div class="card">
+    <p>রিপোজিটরি থেকে এই দুটি ফাইল নামিয়ে প্রজেক্টের ফাইল অংশে আপলোড করুন (ছোট, তাই কনটেক্সট নষ্ট হবে না):</p>
+    <ul>
+      <li><a href="https://raw.githubusercontent.com/themuhammad-personal/Arenapilot/stabilize/v2.1.0/docs/PLAN.md">docs/PLAN.md</a> — সক্রিয় পরিকল্পনা</li>
+      <li><a href="https://raw.githubusercontent.com/themuhammad-personal/Arenapilot/stabilize/v2.1.0/docs/PROGRESS.md">docs/PROGRESS.md</a> — চলমান অবস্থা (প্রতি সেশনের শেষে হালনাগাদ হয়)</li>
+    </ul>
+    <p class="mut">সতর্কতা: প্রজেক্টে রাখা কপি পুরোনো হয়ে যেতে পারে। তাই instructions-এ বলা আছে — নতুন চ্যাটে মডেল যেন রিপোজিটরি থেকে সর্বশেষ ফাইল পড়ে নেয়।</p>
+  </div>
+
+  <h2><span class="n">5</span> নতুন চ্যাটের প্রথম বার্তা (কপি করে বসান)</h2>
+  <div class="card">
+    <button class="copy" data-target="first">কপি করুন</button>
+    <pre id="first">ArenaPilot-Dev প্রজেক্টের কাজ আগের চ্যাট থেকে চালিয়ে যাও।
+প্রথমে রিপোজিটরির docs/PROGRESS.md ও docs/PLAN.md পড়ো, git log দেখো, তারপর "পরবর্তী ধাপ" থেকে শুরু করো।
+GitHub টোকেন (এই সেশনের জন্য, শেষে আমি বাতিল করব): &lt;এখানে টোকেন পেস্ট করুন&gt;
+কোনো ধাপ শেষ হলে বিল্ড/টেস্টের প্রমাণ দেখাও।</pre>
+  </div>
+
+  <h2><span class="n">6</span> রিপোজিটরিতে সরাসরি কাজের নিরাপদ কমান্ড</h2>
+  <div class="card">
+    <p>সেন্ডবক্সে git থাকলে টোকেন ফাইলে না লিখে শুধু একটি কমান্ডের জন্য হেডারে দিন:</p>
+    <button class="copy" data-target="git">কপি করুন</button>
+    <pre id="git">export GH_PAT='টোকেন'
+H="Authorization: Basic $(printf 'x-access-token:%s' "$GH_PAT" | base64 -w0)"
+git -c http.extraHeader="$H" clone --branch stabilize/v2.1.0 https://github.com/themuhammad-personal/Arenapilot.git
+cd Arenapilot
+npm ci --ignore-scripts && npm test
+git add -A && git commit -m "বার্তা"
+git -c http.extraHeader="$H" push origin stabilize/v2.1.0
+# Actions-এর ফল (টোকেন লাগে না, পাবলিক রিপো):
+curl -s "https://api.github.com/repos/themuhammad-personal/Arenapilot/actions/runs?branch=stabilize/v2.1.0&amp;per_page=3"</pre>
+  </div>
+
+  <h2><span class="n">7</span> Release কীভাবে বের হয়</h2>
+  <div class="card good">
+    <ul>
+      <li>প্রতিটি push-এ Actions: unit test → APK বিল্ড → lint → emulator smoke।</li>
+      <li>Release job শুধু <code>main</code> ব্রাঞ্চে চলে এবং <code>arenapilot-latest.apk</code> + <code>.sha256</code> প্রকাশ করে। তাই স্টেবল হলে: <code>stabilize/v2.1.0</code> → <code>main</code> merge।</li>
+      <li>সংস্করণ বদলাতে <code>package.json</code>, <code>package-lock.json</code> ও <code>android/app/build.gradle.kts</code>-এর fallback একসাথে বদলাতে হয় (টেস্ট এটি পাহারা দেয়)।</li>
+    </ul>
+  </div>
+
+  <h2><span class="n">8</span> ফোনে যাচাইয়ের তালিকা</h2>
+  <div class="card">
+    <ol>
+      <li>Text Direct: একটি সাধারণ প্রশ্ন → উত্তর আসে।</li>
+      <li>Text Direct: "সেন্ডবক্সে একটি ফাইল বানিয়ে চালাও" → টুল কার্ড দেখায়, ফল ফেরে।</li>
+      <li>Code Direct: একটি ছোট ওয়েবপেজ চাও → সম্পূর্ণ কোড ও যাচাই।</li>
+      <li>Search Direct: সাম্প্রতিক কিছু জিজ্ঞেস করো → সোর্সসহ উত্তর।</li>
+      <li>Image Direct: একটি ছবির প্রম্পট → প্রম্পট অপরিবর্তিত যায়, ছবি আসে।</li>
+      <li>ফলাফল <code>docs/PROGRESS.md</code>-এ লিখে রাখুন — কাজ করেছে/করেনি।</li>
+    </ol>
+    <p class="mut">এই ফোন-যাচাই এখনো করা হয়নি; তাই এটি পরবর্তী ধাপ হিসেবে PROGRESS.md-এ আছে।</p>
+  </div>
+</main>
+<script>
+  document.querySelectorAll('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var el = document.getElementById(b.getAttribute('data-target'));
+      var t = el.textContent;
+      var done = function () { var o = b.textContent; b.textContent = 'কপি হয়েছে ✓'; setTimeout(function () { b.textContent = o; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(done, fallback); } else { fallback(); }
+      function fallback() { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand('copy'); done(); } catch (e) { b.textContent = 'হাতে কপি করুন'; } }
+    });
+  });
+</script>
+</body>
+</html>

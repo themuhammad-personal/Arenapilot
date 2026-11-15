@@ -7,7 +7,7 @@ const content = fs.readFileSync(new URL('content.js', dir), 'utf8');
 const site = fs.readFileSync(new URL('sd-site.js', dir), 'utf8');
 const migration = content.slice(content.indexOf('async function sdsArenaPrivacyMigration('), content.indexOf('async function sdsRebrandStored('));
 
-// Roadmap 3 (docs/arena/ROADMAP-3-BN.md), owner decision of 2026-10-14:
+// Roadmap 3 (see git history), owner decision of 2026-10-14:
 // app instructions are ON by default (the app's tools need them) and stored
 // memory is OFF by default. Migration v2 therefore (a) moves instructions back
 // to the new default — a v1 install never chose "off", v1 forced it — while

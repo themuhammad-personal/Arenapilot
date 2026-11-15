@@ -2219,7 +2219,7 @@ class WebViewBridge(
 
     // Sign-in and chat traffic are the official page's own: the engine runs
     // inside chat.deepseek.com, so no login or chat calls go through this bridge.
-    // See docs/ARCHITECTURE.md.
+    // See docs/PLAN.md (architecture section).
     companion object {
         private const val TAG = "BdsWebViewBridge"
         // Shared with UpdateChecker, which keeps the update channel and the dismissed-build

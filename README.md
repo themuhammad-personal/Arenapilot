@@ -4,13 +4,11 @@
 
 # ArenaPilot
 
-**An independent, native Android companion for [arena.ai](https://arena.ai) Direct Chat — with an AI agent that has its own Linux computer.**
+**An independent Android client for [arena.ai](https://arena.ai) Direct Chat, with an agent engine built in.**
 
-AI agent · Linux Studio · model picker · thinking chips · MCP tools · Deep Research
+*অ্যারেনাপাইলট — arena.ai Direct Chat-এর জন্য একটি স্বতন্ত্র অ্যান্ড্রয়েড অ্যাপ।*
 
 [![Download APK](https://img.shields.io/badge/Download-APK-4d6bfe?style=for-the-badge&logo=android&logoColor=white)](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)
-&nbsp;
-[![Latest build](https://img.shields.io/badge/Release-arena--latest-1f2233?style=for-the-badge)](https://github.com/themuhammad-personal/Arenapilot/releases)
 
 [![Build](https://github.com/themuhammad-personal/Arenapilot/actions/workflows/build-and-release-apk.yml/badge.svg)](https://github.com/themuhammad-personal/Arenapilot/actions/workflows/build-and-release-apk.yml)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)
@@ -18,253 +16,75 @@ AI agent · Linux Studio · model picker · thinking chips · MCP tools · Deep 
 
 </div>
 
----
-
 > [!IMPORTANT]
-> ArenaPilot is an **independent, unofficial** project. It is **not** affiliated with, endorsed
-> by or sponsored by arena.ai. You use arena.ai through its own website, under its own terms
-> and privacy policy. The app says so once, on first launch.
-> অ্যারেনাপাইলট একটি স্বতন্ত্র, অনানুষ্ঠানিক অ্যাপ — arena.ai-এর সঙ্গে এর কোনো সম্পর্ক নেই।
+> ArenaPilot is an **independent, unofficial** project. It is not affiliated with, endorsed by or
+> sponsored by arena.ai. You use arena.ai through its own website, under its own terms and privacy policy.
 
-## Why ArenaPilot?
+## Identity
 
-ArenaPilot opens **the real arena.ai** — your own account, your own sign-in, real models — and
-adds tools, memory, an AI agent with its own Linux sandbox, and a mobile-first skin to that
-same official page. **The original Arena page is the only chat surface**: there is no parallel
-Compose chat shell, second composer, or replacement model picker. Direct Chat is the supported
-mode; Battle / Side-by-side / Agent mode pages stay untouched.
+ArenaPilot opens the real arena.ai page — your own account and sign-in — and adds an engine on top of
+it. The original Arena page is the only chat surface: there is no second composer and no replacement
+model picker. **Direct Chat is the supported mode.** Battle, Side-by-side and Agent mode stay the
+untouched official pages.
 
-| | |
+## What it does
+
+| Direct Mode page | What the engine does |
 |---|---|
-| 🤖 **It gets work done** | The AI has its own Linux computer. It writes, runs, tests and fixes code on its own until the task is done, and **Stop** is always one tap away. |
-| 🐧 **Linux in your pocket** | Linux Studio gives you a terminal, a file browser and a live preview of what the AI builds. |
-| 🧠 **It remembers you** | Memory, personas and multiple system prompts, applied to every chat automatically. |
-| ⚡ **Type less** | Type `/` for built-in commands and your own snippets. |
-| 🔌 **Plug in tools** | Connect MCP servers, and the AI finds and calls their tools by itself. |
-| 🔎 **Research deeply** | Multi-step Deep Research with page fetching, source ranking and a context guard. |
-| 📱 **A phone-first Arena page** | The real Arena composer, model picker, reasoning and messages stay on the official page, styled in place for touch screens; the Android shell adds device integration and Linux Studio. |
+| **Text** `/text/direct` | Full agent engine: Linux sandbox, MCP tools, memory, projects |
+| **Code** `/code/direct` | Same engine, plus Code rules: complete runnable code, run and check in the sandbox before answering |
+| **Search** `/search/direct` | Same engine, plus Search rules: use live search, cite sources, cross-check what matters |
+| **Image** `/image/direct` | The engine stays out of the way — your prompt reaches the image model exactly as typed |
 
-## v2.3.0 — Direct Mode: Text, Code, Image and Search
+Core capabilities, all in Direct Mode:
 
-arena.ai's Direct Chat has four home pages — `/text/direct`, `/code/direct`, `/search/direct`,
-`/image/direct` — and every conversation lives at `/c/{id}`. Before v2.3.0 the engine only knew
-`/text/direct`; on the other three it reported "unknown" and **paused every tool**. Now each one is
-wired in natively (the modality names are read from arena's own shipped code: `chat`, `webdev`,
-`search`, `image`):
-
-| Direct Mode | Engine | What is added |
-|---|---|---|
-| **Text** | full agent engine (sandbox, MCP, memory, personas) | unchanged |
-| **Code** (`webdev`) | full agent engine | working rules for Arena Code: complete runnable code, run/syntax-check in the sandbox before answering, final code in one block or `export_file` |
-| **Search** | full agent engine | working rules for Arena Search: use the model's live search, cite URLs, never fake results, sandbox only for what search cannot do |
-| **Image** | engine stays out of the way | the prompt reaches the image model exactly as typed (a long instruction block would become part of the picture prompt) |
-
-Also in v2.3.0: a relaunch / renderer restart returns to the Direct page you were on (not always
-Text); the CI runtime gate now matches the v2.2.0 pruned scope (it was failing the emulator job
-by demanding the removed rows) and fails if a removed row comes back; `window.__sdAgent.diagnose()`
-reports `modality`. Battle, Side-by-side and Agent stay the untouched official pages.
-
-> **Honest note:** the four modalities are proven by unit tests that run the real `sd-site.js` and
-> `injected.js` against arena-shaped requests, and by the CI build. What is **not** proven here is a
-> logged-in session on a real phone in Code/Search/Image mode (arena needs a sign-in and a reCAPTCHA
-> token that only the page can mint). Message-list selectors were verified on Text only; the
-> composer shape (`textarea[name=message]`, "Add files", "Send message", the Direct control) was
-> checked on all four pages.
-
-## v2.2.0 — focused scope (Direct Mode first)
-
-The app now keeps only what Direct Mode needs. Battle, Side-by-side and Agent mode stay the
-official arena.ai pages, untouched.
-
-| Kept | Removed from the UI |
-|---|---|
-| **+ sheet:** Camera, Photos, Files, Upload folder, Attach project, Linux Studio, Settings | GitHub-repo import, Fetch-web-page, Deep Research card |
-| **Settings:** Prompts & personas, Memory, Language, Linux & Agent, MCP servers, Projects, Chat & messages, Check-up | Deep Research, Slash commands, Custom CSS, Integrations & backup |
-| **Agent engine:** Linux sandbox (run / job / read / write / edit / list / install / preview / export) + MCP tools | |
-
-The sandbox prompt now also teaches the model a working method: plan first, inspect before
-editing, verify with real output, change approach after a repeated error, and check the original
-request before finishing (`injected.js`, pinned by `engine-scope-prune.test.mjs`).
-
-> **Honest note:** the engine is a prebuilt bundle, so the removed entries are removed at their
-> entry points (settings rows, sheet cards), not by deleting the underlying code. Nothing in the
-> bundle can reach them any more from the UI.
-
-## The in-place mobile redesign (N0 in progress)
-
-The first generation showed the website as-is and the owner's complaints (settings buried,
-model names pushing Send off-screen, thinking mixed into answers) came from that. A first N0
-attempt put a separate Compose chat shell OVER the hidden page — the owner rejected it
-(2026-10-15): **arena's official interface itself is to be made Android-native and beautiful**,
-not shadowed by a parallel UI. That shell was removed; the page is again the app's face, now
-to be reshaped in place:
-
-- **N0 — the official interface, styled native:** an injected mobile-first Material-3 skin
-  over the real arena.ai UI (colors, typography, spacing, composer, sheets) — the page stays
-  the real page: your login, recaptcha and the engine all keep working.
-- **N1 — step cards** for tool calls and results, so tags never show as raw text.
-- **N2 — sandbox, files and Computer view** surfaced natively.
-- **N3 — background runs** with a foreground service and notifications.
-- **N4 — MCP, research and the full Manus-level deliverable set.**
-
-The plan with acceptance criteria for every phase is in
-[docs/arena/ROADMAP-4-BN.md](docs/arena/ROADMAP-4-BN.md) (Bengali, as the owner wrote it).
-
-## Status & audit (v2.1.0)
-
-**v2.1.0 fixes why Direct Chat tasks died halfway.** The engine was ported from a DeepSeek build and
-never learned arena's own signals: its stream format (`a0:`/`ad:`/`a3:` lines), its error codes, or its
-`/c/{id}` URLs. Result: a rate limit (429), a dropped stream, a reply cut off by the output limit, or a
-cut-off tool call ended the task silently, and the keep-going / Continue / exact-arguments features never
-ran on arena at all. Now:
-
-- every finished turn is read from arena's real stream (finish reason, errors, raw text);
-- a cut-off reply, a 429/5xx/dropped stream, or a 413 triggers a **bounded, Stop-respecting recovery**
-  (back-off, "continue in smaller pieces", last message restated) — a 400/401/403 is explained, never looped;
-- `write_file` takes `append=true` so big files are written in parts;
-- oversized messages are cut in the **middle**, so the end of a tool result (the error) survives.
-
-Evidence, root causes and — just as important — **what is still not proven** (a logged-in account on a
-real phone) are in [docs/arena/DIRECT-MODE-V2.1-BN.md](docs/arena/DIRECT-MODE-V2.1-BN.md) (Bengali). The earlier
-audit is [AUDIT-PLAN-2026-BN.md](docs/arena/AUDIT-PLAN-2026-BN.md). If a feature misbehaves, open the page's
-console and send the output of `window.__sdAgent.diagnose()` (it now includes `agent.recovery`).
-
-Checks you can run without Android: `npm ci && npm test && npm run lint`.
+- **Agent playbook** — every conversation carries rules for persistence, evidence over guesswork, plan → act → verify,
+  working inside chat limits, resumable progress files and honest completion.
+- **Linux sandbox** — a private Alpine Linux (proot) where the model writes, runs and fixes code. Linux Studio gives a
+  terminal, file browser and preview.
+- **MCP servers** — connect tools; the model finds and calls them.
+- **Memory and projects** — stored memory (opt-in, off by default) and per-chat projects with files.
+- **Reliable long tasks** — arena's stream is read directly; rate limits, dropped streams and cut-off replies trigger a bounded,
+  Stop-respecting recovery instead of silently ending the task.
+- **Files** — upload images, files and project folders from the **+** sheet.
+- **Phone-first skin** — the official page, styled in place for touch screens.
 
 ## Install
 
-1. Download **[arenapilot-latest.apk](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)**
-   on your phone (Android 8.0+).
-2. Open it and allow installing from this source when Android asks.
-3. Sign in with your arena.ai account. That's it.
+1. Download **[arenapilot-latest.apk](https://github.com/themuhammad-personal/Arenapilot/releases/latest/download/arenapilot-latest.apk)** on Android 8.0+.
+2. Open it and allow installing from this source.
+3. Sign in with your arena.ai account.
 
 Every build is signed with the same key, so new versions install as updates.
 
-## FAQ
-
-<details>
-<summary><b>Is this an official arena.ai app?</b></summary>
-
-No. ArenaPilot is an independent, unofficial project and is not affiliated with, endorsed by or
-sponsored by arena.ai. It shows arena.ai's own website (Direct Chat), so you sign in with your
-normal arena.ai account and arena.ai's own terms and privacy policy apply.
-</details>
-
-<details>
-<summary><b>Which modes work?</b></summary>
-
-Direct Chat. Battle, Side-by-side and Agent mode pages show a notice and are not modified.
-</details>
-
-<details>
-<summary><b>Do I need an API key?</b></summary>
-
-No. Chatting works through the website with your own account.
-</details>
-
-<details>
-<summary><b>What does the app send?</b></summary>
-
-Your messages and, by default, app instructions (skills, characters, projects, tool
-definitions) go to arena.ai and the provider of the model you picked. **Stored memory is a
-separate, OFF-by-default opt-in.** Both switches live in *Advanced settings → Chat & messages*,
-and the first-launch notice explains exactly this.
-</details>
-
-<details>
-<summary><b>How big is the Linux sandbox?</b></summary>
-
-The base Alpine system is only a few MB and is downloaded on first use. Packages you or the AI
-install take extra space. The *Linux & Agent* page shows the free space, and *Reset Linux*
-deletes everything.
-</details>
-
-## How it works
+## How it is built
 
 ```
 Android app (Kotlin)
- ├─ WebView ─▶ https://arena.ai           the app's face: the real page, styled native (N0)
- │     └─ engine injected on every load
- │          injected.js      network layer: context, memory, tool results
- │          content.js       settings, commands, cards, tool runner
- │          sd-agent.js      the agent: Linux tools, Stop, keep-going, scroll guard
- │          sd-sheets.js     draggable sheets and drawers
- ├─ AndroidBridge ⇄ storage, pickers, downloads, haptics, updates, sandbox
- └─ Linux sandbox: proot + Alpine (/root/workspace) · Linux Studio · foreground service
+ ├─ WebView ─▶ https://arena.ai        the real page, styled for mobile
+ │     └─ engine injected on every load (android/app/src/main/bds-assets/bds)
+ │          sd-site.js     site profile, Direct modalities, app instructions
+ │          injected.js    request layer: context, memory, tool results
+ │          content.js     settings, commands, cards, tool runner
+ │          sd-agent.js    agent loop: Stop, keep-going, recovery
+ ├─ AndroidBridge ⇄ storage, pickers, downloads, sandbox
+ └─ Linux sandbox: proot + Alpine · foreground service
 ```
 
-You always talk to the real arena.ai site — the app never needs an API key, never bypasses a
-login or captcha, and only ever sends through the page's own composer. The model calls a tool
-by writing a tag; the engine runs it (for example a command in the Linux sandbox) and feeds the
-result back as the next message. The full design is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The app never needs an API key, never bypasses a login or captcha, and only sends through the page's own composer.
 
-## Build from source
+## Develop
 
 ```bash
 npm ci
-npm run test:template && npm run test:engine   # checks
-npm run android:stage-engine          # copy the engine into the APK assets
-python3 scripts/fetch_sandbox_deps.py # proot + libraries for the Linux sandbox (optional)
-cd android && ./gradlew testDebugUnitTest assembleRelease
+npm test                         # engine, release-hygiene and model-list tests
+cd android && ./gradlew testDebugUnitTest assembleDebug
 ```
 
-Without the sandbox step the app still builds and works, just without Linux.
-CI ([build-and-release-apk.yml](.github/workflows/build-and-release-apk.yml)) runs the same
-steps, boots the real APK on an API-34 emulator, reads the real arena.ai page over DevTools,
-verifies the APK signature and publishes every build to the
-[`arena-latest`](https://github.com/themuhammad-personal/Arenapilot/releases)
-release channel. What is verified and what is still unknown is in
-[docs/arena/REPORT-BN.md](docs/arena/REPORT-BN.md).
-
-<details>
-<summary><b>Project layout</b></summary>
-
-<br>
-
-| Path | What lives there |
-|---|---|
-| `android/app/src/main/java/com/arenadeck/app/` | Kotlin shell: `MainActivity`, `WebViewBridge`, the sandbox (`Sandbox`, `SandboxTools`, `SandboxService`) and Linux Studio (`StudioActivity`, `StudioPreview`). The Kotlin package is `com.arenadeck.app`, the same as the app id. |
-| `android/app/src/main/bds-assets/bds/` | The engine bundle (`content.js`, `injected.js`, `sd-agent.js`, styles, sandbox pages) |
-| `android/app/src/test/` | JVM unit tests (`java/`) and engine tests (`js/`) |
-| `docs/` | Architecture notes, the roadmap and third-party licenses |
-| `scripts/` | Build helpers: `fetch_sandbox_deps.py` for the sandbox runtime, `bds-sync.sh` for upstream diffs (dry run by default) |
-
-</details>
-
-## Privacy
-
-ArenaPilot has no servers and no analytics. Your chats go to arena.ai and the model provider,
-exactly as when you use the website yourself. Memory, prompts, snippets, settings and your
-Linux files stay on your device.
-
-The app only contacts other services when a feature needs them:
-
-- GitHub Releases for update checks;
-- the Alpine mirrors when Linux is first set up or a package is installed;
-- MCP servers, websites and GitHub, but only the ones you or the AI choose to use.
-
-## Contributing
-
-Issues and pull requests are welcome, especially bug reports with screenshots, and new commands
-or tools. [Open an issue →](https://github.com/themuhammad-personal/Arenapilot/issues/new)
+GitHub Actions builds, tests and verifies the APK on every push; the release job publishes it from `main`.
+The plan is in [docs/PLAN.md](docs/PLAN.md), the running state in [docs/PROGRESS.md](docs/PROGRESS.md), and the
+new-chat setup guide in [docs/PROJECT-SETUP.html](docs/PROJECT-SETUP.html).
 
 ## License
 
-[MIT](LICENSE). ArenaPilot is an independent project and is not affiliated with arena.ai.
-
-- **Fonts:** the launch screen uses the [Sora](https://github.com/sora-xor/sora-font) typeface
-  and the Linux Studio terminal uses [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono).
-  Both are under the SIL Open Font License 1.1
-  ([Sora](docs/licenses/Sora-OFL.txt), [JetBrains Mono](docs/licenses/JetBrainsMono-OFL.txt)).
-- **Linux sandbox:** built from unmodified open-source parts (PRoot, talloc and more under GPL,
-  LGPL and BSD licenses). See [SANDBOX-NOTICE.md](docs/licenses/SANDBOX-NOTICE.md).
-
----
-
-<div align="center">
-<sub>
-Thanks to <a href="https://github.com/EdgeTypE/better-deepseek"><b>Better DeepSeek</b></a> by Çağrı DÜRÜ.
-This project's engine began as that open-source extension. 💙
-</sub>
-</div>
+[MIT](LICENSE)
