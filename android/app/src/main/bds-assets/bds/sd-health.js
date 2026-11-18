@@ -350,7 +350,7 @@
       el.id = 'sd-health-notice';
       el.setAttribute('role', 'status');
       el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);' +
-        'bottom:calc(env(safe-area-inset-bottom,0px) + 84px);z-index:2147482900;' +
+        'bottom:calc(env(safe-area-inset-bottom,0px) + 84px);z-index:999980;' +
         'max-width:min(92vw,520px);box-sizing:border-box;padding:12px 14px;border-radius:14px;' +
         'background:rgba(28,28,32,.95);color:#f1f1f3;border:1px solid rgba(255,255,255,.1);' +
         'font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +

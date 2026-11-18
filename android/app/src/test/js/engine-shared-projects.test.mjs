@@ -5,14 +5,14 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const src=fs.readFileSync(new URL('../../main/bds-assets/bds/content.js',import.meta.url),'utf8');
 function part(a,b){const i=src.indexOf(a),j=src.indexOf(b,i);assert.ok(i>=0&&j>i,a);return src.slice(i,j)}
-const code=part('function w_(){','async function I8t(')+part('function fA(','class tut')+part('function Qme(','function zme(');
+const code=part('function w_(){','async function I8t(')+part('function fA(','class tut')+part('function QQ(','function Gme(')+part('function oS(','const rxe=');
 const turn=()=>new Promise(done=>setImmediate(done));
 function boot(store={}){
  let seq=0;const events=[];const c={B:{projects:[],projectFiles:[],settings:{},memories:{},characters:[],skills:[],mcpServers:[],deepResearch:{},deepCode:{}},
- location:{pathname:'/c/alpha'},sdsIsArena:()=>true,sdsArenaDirect:()=>true,Us:()=>`p${++seq}`,TD:async()=>{},st:{projects:'bds_projects',projectFiles:'bds_project_files'},
- chrome:{storage:{local:{set:async obj=>Object.assign(store,JSON.parse(JSON.stringify(obj)))}}},console,TextEncoder,window:{dispatchEvent:e=>events.push(JSON.parse(e.detail))},CustomEvent,
- du:'fixture',BA:{configUpdate:'cfg'},M_e:()=>'',UD:()=>[],m1:async()=>[]};vm.createContext(c);vm.runInContext(code+part('let sdConfigRevision=','function Lme('),c);
- c.B.projects=c.Qme(store.bds_projects);c.B.projectFiles=c.Hme(store.bds_project_files);
+ location:{pathname:'/c/alpha'},sdsIsArena:()=>true,sdsArenaDirect:()=>true,Us:()=>`p${++seq}`,TD:async()=>{},st:{projects:'bds_projects',projectFiles:'bds_project_files',memories:'bds_memories'},
+ chrome:{storage:{local:{set:async obj=>Object.assign(store,JSON.parse(JSON.stringify(obj)))}}},console,TextEncoder,window:{__sdSite:{arenaModality:()=>'chat'},dispatchEvent:e=>{if(e.detail)events.push(JSON.parse(e.detail))}},CustomEvent,
+ sdT:a=>a,T6:s=>s,du:'fixture',BA:{configUpdate:'cfg'},M_e:()=>'',UD:()=>[],m1:async()=>[]};vm.createContext(c);vm.runInContext(code+part('let sdConfigRevision=','function Lme('),c);
+ c.B.memories=c.QQ(store.bds_memories);c.B.projects=c.Qme(store.bds_projects);c.B.projectFiles=c.Hme(store.bds_project_files);
  return {c,store,events};
 }
 test('project CRUD survives reload, chats keep their own project, selected file IDs cannot cross a boundary',async()=>{
@@ -40,4 +40,26 @@ test('local project changes are visible synchronously and a slow linked director
  let release;c.DD=()=>new Promise(r=>release=r);const pending=c.Lr();assert.equal(events.at(-1).activeProject.name,'First');
  c.location.pathname='/c/other';await c.Lr();assert.equal(events.at(-1).activeProject,null);release([{name:'private-file',content:'old project'}]);await pending;
  assert.equal(events.at(-1).contextPath,'/c/other');assert.equal(events.filter(x=>x.contextPath==='/c/other').some(x=>JSON.stringify(x).includes('private')),false);
+});
+
+
+test('memory proposals remain outside both stores until approval; no stale approval or revisit replay',async()=>{
+ const {c,store}=boot({bds_memories:{timezone:{value:'UTC',importance:'always'}}});const a=await c.Wct('One');c.Jct(a.id);await turn();
+ const msg=[{key:'লেজার',value:'লাল',importance:'called'}];c.nxe(msg,'m1');const id=vm.runInContext('[...sdMemPending.keys()][0]',c);
+ assert.ok(id);assert.ok(!JSON.stringify(store).includes('লাল'));assert.ok(!c.sdVisibleMemories(c.Ny()).some(m=>m.key==='লেজার'));
+ c.location.pathname='/c/no-project';assert.equal(await c.sdDecideMemory(id,true),false);c.location.pathname='/c/alpha';assert.equal(await c.sdDecideMemory(id,true),true);
+ assert.equal(store.bds_projects[0].memories['লেজার'].value,'লাল');assert.equal(store.bds_memories.timezone.value,'UTC');assert.ok(!store.bds_memories['লেজার']);
+ c.nxe(msg,'m1');assert.equal(vm.runInContext('sdMemPending.size',c),0);c.nxe([{key:'region',value:'west'}],'m2');const second=vm.runInContext('[...sdMemPending.keys()][0]',c);
+ assert.equal(await c.sdDecideMemory(second,false),true);assert.ok(!JSON.stringify(store).includes('west'));c.nxe([{key:'region',value:'west'}],'m2');assert.equal(vm.runInContext('sdMemPending.size',c),0);
+ const after=boot(store).c;assert.equal(after.Ny().memories['লেজার'].value,'লাল');after.location.pathname='/c/other';assert.ok(!after.sdVisibleMemories(after.Ny()).some(m=>m.key==='লেজার'));
+});
+test('memory CRUD, privacy switch, and overwrite conflicts preserve unrelated records',async()=>{
+ const {c,store}=boot();const a=await c.Wct('A');c.Jct(a.id);await turn();
+ await c.sdWriteMemory(null,'language','French','always',null);await c.sdWriteMemory(a.id,'language','Bangla','called',null);
+ assert.deepEqual(Array.from(c.sdVisibleMemories(c.Ny()),m=>m.value),['Bangla']);assert.equal(await c.sdWriteMemory(a.id,'language','overwrite','called',null),false);
+ c.nxe([{key:'language',value:'proposed'}],'turn');const id=vm.runInContext('[...sdMemPending.keys()][0]',c);
+ const old=JSON.stringify(c.sdMemBag(a.id).language);await c.sdWriteMemory(a.id,'language','German','called',old);assert.equal(await c.sdDecideMemory(id,true),false);
+ c.B.settings.disableMemory=true;assert.equal(c.sdVisibleMemories(c.Ny()).length,0);c.nxe([{key:'blocked',value:'no'}],'never');assert.ok(!JSON.stringify(store).includes('blocked'));
+ assert.equal(await c.sdWriteMemory(a.id,'language',null,'called',JSON.stringify(c.sdMemBag(a.id).language)),true);assert.equal(store.bds_memories.language.value,'French');
+ assert.equal(await c.sdWriteMemory(null,'__proto__','not a key','called',null),false);
 });

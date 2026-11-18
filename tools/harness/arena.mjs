@@ -578,6 +578,40 @@ try {
   await wait(() => !window.__arena.streaming);
   await wait(() => !document.querySelector('#thread').innerText.includes('</APH:VISUALIZER>'));
   console.log('PASS plain ol.mt-8 thread list: rows found in order, spacer skipped, widget rendered');
+  stage='review-memory-in-drawer';
+  await page.evaluate(async()=>{
+    const cur=await window.chrome.storage.local.get('bds_settings');
+    await window.chrome.storage.local.set({bds_settings:{...cur.bds_settings,disableMemory:false},bds_projects:[{id:'ledger',name:'Ledger',conversations:[{id:'fixture',files:[]}]}]});
+    window.__reviewed=0;window.addEventListener('bds:memory-review',()=>window.__reviewed++);
+    window.__arena.beats=['Got it. <APH:memory_write key_name="currency" importance="called">Taka</APH:memory_write>'];
+  });
+  await send('Suggest saving the ledger currency.');
+  await wait(()=>window.__reviewed>0,15000);
+  const rows=()=>page.evaluate(()=>JSON.parse(window.AndroidBridge.getStorage('bds_projects')));
+  assert.equal((await rows())[0].memories?.currency,undefined,'assistant text is not a write');
+  await page.evaluate(() => {
+    const trigger = document.querySelector('form button[aria-label="Add files"]:not(.bds-plus-btn)');
+    if (!trigger || trigger.disabled) throw new Error('native Arena Plus trigger missing before review-memory-in-drawer');
+    trigger.click();
+  });
+  await page.waitForSelector('#sd-arena-settings-item',{visible:true});
+  await wait(()=>{
+    const el=document.querySelector('#sd-arena-settings-item'),ls=el&&el.parentElement;if(!el||!ls)return false;
+    ls.style.scrollBehavior='auto';ls.scrollTop=ls.scrollHeight;
+    const top=Math.round(el.getBoundingClientRect().top*10),prev=window.__sdMemSettle;
+    window.__sdMemSettle={top,n:prev&&prev.top===top?prev.n+1:0};
+    const l=ls.getBoundingClientRect(),r=el.getBoundingClientRect();
+    return window.__sdMemSettle.n>=3&&r.top>=l.top-1&&r.bottom<=l.bottom+1;
+  });
+  await page.click('#sd-arena-settings-item');
+  await page.waitForSelector('#bds-drawer.bds-open .bds-set-row[data-bds-page="memory"]',{visible:true});
+  await page.$eval('#bds-drawer.bds-open .bds-set-row[data-bds-page="memory"]',b=>b.click());
+  await page.waitForSelector('.sd-memory-suggestions button',{visible:true});
+  assert.match(await page.$eval('.sd-memory-suggestions',el=>el.textContent),/currency: Taka.*Save to Ledger/);
+  await page.click('.sd-memory-suggestions button');
+  await wait(()=>{const rows=JSON.parse(window.AndroidBridge.getStorage('bds_projects')||'[]');return rows[0]?.memories?.currency?.value==='Taka';});
+  assert.ok(!JSON.parse(await page.evaluate(()=>window.AndroidBridge.getStorage('bds_memories'))||'{}').currency);
+  console.log('PASS a settled assistant memory suggestion is not saved until the user approves it for the current project');
   assert.deepEqual(errors, [], 'no runtime errors');
 } catch (error) {
   // Only fixture state, never live traffic. Surface enough in GitHub annotations

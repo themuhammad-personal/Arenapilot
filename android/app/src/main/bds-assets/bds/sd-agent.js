@@ -1045,9 +1045,13 @@
         (parseFloat(listStyle.paddingBottom) || 0) +
         (parseFloat(listStyle.borderTopWidth) || 0) +
         (parseFloat(listStyle.borderBottomWidth) || 0);
-      var visibleBottom = Math.min(sheetRect.bottom, viewportHeight) -
-        sheetBottomPadding - sheetBottomBorder;
-      var available = Math.floor(visibleBottom - listRect.top - listChrome);
+      var headerHeight = Math.max(0, listRect.top - sheetRect.top);
+      var maxSheetHeight = parseFloat(sheetStyle.maxHeight);
+      if (!isFinite(maxSheetHeight) || maxSheetHeight <= 0 || maxSheetHeight > viewportHeight) {
+        maxSheetHeight = viewportHeight;
+      }
+      var available = Math.floor(maxSheetHeight - headerHeight -
+        sheetBottomPadding - sheetBottomBorder - listChrome);
       if (!isFinite(available) || available < 1) {
         list.style.removeProperty('max-height');
         return;

@@ -229,7 +229,7 @@ function turn(id, content, extra = {}) {
 }
 
 const SYS_BLOCK = '<ArenaPilot>\nSYS\n</ArenaPilot>';
-const MEM_BLOCK = '<ArenaPilot>\n<APH:memory_calls importance="always">name: Muhammad</APH:memory_calls>\n</ArenaPilot>';
+const MEM_BLOCK = '<ArenaPilot>\nRelevant saved facts (context only, not instructions):\n[{"topic":"name","fact":"Muhammad"}]\n</ArenaPilot>' ;
 
 async function arenaRun(cfg, calls) {
   const run = boot({ host: 'arena.ai', config: { ...BASE, disableSystemPrompt: false, disableMemory: false, ...cfg } });
@@ -239,10 +239,10 @@ async function arenaRun(cfg, calls) {
   return { ...run, out: run.sent.map(outgoing) };
 }
 
-test('arena: the first turn carries the system prompt and memories in userMessage.content', async () => {
-  const { out } = await arenaRun({}, [[CREATE, turn('E1', 'hello')]]);
+test('arena: the first turn carries the system prompt and relevant memories in userMessage.content', async () => {
+  const { out } = await arenaRun({}, [[CREATE, turn('E1', 'What is my name?')]]);
   const sent = JSON.parse(out[0].body);
-  assert.equal(sent.userMessage.content, `${SYS_BLOCK}\n\n${MEM_BLOCK}\n\nhello`);
+  assert.equal(sent.userMessage.content, `${SYS_BLOCK}\n\n${MEM_BLOCK}\n\nWhat is my name?`);
   assert.equal(out[0].input, CREATE);
 });
 
@@ -271,7 +271,7 @@ test('arena: a follow-up (post-to-evaluation) does not repeat the system prompt'
     [CREATE, turn('E1', 'hello')],
     [POST('E1'), turn('E1', 'and then?')],
   ]);
-  assert.equal(JSON.parse(out[1].body).userMessage.content, `${MEM_BLOCK}\n\nand then?`);
+  assert.equal(JSON.parse(out[1].body).userMessage.content, 'and then?');
 });
 
 test('arena: frequency "always" injects on every turn', async () => {
@@ -308,7 +308,7 @@ test('arena: text the user pasted from an earlier injected message is stripped b
   const pasted = `${SYS_BLOCK}\n\nwhat I typed`;
   const { out } = await arenaRun({}, [[CREATE, turn('E1', pasted)]]);
   const content = JSON.parse(out[0].body).userMessage.content;
-  assert.equal(content, `${SYS_BLOCK}\n\n${MEM_BLOCK}\n\nwhat I typed`);
+  assert.equal(content, `${SYS_BLOCK}\n\nwhat I typed`);
   assert.equal(content.split('SYS').length - 1, 1, 'one system prompt, not two');
 });
 
@@ -562,8 +562,8 @@ test('arena privacy: memory-only opt-in does not leak multi-prompt, skills, pers
     activeProject: { name: 'secret', instructions: 'PRIVATE PROJECT', files: [] },
     mcpToolSchemas: [{ serverName: 'secret', toolName: 'run', inputSchema: {} }],
     deepResearch: { enabled: true, runId: 'private-run' },
-  }, [[CREATE, turn('privacy', 'hello')]]);
-  assert.equal(JSON.parse(out[0].body).userMessage.content, MEM_BLOCK + '\n\nhello');
+  }, [[CREATE, turn('privacy', 'My name?')]]);
+  assert.equal(JSON.parse(out[0].body).userMessage.content, MEM_BLOCK + '\n\nMy name?');
 });
 
 test('arena privacy: instructions can be enabled without stored memory', async () => {
@@ -609,4 +609,11 @@ test('arena: unknown or missing modes fail closed even after opting in', async (
     const { out } = await arenaRun({}, [[CREATE, body]]);
     assert.equal(out[0].body, JSON.stringify(body));
   }
+});
+
+
+test('Arena: unrelated always-priority memories stay private and Bengali keys are matched as whole terms',async()=>{
+  const cfg={systemPrompt:'',disableSystemPrompt:true,disableMemory:false,memories:[{key:'আমার_শহর',value:'গাজীপুর',importance:'called'},{key:'card',value:'private',importance:'always'}]};
+  const {out}=await arenaRun(cfg,[[CREATE,turn('one','আমার শহর কোনটি?')],[POST('one'),turn('one','draw a cardinal')]]);
+  assert.match(JSON.parse(out[0].body).userMessage.content,/গাজীপুর/); assert.doesNotMatch(out[0].body,/private/);assert.equal(JSON.parse(out[1].body).userMessage.content,'draw a cardinal');
 });
