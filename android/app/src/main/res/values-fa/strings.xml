@@ -15,14 +15,4 @@
     <string name="shortcut_new_chat">گفتگوی جدید</string>
     <string name="shortcut_deep_research">پژوهش عمیق</string>
 
-    <!-- Linux sandbox (foreground service notification) -->
-    <string name="sandbox_channel">سندباکس لینوکس</string>
-    <string name="sandbox_title">سندباکس لینوکس</string>
-    <string name="sandbox_idle">بیکار</string>
-    <string name="sandbox_agent_working">دستیار در حال کار است</string>
-    <string name="sandbox_stop">توقف</string>
-    <plurals name="sandbox_running">
-        <item quantity="one">در حال اجرای %d فرمان</item>
-        <item quantity="other">در حال اجرای %d فرمان</item>
-    </plurals>
 </resources>

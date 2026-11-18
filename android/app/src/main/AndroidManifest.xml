@@ -5,11 +5,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Linux sandbox: a foreground service keeps long commands, installs and
-         dev servers alive while the user is in another app. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- In-app updates (#157). The APK is downloaded from this project's own GitHub releases and
          handed to the system installer, which is what requires this declaration. It is a
          signature permission: it cannot be requested at runtime, the user instead grants this app
@@ -46,7 +41,6 @@
 
     <application
         android:allowBackup="false"
-        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -113,23 +107,6 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
-
-        <activity
-            android:name=".StudioActivity"
-            android:exported="false"
-            android:label="Linux Studio"
-            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|smallestScreenSize|uiMode|density|fontScale"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.ArenaPilot.NoActionBar" />
-
-        <service
-            android:name=".SandboxService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Runs user-requested commands in an on-device Linux environment (builds, package installs, local dev servers) that must continue while the app is in the background." />
-        </service>
 
         <!-- ArenaPilot uses bundled native fonts and the WebView's own text
              rendering. Do not acquire a GMS downloadable-emoji font provider at

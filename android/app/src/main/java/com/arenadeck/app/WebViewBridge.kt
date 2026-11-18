@@ -1113,10 +1113,7 @@ class WebViewBridge(
         if (!trustedPage) return
         val id = sanitizeCallbackId(callbackId)
         if (id.isEmpty()) return
-        // Sandbox commands can run for many minutes: give them their own
-        // threads so they never starve page fetches (and vice versa).
-        val executor = if (isSandboxPayload(payloadJson)) sandboxExecutor else ioExecutor
-        executor.execute {
+        ioExecutor.execute {
             val result = fetch(payloadJson)
             postScript(buildBridgeReplyScript(id, result, blobs))
         }
@@ -1128,117 +1125,6 @@ class WebViewBridge(
      * sandbox then refuse to serve it.
      */
     @Volatile var trustedPage: Boolean = true
-
-    // ── Linux sandbox (built-in MCP server "sandbox") ────────────────────────
-
-    private val sandboxExecutor = java.util.concurrent.Executors.newCachedThreadPool()
-    private val sandbox by lazy { Sandbox.get(context) }
-
-    /** Set by the activity: shows a URL served from inside the sandbox. */
-    @Volatile var sandboxPreview: ((String) -> Boolean)? = null
-
-    /** Set by the activity: opens Linux Studio. */
-    @Volatile var onOpenStudio: (() -> Unit)? = null
-
-    @JavascriptInterface
-    fun openStudio() {
-        if (!trustedPage) return
-        onOpenStudio?.invoke()
-    }
-
-    private val sandboxTools by lazy { SandboxTools(sandbox) { url -> sandboxPreview?.invoke(url) ?: false } }
-
-    private fun isSandboxPayload(payloadJson: String?): Boolean {
-        if (payloadJson == null || !payloadJson.contains("sandbox")) return false
-        return runCatching { SandboxTools.isSandboxUrl(JSONObject(payloadJson).optString("serverUrl")) }.getOrDefault(false)
-    }
-
-    fun isSandboxEnabled(): Boolean = prefs.getString(KEY_SANDBOX_ENABLED, "1") != "0"
-
-    /** Sandbox state for the page: {supported, enabled, installed, mode, …}. Never throws. */
-    @JavascriptInterface
-    fun sandboxInfo(): String = if (!trustedPage) UNTRUSTED_SANDBOX_INFO else try {
-        sandbox.status()
-                .put("enabled", isSandboxEnabled())
-                .put("mode", prefs.getString(KEY_SANDBOX_MODE, "auto") ?: "auto")
-                .toString()
-    } catch (t: Throwable) {
-        JSONObject().put("supported", false).put("enabled", false).put("reason", t.message ?: "").toString()
-    }
-
-    /**
-     * What the AI should know about its Linux right now (added to the tool
-     * instructions): set up or not, approval mode, running background jobs and
-     * the top of /root/workspace. Small and cheap: no process is started.
-     */
-    @JavascriptInterface
-    fun sandboxContext(): String = if (!trustedPage) "{}" else try {
-        val s = sandbox.status()
-        val o = JSONObject()
-                .put("supported", s.optBoolean("supported"))
-                .put("installed", s.optBoolean("installed"))
-                .put("enabled", isSandboxEnabled())
-                .put("mode", prefs.getString(KEY_SANDBOX_MODE, "auto") ?: "auto")
-        val jobs = JSONArray()
-        sandbox.listJobs().filter { it.isRunning }.takeLast(6).forEach {
-            jobs.put(JSONObject().put("id", it.id).put("command", it.command.replace('\n', ' ').take(120)))
-        }
-        o.put("jobs", jobs)
-        val ws = if (s.optBoolean("installed")) sandbox.hostFile(Sandbox.WORKSPACE)?.takeIf { it.isDirectory } else null
-        val kids = ws?.listFiles()?.filter { !it.name.startsWith(".") }?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase(Locale.ROOT) })) ?: emptyList()
-        o.put("workspace", JSONArray(kids.take(20).map { it.name.take(60) + if (it.isDirectory) "/" else "" }))
-        o.put("workspaceCount", kids.size)
-        val free = s.optLong("freeBytes", -1)
-        if (free >= 0) o.put("freeMb", free / (1024 * 1024))
-        o.toString()
-    } catch (t: Throwable) {
-        "{}"
-    }
-
-    /** Settings → Linux & Agent → Reset: deletes the Linux system and its files (in the background). */
-    @JavascriptInterface
-    fun sandboxReset(): Boolean {
-        if (!trustedPage) return false
-        Thread({
-            runCatching { sandbox.reset() }
-            runCatching { evaluateJs?.invoke("window.__sdAgent&&window.__sdAgent.refresh&&window.__sdAgent.refresh('reset')") }
-        }, "sandbox-reset").start()
-        return true
-    }
-
-    /** Stop button: ends every sandbox command and background job. */
-    @JavascriptInterface
-    fun sandboxStop(): Int = if (!trustedPage) 0 else try {
-        SandboxService.onAgentActiveChanged(context, false)
-        sandbox.killAll()
-    } catch (t: Throwable) { 0 }
-
-    /** The page's agent loop started/finished: keeps the app protected for the whole task. */
-    @JavascriptInterface
-    fun sandboxAgentActive(active: Boolean) {
-        if (!trustedPage) return
-        runCatching { SandboxService.onAgentActiveChanged(context, active) }
-    }
-
-    private fun handleSandboxListTools(response: JSONObject) {
-        when {
-            !isSandboxEnabled() -> response.put("ok", false).put("error", "The Linux sandbox is turned off.")
-            !sandbox.isSupported() -> response.put("ok", false).put("error", sandbox.unsupportedReason())
-            else -> response.put("ok", true).put("tools", sandboxTools.listTools())
-        }
-    }
-
-    private fun handleSandboxCall(toolName: String, args: JSONObject, response: JSONObject) {
-        if (!isSandboxEnabled()) {
-            response.put("ok", false).put("error", "The Linux sandbox is turned off in the app.")
-            return
-        }
-        runCatching { onSandboxCallStarted?.invoke() }
-        response.put("ok", true).put("result", sandboxTools.call(toolName, args))
-    }
-
-    /** Set by the activity: a sandbox tool call is starting (used to ask for notifications once). */
-    @Volatile var onSandboxCallStarted: (() -> Unit)? = null
 
     /** The page has read a `/__sd/blob/<token>` path; drop it (frees image bytes early). */
     @JavascriptInterface
@@ -1854,11 +1740,6 @@ class WebViewBridge(
             response.put("error", "No MCP server URL provided.")
             return
         }
-        if (SandboxTools.isSandboxUrl(serverUrl)) {
-            handleSandboxListTools(response)
-            return
-        }
-
         try {
             val result = executeMcpJsonRpc(serverUrl, "tools/list", JSONObject(), apiKey)
             val toolsArray = when {
@@ -1885,11 +1766,6 @@ class WebViewBridge(
             response.put("error", "Missing MCP server URL or tool name.")
             return
         }
-        if (SandboxTools.isSandboxUrl(serverUrl)) {
-            handleSandboxCall(toolName, args, response)
-            return
-        }
-
         try {
             val params = JSONObject().apply {
                 put("name", toolName)
@@ -2004,8 +1880,7 @@ class WebViewBridge(
     ): McpFetchResult {
         val httpUrl = normalizeHttpUrl(serverUrl) ?: throw IllegalArgumentException("Invalid MCP URL: $serverUrl")
         // An MCP server URL is steerable like any other bridge fetch: same SSRF
-        // rules. The built-in sandbox MCP never comes through here (see
-        // SandboxTools.isSandboxUrl).
+        // rules.
         networkPolicy(httpUrl)?.let { reason ->
             throw IllegalArgumentException("Blocked: $reason is not allowed (local and private network addresses are off-limits).")
         }
@@ -2227,11 +2102,6 @@ class WebViewBridge(
         internal const val PREFS_NAME = "bds_storage"
         private const val UNTRUSTED_REPLY = "{\"ok\":false,\"error\":\"Not available on this page.\"}"
         private const val LEGACY_TOKEN_KEY = "ds_official_token"
-        private const val UNTRUSTED_SANDBOX_INFO = "{\"supported\":false,\"enabled\":false}"
-        /** "0" turns the Linux sandbox off (default on). Shared with the page via get/setStorage. */
-        internal const val KEY_SANDBOX_ENABLED = "sd_sandbox_enabled"
-        /** "auto" runs the agent's sandbox commands directly; "ask" confirms each one. */
-        internal const val KEY_SANDBOX_MODE = "sd_sandbox_mode"
         /** "0": no automatic "continue" when a reply stops mid-task (sd-agent.js). */
         internal const val KEY_AGENT_CONTINUE = "sd_agent_autocontinue"
         /** The chat's UI language ("bn", "en", …), written by sd-agent.js; Studio follows it. */

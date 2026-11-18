@@ -56,12 +56,8 @@ APK_CHECK=$?
 cat "$OUT/apk-check.txt"
 if [ "$APK_CHECK" -ne 0 ]; then STATUS=1; else echo "::notice::ArenaPilot APK: package, label, launcher and icons verified inside the APK"; fi
 
-if [ "${SMOKE_NATIVE_SANDBOX:-0}" = "1" ]; then
-  python3 android/ci/sandbox_apk_check.py "$APK" > "$OUT/sandbox-apk-check.txt" 2>&1 || STATUS=1
-  cat "$OUT/sandbox-apk-check.txt"
-  python3 android/ci/startup_check.py "$APK" --aapt "$AAPT" > "$OUT/startup-apk-check.txt" 2>&1 || STATUS=1
-  cat "$OUT/startup-apk-check.txt"
-fi
+python3 android/ci/startup_check.py "$APK" --aapt "$AAPT" > "$OUT/startup-apk-check.txt" 2>&1 || STATUS=1
+cat "$OUT/startup-apk-check.txt"
 
 # ── 2. boot, install, launch ─────────────────────────────────────────────────
 adb wait-for-device
@@ -358,24 +354,6 @@ if [ -n "$DEVTOOLS_PID" ] && adb forward tcp:9222 "localabstract:webview_devtool
     [ -s "$OUT/cdp-probe.err" ] && { echo "cdp probe stderr:"; tail -20 "$OUT/cdp-probe.err"; }
     echo "::warning::the CDP probe did not finish or its runtime gate failed"
     [ "$STRICT" = "1" ] && STATUS=1
-  fi
-  if [ "${SMOKE_NATIVE_SANDBOX:-0}" = "1" ]; then
-    if [ "$STATUS" -ne 0 ]; then
-      echo "::error::Native sandbox smoke refused: launch/runtime/packaging gate failed"
-    else
-      # Opt-in trace for this fresh debug emulator only; outside the guest
-      # root, with no production setting or JavascriptInterface added.
-      if [ "${SMOKE_PROOT_TRACE:-0}" = "1" ]; then
-        adb shell run-as "$PKG" mkdir -p no_backup/sandbox
-        adb shell "run-as $PKG sh -c 'echo 9 > no_backup/sandbox/.ci-proot-trace'"
-      else
-        adb shell run-as "$PKG" rm -f no_backup/sandbox/.ci-proot-trace
-      fi
-      if ! timeout 380 node android/ci/sandbox-smoke.mjs; then
-        echo "::error::Native sandbox execution failed or timed out"; STATUS=1
-      fi
-      adb shell run-as "$PKG" rm -f no_backup/sandbox/.ci-proot-trace
-    fi
   fi
   if [ "${ARENA_LIVE_MESSAGE:-false}" = "true" ]; then
     if [ "$STATUS" -ne 0 ]; then

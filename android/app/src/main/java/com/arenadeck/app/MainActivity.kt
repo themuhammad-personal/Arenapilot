@@ -554,20 +554,21 @@ class MainActivity : ComponentActivity() {
             .onFailure { pendingWebPermission = null; runCatching { request.deny() } }
     }
 
-    private val notificationPermissionLauncher: ActivityResultLauncher<String> =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
     /**
-     * Android 13+: the sandbox's "running · Stop" notification needs this
-     * permission. Asked once, the first time the AI starts a sandbox command.
+     * v3: the on-device Linux sandbox (proot + Alpine, Linux Studio) is gone. Remove what an older
+     * install left behind: the sandbox root under noBackupFilesDir and its two preference keys.
+     * Memory, Projects and Settings live elsewhere ([EngineStore], [NativeBlobStore], the bridge
+     * storage) and are not touched. Runs off the UI thread and never throws.
      */
-    private fun maybeAskNotificationPermission() {
-        if (android.os.Build.VERSION.SDK_INT < 33) return
-        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
-        val prefs = getSharedPreferences(WebViewBridge.PREFS_NAME, MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_ASKED_NOTIFICATIONS, false)) return
-        prefs.edit().putBoolean(KEY_ASKED_NOTIFICATIONS, true).apply()
-        runCatching { notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+    private fun cleanupLegacySandbox() {
+        Thread({
+            runCatching {
+                val dir = java.io.File(noBackupFilesDir, "sandbox")
+                if (dir.exists()) dir.deleteRecursively()
+                getSharedPreferences(WebViewBridge.PREFS_NAME, MODE_PRIVATE).edit()
+                    .remove("sd_sandbox_enabled").remove("sd_sandbox_mode").apply()
+            }
+        }, "legacy-sandbox-cleanup").start()
     }
 
     private val storagePermissionLauncher: ActivityResultLauncher<String> =
@@ -878,19 +879,8 @@ class MainActivity : ComponentActivity() {
                 scheduleBarRefresh(BAR_REFRESH_THEME_MS)
             }
         }
-        // Linux sandbox: the preview tool, the Studio entry points and the
-        // notification's Stop action.
-        bridge.sandboxPreview = { url ->
-            if (isForeground || StudioActivity.visible) {
-                runOnUiThread { StudioActivity.start(this, url) }
-                true
-            } else false
-        }
-        bridge.onOpenStudio = { runOnUiThread { StudioActivity.start(this) } }
-        StudioActivity.onAskAi = askAiInPage
         bridge.onDownloadRequested = { runOnUiThread { maybeAskStoragePermission() } }
-        bridge.onSandboxCallStarted = { runOnUiThread { maybeAskNotificationPermission() } }
-        SandboxService.onStopRequested = stopAgentInPage
+        cleanupLegacySandbox()
         showNativeBootOverlay()
 
         // The official DeepSeek site IS the chat surface; the engine (assets/bds)
@@ -1041,7 +1031,6 @@ class MainActivity : ComponentActivity() {
         /** "0" the first time in a document (and marks it), "1" afterwards. */
         const val ENGINE_CLAIM_JS =
             "(function(){if(window.__sdEngineInjected)return 1;window.__sdEngineInjected=true;return 0})()"
-        const val KEY_ASKED_NOTIFICATIONS = "sd_asked_notifications"
         const val KEY_CHAT_URL = "sd_chat_url"
         const val LIVENESS_TIMEOUT_MS = 8_000L
         /** Second, longer window before a silent page is treated as dead. */
@@ -1474,10 +1463,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         // A recreated activity may already have installed its own handler.
-        if (SandboxService.onStopRequested === stopAgentInPage) SandboxService.onStopRequested = null
-        if (StudioActivity.onAskAi === askAiInPage) StudioActivity.onAskAi = null
-        // Closed for good: no page is left to run the agent loop.
-        if (isFinishing) SandboxService.onAgentActiveChanged(this, false)
         handler.removeCallbacksAndMessages(null)
         closePopupWindow()
         try {

@@ -15,13 +15,4 @@
     <string name="shortcut_new_chat">新对话</string>
     <string name="shortcut_deep_research">深度研究</string>
 
-    <!-- Linux sandbox (foreground service notification) -->
-    <string name="sandbox_channel">Linux 沙盒</string>
-    <string name="sandbox_title">Linux 沙盒</string>
-    <string name="sandbox_idle">空闲</string>
-    <string name="sandbox_agent_working">智能体正在工作</string>
-    <string name="sandbox_stop">停止</string>
-    <plurals name="sandbox_running">
-        <item quantity="other">正在运行 %d 条命令</item>
-    </plurals>
 </resources>

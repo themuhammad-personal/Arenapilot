@@ -12,16 +12,6 @@
     <string name="bds_download_started">%1$s ডাউনলোড হচ্ছে…</string>
     <string name="bds_update_install_failed">প্যাকেজ ইনস্টলার চালু করা যায়নি।</string>
 
-    <!-- Linux sandbox (foreground service notification) -->
-    <string name="sandbox_channel">লিনাক্স স্যান্ডবক্স</string>
-    <string name="sandbox_title">লিনাক্স স্যান্ডবক্স</string>
-    <string name="sandbox_idle">নিষ্ক্রিয়</string>
-    <string name="sandbox_agent_working">এজেন্ট কাজ করছে</string>
-    <string name="sandbox_stop">থামান</string>
-    <plurals name="sandbox_running">
-        <item quantity="one">%dটি কমান্ড চলছে</item>
-        <item quantity="other">%dটি কমান্ড চলছে</item>
-    </plurals>
 
     <!-- App Shortcuts -->
     <string name="shortcut_new_chat">নতুন চ্যাট</string>

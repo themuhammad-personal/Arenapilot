@@ -110,15 +110,6 @@ android {
         resources {
             excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1")
         }
-        jniLibs {
-            // The Linux sandbox execs proot from nativeLibraryDir (the only app
-            // location Android allows exec() from), so the libraries must be
-            // extracted at install time rather than mapped from the APK.
-            useLegacyPackaging = true
-            // proot and its loader are executables, not ordinary libraries: ship
-            // them exactly as fetched.
-            keepDebugSymbols += setOf("**/libproot.so", "**/libproot-loader.so", "**/libproot-loader32.so", "**/libtalloc.so")
-        }
     }
 
     testOptions {

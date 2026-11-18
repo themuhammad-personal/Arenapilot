@@ -84,15 +84,6 @@ jobs:
           cp models.json android/app/src/main/assets/models/models.json
           echo "=== Engine assets staged ==="
           ls -lh android/app/src/main/assets/bds/ android/app/src/main/assets/models/
-      - name: Install pinned NDK for sandbox runtime
-        run: sdkmanager 'ndk;27.2.12479018'
-      - name: Build required Linux sandbox runtime
-        # Use the same verified source/patch/NDK as the native emulator gate.
-        # A missing runtime is a build failure, not a silently disabled feature.
-        timeout-minutes: 10
-        run: |
-          python3 scripts/fetch_sandbox_deps.py --patched-proot
-          find android/app/src/main/jniLibs -type f -exec ls -l {} +
       - name: Make Gradle Wrapper Executable
         working-directory: android
         run: chmod +x ./gradlew
@@ -190,15 +181,6 @@ jobs:
           BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD || 'superdeepseek' }}
           BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS || 'superdeepseek' }}
           BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD || 'superdeepseek' }}
-      - name: Verify the release APK sandbox payload
-        run: |
-          set -euo pipefail
-          mapfile -t apks < <(find android/app/build/outputs/apk -path "*/release/*.apk" ! -name '*unaligned*')
-          [ "${#apks[@]}" -gt 0 ] || { echo "::error::Missing release APK"; exit 1; }
-          for apk in "${apks[@]}"; do
-            python3 android/ci/sandbox_apk_check.py "$apk"
-            python3 android/ci/startup_check.py "$apk" --aapt "$ANDROID_HOME/build-tools/34.0.0/aapt"
-          done
       - name: Prepare APK and Compute Checksums
         id: prep
         run: |
@@ -226,8 +208,6 @@ jobs:
           unzip -l "$APK_NAME" | grep -E "assets/bds/|lib/" | head -n 20
           echo "=== site profile in the APK (sd-site.js must be staged) ==="
           unzip -l "$APK_NAME" | grep -E "assets/bds/sd-site.js" || { echo "::error::sd-site.js missing from the APK"; exit 1; }
-          echo "=== Native libraries (sandbox) ==="
-          unzip -l "$APK_NAME" | grep -E "lib/.*\.so|assets/sandbox" || echo "::warning::APK has no sandbox runtime"
       - name: Verify APK Signature
         run: |
           $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose "${{ steps.prep.outputs.apk_path }}"
@@ -361,11 +341,6 @@ jobs:
           mkdir -p android/app/src/main/assets
           rm -rf android/app/src/main/assets/bds
           cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds
-      - name: Install pinned NDK for Arena Linux compatibility runtime
-        run: sdkmanager 'ndk;27.2.12479018'
-      - name: Fetch required Arena sandbox runtime
-        timeout-minutes: 10
-        run: python3 scripts/fetch_sandbox_deps.py --patched-proot
       - name: Build debug APK
         working-directory: android
         run: |
@@ -395,10 +370,7 @@ jobs:
           # the [arena-live-probe] marker (workflow_dispatch stays the other
           # door; `gh workflow run` is owner-only). The marker makes every live
           # send auditable in git history: one push, one message, never a loop.
-          script: SMOKE_NATIVE_SANDBOX=1 ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
-      - name: Report native sandbox evidence
-        if: always()
-        run: node android/ci/sandbox-smoke.mjs --report
+          script: ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
       - name: Report anonymous live message evidence
         if: always() && ((github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')))
         run: node android/ci/arena-live-smoke.mjs --report
@@ -518,10 +490,9 @@ jobs:
 
             #### What is inside
             - The ArenaPilot engine on top of arena.ai Direct Chat (Text, Code,
-              Search and Image pages): an AI agent with its own Linux sandbox
-              (run code, files, export results), projects, opt-in memory, MCP
-              tools and widgets, guided by an agent playbook (persist, verify,
-              work inside chat limits, resume from progress files)
+              Search and Image pages): a mode-aware assistant (the app adds no
+              sandbox of its own; Code Mode uses Arena's official one), projects,
+              opt-in memory, MCP tools and widgets
             - **+ menu file cards**: text-like files are delivered through the chat
               itself (every model receives them); images go through arena's own picker
             - Privacy defaults (v2): **app instructions are ON** (the tools and
@@ -535,7 +506,7 @@ jobs:
             - Verified on the real site by CI on every push: engine UI mounts, the
               **+** sheet opens with a real click, the settings drawer opens, and the
               engine can drive arena's composer (fill/clear — no message is sent)
-            - Verified on the fixture: full tool loop (assistant tag → sandbox →
+            - Verified on the fixture: full tool loop (assistant tag → tool →
               result → follow-up) and widget rendering
             - The one thing CI does not do automatically: send a real message.
               That is the owner-run live probe (Actions → run workflow with
