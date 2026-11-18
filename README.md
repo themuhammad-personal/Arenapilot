@@ -81,10 +81,6 @@ npm test                         # engine, release-hygiene and model-list tests
 cd android && ./gradlew testDebugUnitTest assembleDebug
 ```
 
-GitHub Actions builds, tests and verifies the APK on every push; the release job publishes it from `main`.
-The plan is in [docs/PLAN.md](docs/PLAN.md), the running state in [docs/PROGRESS.md](docs/PROGRESS.md), and the
-new-chat setup guide in [docs/PROJECT-SETUP.html](docs/PROJECT-SETUP.html).
-
 ## License
 
 [MIT](LICENSE)
