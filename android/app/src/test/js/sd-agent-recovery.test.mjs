@@ -32,20 +32,18 @@ function load({ site = 'arena', href = 'https://arena.ai/c/E1', ring = [], lastU
     location: { href },
     document: { documentElement: { lang: 'en' }, body: null, querySelector: () => null, addEventListener() {} },
     AndroidBridge: {
-      sandboxInfo: () => JSON.stringify({ supported: true, enabled: true, mode: 'auto' }),
-      sandboxStop: () => 0,
       setStorage: () => {},
       getStorage: (k) => (k === 'sd_agent_autocontinue' && !autoContinue ? '0' : ''),
-      sandboxAgentActive: () => {},
     },
     addEventListener: (...a) => events.addEventListener(...a),
     removeEventListener: (...a) => events.removeEventListener(...a),
     dispatchEvent: (e) => events.dispatchEvent(e),
   };
   ctx.window = ctx;
-  ctx.__sdSite = { id: site };
+  ctx.__sdSite = { id: site, arenaMode: () => 'direct', arenaModality: () => 'chat' };
   ctx.__sdArena = { history: () => ring, lastUser: () => lastUser };
   ctx.__sdEngine = {
+    hasMcpServer: (ref) => ref === 'fixture',
     isGenerating: () => false,
     toast: (m) => toasts.push(m),
     sendQuiet: (text, label) => { sent.push({ text, label }); },
@@ -77,7 +75,7 @@ test('arena: requestHistory returns the recorded raw turns at once (no endpoint 
 
 test('arena: the keep-going nudge now works end to end (it was dead: no session id, no history)', async () => {
   const ring = [
-    { role: 'USER', content: '<ArenaPilot>\n[APH:AUTO] MCP Result for run @ sandbox\n[APH:AUTO_MCP_RESULT]\n{"content":"ok"}\n[/APH:AUTO_MCP_RESULT]\n</ArenaPilot>' },
+    { role: 'USER', content: '<ArenaPilot>\n[APH:AUTO] MCP Result for run @ fixture\n[APH:AUTO_MCP_RESULT]\n{"content":"ok"}\n[/APH:AUTO_MCP_RESULT]\n</ArenaPilot>' },
     { role: 'ASSISTANT', content: 'The server is up. Now I will run the tests:' },
   ];
   const { win } = load({ ring });
@@ -105,13 +103,13 @@ test('classifyTurn: what is a problem and what is not', () => {
 
 test('a reply that ends inside a tool call is a cut, even when the finish reason says stop', () => {
   const run = (last) => load({ ring: [{ role: 'ASSISTANT', content: last }] }).win.__sdAgent._classifyTurn(OK);
-  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="sandbox" tool="write_file">{"path":"a.py","content":"print('), 'cut');
-  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="sandbox" tool="run" args=\'{"command":"ls'), 'cut');
-  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="sandbox" tool="'), 'cut');
-  assert.equal(run('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>'), null, 'a complete call is fine');
-  assert.equal(run('<APH:AUTO:MCP url="sandbox" tool="run" base64Args="eyJ9"/>'), null, 'self-closing is complete');
+  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="fixture" tool="write_file">{"path":"a.py","content":"print('), 'cut');
+  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="fixture" tool="run" args=\'{"command":"ls'), 'cut');
+  assert.equal(run('Writing it:\n<APH:AUTO:MCP url="fixture" tool="'), 'cut');
+  assert.equal(run('<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls"}</APH:AUTO:MCP>'), null, 'a complete call is fine');
+  assert.equal(run('<APH:AUTO:MCP url="fixture" tool="run" base64Args="eyJ9"/>'), null, 'self-closing is complete');
   assert.equal(run('Explaining: `<APH:AUTO:MCP url="x"` is how a call starts.'), null, 'inline code is not a call');
-  assert.equal(run('```\n<APH:AUTO:MCP url="sandbox" tool="run">\n```'), null, 'a fenced example is not a call');
+  assert.equal(run('```\n<APH:AUTO:MCP url="fixture" tool="run">\n```'), null, 'a fenced example is not a call');
 });
 
 test('a cut reply: the agent asks the model to continue, in smaller pieces', async () => {
@@ -120,7 +118,7 @@ test('a cut reply: the agent asks the model to continue, in smaller pieces', asy
   await wait();
   assert.equal(sent.length, 1);
   assert.match(sent[0].text, /cut off by the output length limit/);
-  assert.match(sent[0].text, /append=true/);
+  assert.match(sent[0].text, /only arguments supported/);
   assert.equal(sent[0].label, 'Agent continue');
   assert.ok(toasts.some((m) => /cut off/.test(m)));
 });
@@ -150,7 +148,7 @@ test('HTTP 413: the model is told to re-run with less output', async () => {
   turn({ ok: false, kind: 'http', status: 413, message: '' });
   await wait(60);
   assert.match(sent[0].text, /too large/);
-  assert.match(sent[0].text, /less output/);
+  assert.match(sent[0].text, /smaller result/);
 });
 
 test('fatal errors (403 captcha / sign-in) are explained, never retried', async () => {
@@ -225,4 +223,17 @@ test('an empty reply never sends a message by itself (the harness caught this): 
   await wait(80);
   assert.equal(sent.length, 0);
   assert.ok(toasts.some((m) => /empty reply/.test(m)));
+});
+
+test('a delayed retry cannot send or show a recovery toast in Image, Battle, or an unknown mode', async () => {
+  for (const [mode, modality] of [['direct','image'], ['unsupported','chat'], ['unknown','chat']]) {
+    const {win, turn, toasts, sent} = load();
+    turn({...OK, finishReason:'length'});
+    win.__sdSite.arenaMode = () => mode;
+    win.__sdSite.arenaModality = () => modality;
+    toasts.length = 0;
+    turn({...OK, empty:true});
+    await wait();
+    assert.equal(sent.length, 0); assert.equal(toasts.length, 0);
+  }
 });

@@ -143,6 +143,7 @@ function runSmoke(world = {}) {
     path.join(REPO, "android/ci/crash_check.py"),
     path.join(dir, "android/ci/crash_check.py"),
   );
+  fs.writeFileSync(path.join(dir, "android/ci/startup_check.py"), "import sys\nsys.exit(0)\n");
   // the CDP probe has its own tests (engine-arena-cdp.test.mjs); here it is a stand-in that records how it was called
   fs.writeFileSync(
     path.join(dir, "android/ci/cdp_probe.mjs"),
@@ -740,12 +741,12 @@ test("the capture goes out in its own workflow step, because GitHub allows ten a
 
 test("evidence steps survive a failed smoke (always()), and uploads do too", () => {
   const job = emulatorJob();
-  const sandboxReport = job.slice(
-    job.indexOf("name: Report native sandbox evidence"),
+  const launchReport = job.slice(
+    job.indexOf("name: Report launch evidence"),
   );
   assert.ok(
-    sandboxReport.slice(0, 200).includes("if: always()"),
-    "sandbox evidence is reported even after a failure",
+    launchReport.slice(0, 200).includes("if: always()"),
+    "launch evidence is reported even after a failure",
   );
   const upload = job.slice(
     job.indexOf("name: Upload smoke screenshots and logcat"),

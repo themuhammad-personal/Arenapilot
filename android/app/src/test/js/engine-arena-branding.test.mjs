@@ -243,14 +243,12 @@ test('no shipped source names the old product (except the readers that must reco
   assert.deepEqual(offenders, [], 'the old product name is back in shipped code');
 });
 
-test('the package, theme and sandbox profile are ArenaPilot’s', () => {
+test('the package and theme are ArenaPilot’s', () => {
   const manifest = read(SRC, 'main', 'AndroidManifest.xml');
   assert.doesNotMatch(manifest, /Theme\.SuperDeepSeek/);
   assert.match(manifest, /Theme\.ArenaPilot/);
   const gradle = read(SRC, '..', 'build.gradle.kts');
   assert.match(gradle, /namespace = "com\.arenadeck\.app"/);
-  const sandbox = read(MAIN_JAVA, 'com', 'arenadeck', 'app', 'Sandbox.kt');
-  assert.match(sandbox, /etc\/profile\.d\/arenapilot\.sh/);
 });
 
 test('the model is taught the prefix its own parser accepts', () => {

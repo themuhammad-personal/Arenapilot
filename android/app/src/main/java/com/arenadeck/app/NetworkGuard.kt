@@ -12,10 +12,7 @@ import okhttp3.Dns
  * helpers and the MCP client.
  *
  * Prompt-injected model output must never make the app request loopback,
- * LAN or router addresses (SSRF). The Linux sandbox preview keeps its own
- * path — [StudioActivity] opens `http://127.0.0.1:<port>` in the Studio
- * WebView directly and does not go through the bridge fetch — so blocking
- * private targets here breaks nothing the sandbox needs.
+ * LAN or router addresses (SSRF).
  *
  * Blocked: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
  * `169.254.0.0/16`, `0.0.0.0/8`, `100.64.0.0/10` (CGNAT), `::1`,

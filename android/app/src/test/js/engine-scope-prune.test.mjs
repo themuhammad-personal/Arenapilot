@@ -1,5 +1,5 @@
 // v2.2.0 scope: the settings overview and the "+" sheet only carry what the
-// owner asked to keep (sandbox, MCP, projects, memory, uploads, settings).
+// owner asked to keep (MCP, projects, memory, uploads, settings).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -18,13 +18,13 @@ const overview = (() => {
 })();
 
 test('settings overview no longer lists the removed extras', () => {
-  for (const key of ['deep_research', 'commands', 'appearance', 'data']) {
+  for (const key of ['deep_research', 'commands', 'appearance', 'data', 'linux']) {
     assert.ok(!overview.includes(`key:"${key}"`), `row ${key} must be gone`);
   }
 });
 
 test('settings overview keeps the essentials', () => {
-  for (const key of ['prompts', 'memory', 'language', 'linux', 'mcp', 'projects', 'chat', 'doctor']) {
+  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor']) {
     assert.ok(overview.includes(`key:"${key}"`), `row ${key} must stay`);
   }
 });
@@ -42,10 +42,10 @@ test('+ sheet drops the Deep Research card but keeps uploads and projects', () =
   }
 });
 
-test('the sandbox prompt carries the engineering-discipline rules', () => {
-  assert.ok(injected.includes('Engineering discipline'));
-  assert.ok(injected.includes('numbered plan'));
-  assert.ok(injected.includes('same error appears twice'));
+test('MCP discovery never advertises a phantom device runtime or exports its state', () => {
+  assert.doesNotMatch(injected, /Your Linux sandbox|promptContext\(|\/root\/workspace|sandbox:\/\/linux/);
+  assert.match(injected, /Available tools:/);
+  assert.doesNotMatch(content, /__sdSandboxServers|sdMountLinux/);
 });
 
 test('toasts never swallow taps (a toast over the composer must not block Send)', () => {

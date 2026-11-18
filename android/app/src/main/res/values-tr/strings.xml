@@ -15,14 +15,4 @@
     <string name="shortcut_new_chat">Yeni sohbet</string>
     <string name="shortcut_deep_research">Derin araştırma</string>
 
-    <!-- Linux sandbox (foreground service notification) -->
-    <string name="sandbox_channel">Linux sanal alanı</string>
-    <string name="sandbox_title">Linux sanal alanı</string>
-    <string name="sandbox_idle">Boşta</string>
-    <string name="sandbox_agent_working">Ajan çalışıyor</string>
-    <string name="sandbox_stop">Durdur</string>
-    <plurals name="sandbox_running">
-        <item quantity="one">%d komut çalışıyor</item>
-        <item quantity="other">%d komut çalışıyor</item>
-    </plurals>
-</resources>
+    </resources>

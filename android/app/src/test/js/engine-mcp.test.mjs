@@ -19,19 +19,19 @@ function slice(from, to) {
   return CONTENT.slice(a, b);
 }
 
-const MCP = slice('let BW=Promise.resolve(),sdMcpQ=null;', 'function sdMcpSb(e){')
-  + slice('function sdMcpSb(e){', 'async function sdMcpRun(')
-  + slice('async function sdMcpRun(', '}function ') + '}';
+const MCP = slice('function sdMcpServer(ref)', 'function sdQuiet(f)');
+const url = 'https://tools.example/mcp';
 
 function setup({ results = {}, inlineMax = 8000 } = {}) {
   const sent = [];
   const calls = [];
   const ctx = {
     console: { log() {}, error() {} }, setTimeout, Promise, JSON, Math, Object, Array, String, Number, Error, Blob, File, Set,
-    B: { mcpServers: [], settings: { mcpInlineMaxChars: inlineMax } },
+    B: { mcpServers: [{ name: 'fixture', serverUrl: url, enabled: true }], settings: { mcpInlineMaxChars: inlineMax } },
     vb: new Set(),
     tCe: (e) => e,
-    SW: (e) => e,
+    location: { href: 'https://arena.ai/c/test', pathname: '/c/test' },
+    sdsIsArena: () => true, sdsArenaDirect: () => true, __sdSite: { arenaModality: () => 'chat' },
     dt() {},
     q_e: (r) => r.text,
     nc: async (text, label) => { sent.push({ kind: 'text', text, label }); return true; },
@@ -55,13 +55,13 @@ function setup({ results = {}, inlineMax = 8000 } = {}) {
 
 const blocks = (text) => [...text.matchAll(/\[APH:AUTO_MCP_(RESULT|ERROR)\]\n(.*)\n/g)].map((m) => ({ kind: m[1], ...JSON.parse(m[2]) }));
 
-test('one call → one quiet sandbox result, same format as before', async () => {
+test('one call → one quiet configured MCP result, same format as before', async () => {
   const { ctx, sent } = setup();
-  await ctx.nCe('sandbox://linux', 'run', { command: 'ls' });
+  await ctx.nCe(url, 'run', { command: 'ls' });
   assert.equal(sent.length, 1);
   assert.equal(sent[0].kind, 'text');
-  assert.equal(sent[0].label, 'Sandbox result');
-  assert.match(sent[0].text, /^<ArenaPilot>\n\[APH:AUTO\] MCP Result for run @ sandbox:\/\/linux\n\[APH:AUTO_MCP_RESULT\]\n/);
+  assert.equal(sent[0].label, 'Tool result');
+  assert.match(sent[0].text, /^<ArenaPilot>\n\[APH:AUTO\] MCP Result for run @ https:\/\/tools\.example\/mcp\n\[APH:AUTO_MCP_RESULT\]\n/);
   assert.match(sent[0].text, /\n\[\/APH:AUTO_MCP_RESULT\]\n<\/ArenaPilot>$/);
   assert.equal(blocks(sent[0].text)[0].content, 'ok:run');
 });
@@ -69,9 +69,9 @@ test('one call → one quiet sandbox result, same format as before', async () =>
 test('several calls in one reply → run in order, answered by ONE message', async () => {
   const { ctx, sent, calls } = setup({ results: { read_file: new Error('no such file') } });
   const p = [
-    ctx.nCe('sandbox://linux', 'write_file', { path: 'a', content: '1' }),
-    ctx.nCe('sandbox://linux', 'read_file', { path: 'b' }),
-    ctx.nCe('sandbox://linux', 'run', { command: 'node a' }),
+    ctx.nCe(url, 'write_file', { path: 'a', content: '1' }),
+    ctx.nCe(url, 'read_file', { path: 'b' }),
+    ctx.nCe(url, 'run', { command: 'node a' }),
   ];
   await Promise.all(p);
   assert.deepEqual(calls, ['write_file', 'read_file', 'run']);
@@ -83,39 +83,39 @@ test('several calls in one reply → run in order, answered by ONE message', asy
   assert.equal((sent[0].text.match(/<ArenaPilot>/g) || []).length, 1);
 });
 
-test('a big single sandbox result is attached as a file; in a batch it is truncated inline', async () => {
+test('a big single remote result is attached as a file; in a batch it is truncated inline', async () => {
   const big = 'x'.repeat(50);
   let { ctx, sent } = setup({ results: { run: big }, inlineMax: 10 });
-  await ctx.nCe('sandbox://linux', 'run', { command: 'cat' });
+  await ctx.nCe(url, 'run', { command: 'cat' });
   assert.equal(sent[0].kind, 'file');
   assert.equal(sent[0].body, big);
   assert.match(blocks(sent[0].text)[0].content, /full content in attached file/);
 
   ({ ctx, sent } = setup({ results: { run: big }, inlineMax: 10 }));
-  await Promise.all([ctx.nCe('sandbox://linux', 'run', { command: 'cat' }), ctx.nCe('sandbox://linux', 'status', {})]);
+  await Promise.all([ctx.nCe(url, 'run', { command: 'cat' }), ctx.nCe(url, 'status', {})]);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].kind, 'text');
   assert.match(blocks(sent[0].text)[0].content, /^x{10}\n\n\.\.\.\[truncated/);
 });
 
-test('Stop drops sandbox results; an identical external call is not repeated', async () => {
+test('Stop drops tool results; an identical external call is not repeated', async () => {
   let { ctx, sent } = setup();
   ctx.__sdAgentStopped = true;
-  await ctx.nCe('sandbox://linux', 'run', { command: 'ls' });
+  await ctx.nCe(url, 'run', { command: 'ls' });
   assert.equal(sent.length, 0);
 
   ({ ctx, sent } = setup());
-  await ctx.nCe('https://x.example/mcp', 'search', { q: 1 });
-  await ctx.nCe('https://x.example/mcp', 'search', { q: 1 });
+  await ctx.nCe(url, 'search', { q: 1 });
+  await ctx.nCe(url, 'search', { q: 1 });
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].kind, 'file');
+  assert.equal(sent[0].kind, 'text');
 });
 
 test('later batches wait for the earlier one', async () => {
   const { ctx, sent } = setup();
-  const a = ctx.nCe('sandbox://linux', 'run', { command: '1' });
+  const a = ctx.nCe(url, 'run', { command: '1' });
   await new Promise((r) => setTimeout(r, 0));
-  const b = ctx.nCe('sandbox://linux', 'run', { command: '2' });
+  const b = ctx.nCe(url, 'run', { command: '2' });
   await Promise.all([a, b]);
   assert.equal(sent.length, 2);
   assert.deepEqual(sent.map((s) => blocks(s.text)[0].args.command), ['1', '2']);
@@ -126,10 +126,10 @@ test('renderer parses every result and error card of a combined message', () => 
   const msg = [
     '<ArenaPilot>',
     '[APH:AUTO] MCP Result for run @ sandbox://linux', '[APH:AUTO_MCP_RESULT]',
-    JSON.stringify({ serverName: 'sandbox://linux', toolName: 'run', args: { command: 'ls' }, content: 'a\nb' }),
+    JSON.stringify({ serverName: url, toolName: 'run', args: { command: 'ls' }, content: 'a\nb' }),
     '[/APH:AUTO_MCP_RESULT]', '',
     '[APH:AUTO] MCP call failed for read_file @ sandbox://linux', '[APH:AUTO_MCP_ERROR]',
-    JSON.stringify({ serverName: 'sandbox://linux', toolName: 'read_file', args: {}, error: 'nope' }),
+    JSON.stringify({ serverName: url, toolName: 'read_file', args: {}, error: 'nope' }),
     '[/APH:AUTO_MCP_ERROR]',
     '</ArenaPilot>',
   ].join('\n');
@@ -140,4 +140,21 @@ test('renderer parses every result and error card of a combined message', () => 
   ]);
   assert.equal(b[0].attrs.args, '{"command":"ls"}');
   assert.equal(ctx.sdMcpBlocks('hello').length, 0);
+});
+
+test('old local references, unconfigured URLs and disabled endpoints never reach the bridge', async () => {
+  const {ctx, sent, calls} = setup();
+  for (const ref of ['sandbox', 'sandbox://linux', 'https://other.example/mcp']) await ctx.nCe(ref, 'run', {});
+  ctx.B.mcpServers[0].enabled = false;
+  await ctx.nCe('fixture', 'run', {});
+  assert.deepEqual(calls, []); assert.deepEqual(sent, []);
+});
+
+test('a pending result and remaining batch calls stay in their originating Direct chat', async () => {
+  for (const navigate of [c=>c.sdsArenaDirect=()=>false, c=>c.location.pathname='/c/another', c=>c.__sdSite.arenaModality=()=>'image']) {
+    const {ctx, sent, calls} = setup();
+    ctx.chrome.runtime.sendMessage = (m, cb) => { calls.push(m.toolName); navigate(ctx); cb({ok:true,result:{text:'first chat'}}); };
+    await Promise.all([ctx.nCe('fixture','first',{}), ctx.nCe('fixture','second',{})]);
+    assert.deepEqual(calls, ['first']); assert.deepEqual(sent, []);
+  }
 });

@@ -1,4 +1,4 @@
-// Tests for bds/sd-agent.js (sandbox agent glue). Run: npm run test:engine
+// Tests for bds/sd-agent.js (MCP activity and recovery). Run: npm run test:engine
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SRC = fs.readFileSync(path.join(here, '../../main/bds-assets/bds/sd-agent.js'), 'utf8');
 
+const enabled = (ref) => ['fixture', 'https://tools.example/mcp'].includes(ref);
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
 /**
@@ -16,11 +17,10 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
  * 700 ms…6 s continuity timers then take a few ms); `listeners` collects what
  * the agent registers on `document` so tests can fire (trusted) events.
  */
-function load({ info = { supported: true, enabled: true, mode: 'auto' }, history = null, href = 'https://chat.deepseek.com/a/chat/s/abc', speed = 1 } = {}) {
+function load({ history = null, href = 'https://chat.deepseek.com/a/chat/s/abc', speed = 1 } = {}) {
   const events = new EventTarget();
   const calls = [];
-  const stops = [];
-  const actives = [];
+  const store = new Map();
   const listeners = {};
   const ctx = {
     console, clearTimeout, clearInterval, Promise,
@@ -37,11 +37,9 @@ function load({ info = { supported: true, enabled: true, mode: 'auto' }, history
       querySelector: () => null,
       addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
     },
+    __sdEngine: { hasMcpServer: enabled },
     AndroidBridge: {
-      sandboxInfo: () => JSON.stringify(info),
-      sandboxStop: () => { stops.push(1); return 0; },
-      setStorage: () => {},
-      sandboxAgentActive: (v) => { actives.push(v); },
+      getStorage: (k) => store.get(k), setStorage: (k,v) => store.set(k,v),
     },
     addEventListener: (...a) => events.addEventListener(...a),
     removeEventListener: (...a) => events.removeEventListener(...a),
@@ -61,7 +59,7 @@ function load({ info = { supported: true, enabled: true, mode: 'auto' }, history
   vm.createContext(ctx);
   vm.runInContext(SRC, ctx);
   const fire = (type, ev) => (listeners[type] || []).forEach((fn) => fn(ev));
-  return { win: ctx, calls, stops, actives, fire };
+  return { win: ctx, calls, fire };
 }
 
 test('parses MCP tags: body JSON, args attribute, base64Args, self-closing', () => {
@@ -69,9 +67,9 @@ test('parses MCP tags: body JSON, args attribute, base64Args, self-closing', () 
   const b64 = Buffer.from(JSON.stringify({ command: 'echo "hi"' })).toString('base64url');
   const text = [
     'Plan first.',
-    '<BDS:AUTO:MCP url="sandbox" tool="write_file">{"path":"a_b.py","content":"x = \\"*y*\\"\\n"}</BDS:AUTO:MCP>',
-    `<BDS:AUTO:MCP url="sandbox" tool="run" args='{"command":"ls -la"}'>`,
-    `<BDS:AUTO:MCP url="sandbox://linux" tool="run" base64Args="${b64}"/>`,
+    '<BDS:AUTO:MCP url="fixture" tool="write_file">{"path":"a_b.py","content":"x = \\"*y*\\"\\n"}</BDS:AUTO:MCP>',
+    `<BDS:AUTO:MCP url="fixture" tool="run" args='{"command":"ls -la"}'>`,
+    `<BDS:AUTO:MCP url="https://tools.example/mcp" tool="run" base64Args="${b64}"/>`,
   ].join('\n');
   const tags = win.__sdAgent._parseTags(text);
   assert.equal(tags.length, 3);
@@ -82,14 +80,14 @@ test('parses MCP tags: body JSON, args attribute, base64Args, self-closing', () 
 
 test('APH tags (the current spelling) are parsed like BDS ones', () => {
   const { win } = load();
-  const tags = win.__sdAgent._parseTags('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo a_b"}</APH:AUTO:MCP>');
+  const tags = win.__sdAgent._parseTags('<APH:AUTO:MCP url="fixture" tool="run">{"command":"echo a_b"}</APH:AUTO:MCP>');
   assert.equal(tags.length, 1);
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo a_b' });
 });
 
 test('a ">" inside a quoted attribute does not end the tag', () => {
   const { win } = load();
-  const tags = win.__sdAgent._parseTags(`<BDS:AUTO:MCP url="sandbox" tool="run" args='{"command":"echo 1 > f"}'></BDS:AUTO:MCP>`);
+  const tags = win.__sdAgent._parseTags(`<BDS:AUTO:MCP url="fixture" tool="run" args='{"command":"echo 1 > f"}'></BDS:AUTO:MCP>`);
   assert.equal(tags.length, 1);
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo 1 > f' });
 });
@@ -97,29 +95,21 @@ test('a ">" inside a quoted attribute does not end the tag', () => {
 test('backtick-quoted attributes accept JSON containing ">" and preserve tool arguments', () => {
   const { win } = load();
   const tick = String.fromCharCode(96);
-  const text = '<APH:AUTO:MCP url=' + tick + 'sandbox://linux' + tick +
+  const text = '<APH:AUTO:MCP url=' + tick + 'https://tools.example/mcp' + tick +
     ' tool=' + tick + 'run' + tick +
     ' args=' + tick + '{"command":"echo 1 > f"}' + tick + '/>';
   const tags = win.__sdAgent._parseTags(text);
   assert.equal(tags.length, 1);
-  assert.equal(tags[0].attrs.url, 'sandbox://linux');
+  assert.equal(tags[0].attrs.url, 'https://tools.example/mcp');
   assert.equal(tags[0].attrs.tool, 'run');
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo 1 > f' });
 });
 
-test('JSON fences and response fragments do not break a tool tag', () => {
+test('JSON fences do not break a tool tag', () => {
   const { win } = load();
   const fence = String.fromCharCode(96).repeat(3);
-  const messages = win.__sdAgent._assistantTexts([{
-    role: 'ASSISTANT',
-    fragments: [
-      { type: 'THINK', content: 'do not inspect this fragment' },
-      { type: 'RESPONSE', content: 'Example tag:\n' + fence + 'xml\n<APH:AUTO:MCP url="sandbox" tool="run">' },
-      { type: 'RESPONSE', content: fence + 'json\n{"command":"echo split > result.txt"}\n' + fence + '</APH:AUTO:MCP>\n' + fence },
-    ],
-  }]);
-  assert.equal(messages.length, 1);
-  const tags = win.__sdAgent._parseTags(messages[0]);
+  const text = '<APH:AUTO:MCP url="fixture" tool="run">' + fence + 'json\n{"command":"echo split > result.txt"}\n' + fence + '</APH:AUTO:MCP>';
+  const tags = win.__sdAgent._parseTags(text);
   assert.equal(tags.length, 1);
   assert.deepEqual(plain(win.__sdAgent._tagArgs(tags[0])), { command: 'echo split > result.txt' });
 });
@@ -127,76 +117,33 @@ test('JSON fences and response fragments do not break a tool tag', () => {
 test('an incomplete backtick-quoted opener is ignored rather than becoming an executable call', () => {
   const { win } = load();
   const tick = String.fromCharCode(96);
-  const incomplete = '<APH:AUTO:MCP url=' + tick + 'sandbox' +
+  const incomplete = '<APH:AUTO:MCP url=' + tick + 'fixture' +
     ' tool=' + tick + 'run' + tick +
     ' args=' + tick + '{"command":"must-not-run"}';
   assert.deepEqual(plain(win.__sdAgent._parseTags(incomplete)), []);
 });
 
-test('picks the raw args of the matching sandbox call, newest reply first', () => {
-  const { win } = load();
-  const older = '<BDS:AUTO:MCP url="sandbox" tool="run">{"command":"old"}</BDS:AUTO:MCP>';
-  const newer = [
-    '<BDS:AUTO:MCP url="https://other.example/mcp" tool="run">{"command":"not sandbox"}</BDS:AUTO:MCP>',
-    '<BDS:AUTO:MCP url="sandbox" tool="write_file">{"path":"x"}</BDS:AUTO:MCP>',
-    '<BDS:AUTO:MCP url="sandbox" tool="run">{"command":"pytest -k \\"a_b\\""}</BDS:AUTO:MCP>',
-  ].join('\n');
-  const raw = win.__sdAgent._pickRawArgs([newer, older], 'run', { command: 'pytest -k "ab"' });
-  assert.deepEqual(plain(raw), { command: 'pytest -k "a_b"' });
-  assert.equal(win.__sdAgent._pickRawArgs([newer], 'edit_file', {}), null);
-});
-
-test('assistant texts skip thinking fragments and user messages', () => {
-  const { win } = load();
-  const texts = win.__sdAgent._assistantTexts([
-    { role: 'USER', content: 'hi' },
-    { role: 'ASSISTANT', fragments: [{ type: 'THINK', content: 'hmm' }, { type: 'RESPONSE', content: 'answer' }] },
-    { role: 'ASSISTANT', content: 'plain' },
-  ]);
-  assert.deepEqual(plain(texts), ['plain', 'answer']);
-});
-
-test('sandbox calls get their exact arguments from the chat history', async () => {
-  const history = [
-    { role: 'USER', content: 'make it' },
-    { role: 'ASSISTANT', content: 'Writing.\n<BDS:AUTO:MCP url="sandbox" tool="write_file">{"path":"my_app.py","content":"print(\\"__main__\\")\\n"}</BDS:AUTO:MCP>' },
-  ];
-  const { win, calls } = load({ history });
-  // What the engine read from the rendered Markdown: underscores and escapes lost.
-  const mangled = { path: 'myapp.py', content: 'print("main")\n' };
-  const reply = await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox', toolName: 'write_file', args: mangled });
-  assert.equal(reply.ok, true);
-  assert.equal(calls.length, 1);
-  assert.deepEqual(plain(calls[0].args), { path: 'my_app.py', content: 'print("__main__")\n' });
-});
-
-test('falls back to the engine args when the history has no match', async () => {
-  const { win, calls } = load({ history: [{ role: 'ASSISTANT', content: 'no tags here' }] });
-  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox://linux', toolName: 'run', args: { command: 'ls' } });
-  assert.deepEqual(plain(calls[0].args), { command: 'ls' });
-});
-
 test('other bridge messages pass straight through', async () => {
   const { win, calls } = load();
   await win.__sdBridgeFetch({ type: 'bds-fetch-url', url: 'https://x' });
-  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'https://mcp.example', toolName: 't', args: {} });
+  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'https://tools.example/mcp', toolName: 't', args: {} });
   assert.equal(calls.length, 2);
-  assert.equal(calls[1].serverUrl, 'https://mcp.example');
+  assert.equal(calls[1].serverUrl, 'https://tools.example/mcp');
 });
 
-test('after Stop, sandbox calls are refused without reaching the device', async () => {
-  const { win, calls, stops } = load();
+test('after Stop, fixture calls are refused without reaching the device', async () => {
+  const { win, calls } = load();
   win.__sdAgent.stop(true);
-  assert.equal(stops.length, 1);
+
   assert.equal(win.__sdAgentStopped, true);
-  const reply = await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox', toolName: 'run', args: { command: 'ls' } });
+  const reply = await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'fixture', toolName: 'run', args: { command: 'ls' } });
   assert.equal(reply.ok, false);
   assert.equal(calls.length, 0);
 });
 
 test('Arena Stop uses only an actionable official composer control, never DeepSeek or tool UI', () => {
   for (const scenario of ['valid', 'missing', 'disabled', 'hidden', 'tool-ui', 'ambiguous', 'unrelated']) {
-    const { win, stops } = load({ href: 'https://arena.ai/c/test' });
+    const { win } = load({ href: 'https://arena.ai/c/test' });
     let clicks = 0;
     const button = {
       disabled: scenario === 'disabled',
@@ -206,7 +153,7 @@ test('Arena Stop uses only an actionable official composer control, never DeepSe
       click: () => { clicks++; },
     };
     const form = { querySelectorAll: () => scenario === 'missing' ? [] : scenario === 'ambiguous' ? [button, { ...button }] : [button] };
-    win.__sdSite = { id: 'arena', profile: { selectors: { stopButton: { selectors: ['button[aria-label*="Stop"]'] } } } };
+    win.__sdSite = { id: 'arena', arenaMode: () => 'direct', arenaModality: () => 'chat', profile: { selectors: { stopButton: { selectors: ['button[aria-label*="Stop"]'] } } } };
     win.document.querySelector = (selector) => {
       assert.equal(selector, 'textarea[name="message"]', 'Arena must not scan DeepSeek icons');
       return { closest: () => form };
@@ -215,14 +162,14 @@ test('Arena Stop uses only an actionable official composer control, never DeepSe
     win.__sdAgent.stop(true);
     // Boot/continuity timers may query unrelated controls after this test.
     win.document.querySelector = () => null;
-    assert.equal(stops.length, 1, scenario);
+
     assert.equal(win.__sdAgentStopped, true, scenario);
     assert.equal(clicks, scenario === 'valid' ? 1 : 0, scenario);
   }
 });
 
 test('DeepSeek Stop retains its original icon-to-button action', () => {
-  const { win, stops } = load();
+  const { win } = load();
   let clicked = 0;
   win.document.querySelector = (selector) => {
     assert.equal(selector, '.ds-icon-stop-circle, .ds-icon-stop');
@@ -231,33 +178,7 @@ test('DeepSeek Stop retains its original icon-to-button action', () => {
   win.__sdAgent.stop(true);
   win.document.querySelector = () => null;
   assert.equal(clicked, 1);
-  assert.equal(stops.length, 1);
-});
 
-test('the sandbox server is offered only when supported and enabled', () => {
-  assert.equal(load().win.__sdSandboxServers().length, 1);
-  assert.equal(load().win.__sdSandboxServers()[0].serverUrl, 'sandbox://linux');
-  assert.equal(load({ info: { supported: false } }).win.__sdSandboxServers().length, 0);
-  assert.equal(load({ info: { supported: true, enabled: false } }).win.__sdSandboxServers().length, 0);
-});
-
-test('sandbox URL detection', () => {
-  const { win } = load();
-  const f = win.__sdAgent._isSandboxUrl;
-  assert.equal(f('sandbox'), true);
-  assert.equal(f('Sandbox://linux'), true);
-  assert.equal(f('[sandbox](sandbox://linux)'), true);
-  assert.equal(f('https://sandbox.example.com'), false);
-});
-
-test('the app is told while the agent works, and when it stops', async () => {
-  const { win, actives } = load();
-  assert.deepEqual(actives, [false], 'a fresh page clears any stale flag');
-  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox', toolName: 'run', args: { command: 'ls' } });
-  assert.equal(actives.at(-1), true);
-  win.__sdAgent.stop(true);
-  assert.equal(actives.at(-1), false);
-  assert.deepEqual(actives, [false, true, false], 'reported only on changes');
 });
 
 test('tool-call spinners stop once a later message exists, or when all is idle', async () => {
@@ -276,7 +197,7 @@ test('tool-call spinners stop once a later message exists, or when all is idle',
     return [];
   };
   // A call is still running for the last message: only the older card is done.
-  const running = win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'https://other.example/mcp', toolName: 't', args: {} });
+  const running = win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'https://tools.example/mcp', toolName: 't', args: {} });
   assert.equal(win.__sdAgent._sweepCards(), 1);
   assert.ok(old.cls.has('sd-done'));
   assert.ok(!current.cls.has('sd-done'));
@@ -294,7 +215,7 @@ test('tool-call spinners stop once a later message exists, or when all is idle',
   assert.ok(current.cls.has('sd-done'));
 });
 
-const mcpResult = (tool) => '<ArenaPilot>\n[APH:AUTO] MCP Result for ' + tool + ' @ sandbox://linux\n[APH:AUTO_MCP_RESULT]\n{}\n[/APH:AUTO_MCP_RESULT]\n</ArenaPilot>';
+const mcpResult = (tool) => '<ArenaPilot>\n[APH:AUTO] MCP Result for ' + tool + ' @ https://tools.example/mcp\n[APH:AUTO_MCP_RESULT]\n{}\n[/APH:AUTO_MCP_RESULT]\n</ArenaPilot>';
 
 test('continuity: replies that announce more work are recognised', () => {
   const { win } = load();
@@ -320,8 +241,8 @@ test('continuity: nudge only inside a tool chain', () => {
   assert.match(n(chain('Now I will install the packages:')), /without a tool call/);
   assert.equal(n(chain('All done, tests pass.')), null);
   assert.equal(n([{ role: 'USER', content: 'hi' }, { role: 'ASSISTANT', content: 'Let me think:' }]), null);
-  assert.equal(n(chain('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>')), null);
-  assert.match(n(chain('<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>')), /valid JSON/);
+  assert.equal(n(chain('<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls"}</APH:AUTO:MCP>')), null);
+  assert.match(n(chain('<APH:AUTO:MCP url="fixture" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>')), /valid JSON/);
   assert.equal(n([...chain('ok'), { role: 'USER', content: 'thanks' }]), null);
 });
 
@@ -332,12 +253,12 @@ test('continuity: after a reply the engine re-checks it and an unfinished chain 
     { role: 'ASSISTANT', content: 'Written. Now I will run it:' },
   ];
   const { win } = load({ history });
-  // The agent has worked on this instruction (one sandbox call went through).
-  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox', toolName: 'write_file', args: { path: 'a', content: '' } });
+  // The agent has worked on this instruction (one fixture call went through).
+  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'fixture', toolName: 'write_file', args: { path: 'a', content: '' } });
   let gen = true;
   const reprocessed = [];
   const sent = [];
-  win.__sdEngine = {
+  win.__sdEngine = { hasMcpServer: enabled,
     isGenerating: () => gen,
     reprocess: () => reprocessed.push(Date.now()),
     sendQuiet: (text, label) => { sent.push({ text, label }); },
@@ -351,59 +272,6 @@ test('continuity: after a reply the engine re-checks it and an unfinished chain 
   assert.match(sent[0].text, /^<ArenaPilot>\n\[APH:AUTO\] Agent continue\n[\s\S]*<\/ArenaPilot>$/);
 });
 
-test('prompt context: live sandbox state for the tool instructions', () => {
-  const { win } = load();
-  const pc = (c) => plain(win.__sdAgent._promptContext(c));
-  assert.deepEqual(pc({ supported: false }), []);
-  assert.deepEqual(pc({ supported: true, enabled: false }), []);
-  const fresh = pc({ supported: true, enabled: true, installed: false, mode: 'auto', jobs: [], workspace: [] });
-  assert.equal(fresh.length, 1);
-  assert.match(fresh[0], /not set up yet/);
-  assert.doesNotMatch(fresh[0], /workspace/);
-  const busy = pc({
-    supported: true, enabled: true, installed: true, mode: 'ask', freeMb: 120,
-    jobs: [{ id: 'job1', command: 'python3 -m http.server 8000' }],
-    workspace: ['site/', 'notes.md'], workspaceCount: 30,
-  })[0];
-  assert.match(busy, /set up and ready/);
-  assert.match(busy, /approves every call/);
-  assert.match(busy, /job1 `python3 -m http\.server 8000`/);
-  assert.match(busy, /site\/, notes\.md, … \(30 entries\)/);
-  assert.match(busy, /Only 120 MB/);
-  const empty = pc({ supported: true, enabled: true, installed: true, workspace: [], workspaceCount: 0 })[0];
-  assert.match(empty, /\/root\/workspace is empty/);
-  // Garbage from the bridge never throws.
-  assert.deepEqual(plain(win.__sdAgent.promptContext()), []);
-});
-
-test('settings status line follows the sandbox state', () => {
-  const { win } = load();
-  const s = win.__sdAgent._statusText;
-  assert.match(s({ supported: false }), /Not available/);
-  assert.match(s({ supported: true, enabled: false }), /^Off/);
-  assert.match(s({ supported: true, installing: true, progress: 0.42 }), /Setting up Linux… 42%/);
-  assert.match(s({ supported: true, installed: true, version: '3.20.3', mode: 'ask', active: 2 }), /^On · Alpine 3\.20\.3 · asks before each command · 2 running$/);
-  assert.match(s({ supported: true, installed: false }), /sets itself up on first use/);
-});
-
-test('settings overview value and page API', () => {
-  const { win } = load();
-  const s = win.__sdAgent._statusShort;
-  assert.equal(s({ supported: false }), '');
-  assert.equal(s({ supported: true, enabled: false }), 'Off');
-  assert.equal(s({ supported: true, active: 1 }), 'Working');
-  assert.equal(s({ supported: true, installed: true }), 'On');
-  for (const k of ['supported', 'statusShort', 'mountSettings']) assert.equal(typeof win.__sdAgent[k], 'function', k);
-});
-
-test('the engine locale decides the language of the agent UI', () => {
-  const { win } = load();
-  win.__sdEngine = { locale: () => 'bn' };
-  assert.match(win.__sdAgent._statusText({ supported: true, enabled: false }), /^বন্ধ/);
-  win.__sdEngine = { locale: () => 'en' };
-  assert.match(win.__sdAgent._statusText({ supported: true, enabled: false }), /^Off/);
-});
-
 // ── The agent loop must end: no nudge loops, no re-done work ───────────────
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -413,9 +281,9 @@ const unfinishedChain = [
   { role: 'ASSISTANT', content: 'Written. Now I will run it:' },
 ];
 
-/** One agent turn: a sandbox call, then a reply that streams and ends. */
+/** One agent turn: a fixture call, then a reply that streams and ends. */
 async function agentTurn(win, engine) {
-  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'sandbox', toolName: 'run', args: { command: 'ls' } });
+  await win.__sdBridgeFetch({ type: 'bds-mcp-call', serverUrl: 'fixture', toolName: 'run', args: { command: 'ls' } });
   engine.gen = true;
   await wait(90);
   engine.gen = false;
@@ -424,7 +292,7 @@ async function agentTurn(win, engine) {
 
 function fakeEngine(win) {
   const engine = { gen: false, sent: [] };
-  win.__sdEngine = {
+  win.__sdEngine = { hasMcpServer: enabled,
     isGenerating: () => engine.gen,
     reprocess() {},
     sendQuiet: (text, label) => { engine.sent.push({ text, label }); },
@@ -609,7 +477,7 @@ test('scroll guard: the agent UI and small or editable scrollers are left alone'
 test('stall detection: a tool call with no result is the missing-result case', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
-  const call = '<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>';
+  const call = '<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls"}</APH:AUTO:MCP>';
   assert.equal(s([{ role: 'USER', content: 'do it' }, { role: 'ASSISTANT', content: call }]), 'missing-result');
   assert.equal(s([{ role: 'USER', content: 'do it' }, { role: 'ASSISTANT', content: 'Running:\n' + call }]), 'missing-result');
   // A result arrived after the call: the chain moved on — nothing owed.
@@ -624,15 +492,15 @@ test('stall detection: a tool call with no result is the missing-result case', (
 test('stall detection: unreadable tool tags and unfinished prose', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
-  assert.equal(s([{ role: 'ASSISTANT', content: '<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>' }]), 'unreadable');
-  assert.equal(s([{ role: 'USER', content: 'go' }, { role: 'ASSISTANT', content: 'Files are written. Now I will run the tests:' }]), 'unfinished');
+  assert.equal(s([{ role: 'ASSISTANT', content: '<APH:AUTO:MCP url="fixture" tool="run">{"command":"echo "x""}</APH:AUTO:MCP>' }]), 'unreadable');
+  assert.equal(s([{ role: 'USER', content: mcpResult('run') }, { role: 'ASSISTANT', content: 'Files are written. Now I will run the tests:' }]), 'unfinished');
   assert.equal(s([{ role: 'ASSISTANT', content: 'Here is the app: https://x/app.apk. Let me know if you need a dark theme.' }]), null);
   assert.equal(s([{ role: 'USER', content: 'thanks' }]), null);
   assert.equal(s([]), null);
   assert.equal(s([{ role: 'ASSISTANT', content: '' }]), null);
 });
 
-test('stall detection: a non-sandbox tool call is not our stalled chain', () => {
+test('stall detection: a non-fixture tool call is not our stalled chain', () => {
   const { win } = load();
   const s = win.__sdAgent._lastTaskStall;
   assert.equal(s([{ role: 'ASSISTANT', content: '<APH:AUTO:MCP url="https://other.example/mcp" tool="run">{"command":"x"}</APH:AUTO:MCP>' }]), null);
@@ -653,10 +521,10 @@ test('continue bodies tell the model to never repeat finished work', () => {
 test('continue chip: after a reload stall the user is offered the next step', async () => {
   const history = [
     { role: 'USER', content: 'make an app' },
-    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
+    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
   ];
   const { win } = load({ history });
-  win.__sdEngine = { isGenerating: () => false, reprocess: () => {}, sendQuiet: () => {} };
+  win.__sdEngine = { hasMcpServer: enabled, isGenerating: () => false, reprocess: () => {}, sendQuiet: () => {} };
   assert.equal(win.__sdAgent._continueKind(), null);
   win.__sdAgent._maybeOfferContinue();
   await new Promise((r) => setTimeout(r, 50));
@@ -666,10 +534,10 @@ test('continue chip: after a reload stall the user is offered the next step', as
 test('continue chip: no offer while the model is still writing or the agent is stopped', async () => {
   const history = [
     { role: 'USER', content: 'make an app' },
-    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
+    { role: 'ASSISTANT', content: 'Building first:\n<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls"}</APH:AUTO:MCP>' },
   ];
   const { win } = load({ history });
-  win.__sdEngine = { isGenerating: () => true, reprocess: () => {}, sendQuiet: () => {} };
+  win.__sdEngine = { hasMcpServer: enabled, isGenerating: () => true, reprocess: () => {}, sendQuiet: () => {} };
   win.__sdAgent._maybeOfferContinue();
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(win.__sdAgent._continueKind(), null);
@@ -686,14 +554,25 @@ test('continue chip: no offer while the model is still writing or the agent is s
 // failure looked identical from outside. diagnose() reports what the engine
 // actually knows, so one screenshot is a usable bug report.
 
-test('diagnose reports composer, mode, sandbox and tool facts without throwing', async () => {
+test('diagnose reports composer, mode and tool facts without throwing', async () => {
   const { win } = load();
   const d = win.__sdAgent.diagnose();
   assert.equal(typeof d, 'object');
   assert.equal(d.version, 1);
-  for (const key of ['site', 'mode', 'composer', 'send', 'generating', 'sandbox', 'agent', 'health', 'tools']) {
+  for (const key of ['site', 'mode', 'composer', 'send', 'generating', 'agent', 'health', 'tools']) {
     assert.ok(key in d, `diagnose reports ${key}`);
   }
   assert.equal(typeof d.agent.active, 'boolean');
   assert.equal(typeof d.composer, 'boolean');
+});
+
+test('no implicit server or device controls; continue preference keeps its v2 key', () => {
+  const { win } = load();
+  assert.equal(win.__sdSandboxServers, undefined);
+  assert.equal(win.__sdAgent.promptContext, undefined);
+  assert.equal('sandbox' in win.__sdAgent.diagnose(), false);
+  win.AndroidBridge.setStorage('sd_agent_autocontinue', '0');
+  assert.equal(win.__sdAgent.autoContinue(), false);
+  win.__sdAgent.setAutoContinue(true);
+  assert.equal(win.AndroidBridge.getStorage('sd_agent_autocontinue'), '1');
 });

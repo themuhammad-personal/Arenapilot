@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   ARTIFACTS, bridgeState, installEngine, launchBrowser, mcpCalls, openSession,
-  reinstallBridge, setBeats, setSandboxOutputs, shot,
+  reinstallBridge, setBeats, setMcpOutputs, shot,
 } from './harness.mjs';
 
 const results = [];
@@ -54,10 +54,10 @@ const agentOnce = makeScenario('agent-once', async (browser) => {
   const failures = [];
   const notes = [];
   const { page, consoleErrors } = await openSession(browser);
-  await setSandboxOutputs(page, { 'run:ls': 'hello.py  main.py', write_file: 'wrote hello.py' });
+  await setMcpOutputs(page, { 'run:ls': 'hello.py  main.py', write_file: 'wrote hello.py' });
   await setBeats(page, [
-    'I will list the files first.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"ls -la"}</APH:AUTO:MCP>',
-    'Now I will write the script.\n<APH:AUTO:MCP url="sandbox" tool="write_file">{"path":"hello.py","content":"print(1)"}</APH:AUTO:MCP>',
+    'I will list the files first.\n<APH:AUTO:MCP url="fixture" tool="run">{"command":"ls -la"}</APH:AUTO:MCP>',
+    'Now I will write the script.\n<APH:AUTO:MCP url="fixture" tool="write_file">{"path":"hello.py","content":"print(1)"}</APH:AUTO:MCP>',
     'All done — hello.py is written.',
   ]);
   await page.evaluate(() => window.__sdEngine.markLive());
@@ -95,9 +95,9 @@ const agentOnce = makeScenario('agent-once', async (browser) => {
 const noRerun = makeScenario('no-rerun', async (browser) => {
   const failures = [];
   const { page } = await openSession(browser);
-  await setSandboxOutputs(page, { run: 'ok' });
+  await setMcpOutputs(page, { run: 'ok' });
   await setBeats(page, [
-    'Running it.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo once"}</APH:AUTO:MCP>',
+    'Running it.\n<APH:AUTO:MCP url="fixture" tool="run">{"command":"echo once"}</APH:AUTO:MCP>',
     'All done — the command finished.',
   ]);
   await page.evaluate(() => window.__sdEngine.markLive());
@@ -154,9 +154,9 @@ const scrollGuard = makeScenario('scroll-guard', async (browser) => {
 const keepGoing = makeScenario('keep-going', async (browser) => {
   const failures = [];
   const { page } = await openSession(browser);
-  await setSandboxOutputs(page, { run: 'tool output' });
+  await setMcpOutputs(page, { run: 'tool output' });
   await setBeats(page, [
-    'Starting.\n<APH:AUTO:MCP url="sandbox" tool="run">{"command":"echo go"}</APH:AUTO:MCP>',
+    'Starting.\n<APH:AUTO:MCP url="fixture" tool="run">{"command":"echo go"}</APH:AUTO:MCP>',
     'Now I will run the tests:',
     'Continuing, one moment:',
     'Almost there:',
@@ -252,9 +252,9 @@ const settingsPages = makeScenario('settings-pages', async (browser) => {
   await new Promise((r) => setTimeout(r, 600));
   await shot(page, 'settings-overview');
   const overview = await page.evaluate(() => document.body.innerText.slice(0, 4000));
-  check(failures, /linux|লিনাক্স/i.test(overview), 'the overview should list the Linux & Agent row');
+  check(failures, /MCP/i.test(overview), 'the overview should list MCP settings');
   const linuxPageOpen = await page.evaluate(() => !!document.getElementById('sd-linux-page'));
-  check(failures, !linuxPageOpen, 'the Linux card must only appear on its own page');
+  check(failures, !linuxPageOpen, 'the removed Linux page must not mount');
   await page.close();
   return { failures, notes };
 });

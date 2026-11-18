@@ -21,7 +21,7 @@ sys.path.insert(0, str(HERE))
 import apk_check  # noqa: E402
 
 ARENA = ("com.arenadeck.app", "ArenaPilot")
-SD = ("com.arenadeck.app", "ArenaPilot")
+OTHER = ("invalid.example.foreign", "Other App")
 
 
 class ApkCheck(unittest.TestCase):
@@ -78,8 +78,8 @@ class ApkCheck(unittest.TestCase):
         self.assertEqual(self.run_check(self.apk(drop="xxhdpi"), ARENA), 1)
 
     def test_wrong_label_or_package_fails(self):
-        self.assertEqual(self.run_check(self.apk(), (ARENA[0], SD[1])), 1)
-        self.assertEqual(self.run_check(self.apk(), (SD[0], ARENA[1])), 1)
+        self.assertEqual(self.run_check(self.apk(), (ARENA[0], OTHER[1])), 1)
+        self.assertEqual(self.run_check(self.apk(), (OTHER[0], ARENA[1])), 1)
 
     def test_a_missing_apk_is_exit_2_never_a_pass(self):
         self.assertEqual(apk_check.main(["--apk", str(self.tmp / "nope.apk")]), 2)

@@ -56,6 +56,7 @@ test('Arena default prompt is model-neutral, self-aware and honest about the new
   assert.match(prompt, /say you do not know rather than guessing/);
   assert.match(prompt, /APH:VISUALIZER/);
   assert.match(prompt, /APH:AUTO:MCP/);
+  assert.doesNotMatch(prompt, /Linux Studio|Linux sandbox|sandbox:\/\/linux|export_file/);
   assert.match(prompt, /Wait for their results/);
   // privacy wording matches the shipped behaviour: instructions on and sent
   // with the first message, memory a separate off-by-default opt-in

@@ -384,8 +384,8 @@ private val CHROME_VERSION_REGEX = Regex("""\bChrome/(\d+(?:\.\d+)*)""")
  * user signs in there exactly as on the web, with the site's own cookies and
  * WAF session. On every page load the ArenaPilot engine (assets/bds) is
  * injected into that page, and [WebViewBridge] (`window.AndroidBridge`) gives
- * it native storage, file picking, downloads, fetch, MCP and the Linux
- * sandbox — only while the page is https://chat.deepseek.com.
+ * it native storage, file picking, downloads, fetch and MCP — only while the
+ * page is the trusted chat site.
  *
  * A native launch screen ([BootScreenView]) covers the page until the
  * enhanced chat is really on screen, so the plain official UI never flashes.
@@ -554,22 +554,6 @@ class MainActivity : ComponentActivity() {
             .onFailure { pendingWebPermission = null; runCatching { request.deny() } }
     }
 
-    private val notificationPermissionLauncher: ActivityResultLauncher<String> =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
-    /**
-     * Android 13+: the sandbox's "running · Stop" notification needs this
-     * permission. Asked once, the first time the AI starts a sandbox command.
-     */
-    private fun maybeAskNotificationPermission() {
-        if (android.os.Build.VERSION.SDK_INT < 33) return
-        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
-        val prefs = getSharedPreferences(WebViewBridge.PREFS_NAME, MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_ASKED_NOTIFICATIONS, false)) return
-        prefs.edit().putBoolean(KEY_ASKED_NOTIFICATIONS, true).apply()
-        runCatching { notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
-    }
-
     private val storagePermissionLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private var askedStoragePermission = false
@@ -687,7 +671,7 @@ class MainActivity : ComponentActivity() {
             addJavascriptInterface(bridge, "AndroidBridge")
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                    // Serve the engine's bundled assets (fish loading SVGs, icons, sandbox)
+                    // Serve the engine's bundled assets (fish loading SVGs, icons)
                     // from assets/bds via the bds-asset.local authority. Real site traffic
                     // (login/WAF) passes through untouched.
                     val url = request.url
@@ -719,7 +703,7 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    // The bridge (storage, files, MCP keys, the Linux sandbox) only
+                    // The bridge (storage, files, MCP keys) only
                     // serves the wrapped chat site — never a foreign page this WebView
                     // may be redirected to. Iframe navigations (OAuth, hCaptcha)
                     // also land here on some WebView versions; only the main
@@ -878,19 +862,7 @@ class MainActivity : ComponentActivity() {
                 scheduleBarRefresh(BAR_REFRESH_THEME_MS)
             }
         }
-        // Linux sandbox: the preview tool, the Studio entry points and the
-        // notification's Stop action.
-        bridge.sandboxPreview = { url ->
-            if (isForeground || StudioActivity.visible) {
-                runOnUiThread { StudioActivity.start(this, url) }
-                true
-            } else false
-        }
-        bridge.onOpenStudio = { runOnUiThread { StudioActivity.start(this) } }
-        StudioActivity.onAskAi = askAiInPage
         bridge.onDownloadRequested = { runOnUiThread { maybeAskStoragePermission() } }
-        bridge.onSandboxCallStarted = { runOnUiThread { maybeAskNotificationPermission() } }
-        SandboxService.onStopRequested = stopAgentInPage
         showNativeBootOverlay()
 
         // The official DeepSeek site IS the chat surface; the engine (assets/bds)
@@ -956,8 +928,8 @@ class MainActivity : ComponentActivity() {
                   document.head.appendChild(s);
                 })();
             """.trimIndent()
-            // Native glue, then the sandbox agent glue (it wraps sd-native's bridge
-            // fetch), then the sheet gestures (they wrap content.js's Back handler),
+            // Native glue, then the agent glue, then the sheet gestures (they wrap
+            // content.js's Back handler),
             // and the DOM health check (it watches DeepSeek's selectors and warns
             // the user when the site updates underneath the engine).
             val native = listOfNotNull(
@@ -1041,7 +1013,6 @@ class MainActivity : ComponentActivity() {
         /** "0" the first time in a document (and marks it), "1" afterwards. */
         const val ENGINE_CLAIM_JS =
             "(function(){if(window.__sdEngineInjected)return 1;window.__sdEngineInjected=true;return 0})()"
-        const val KEY_ASKED_NOTIFICATIONS = "sd_asked_notifications"
         const val KEY_CHAT_URL = "sd_chat_url"
         const val LIVENESS_TIMEOUT_MS = 8_000L
         /** Second, longer window before a silent page is treated as dead. */
@@ -1473,11 +1444,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // A recreated activity may already have installed its own handler.
-        if (SandboxService.onStopRequested === stopAgentInPage) SandboxService.onStopRequested = null
-        if (StudioActivity.onAskAi === askAiInPage) StudioActivity.onAskAi = null
-        // Closed for good: no page is left to run the agent loop.
-        if (isFinishing) SandboxService.onAgentActiveChanged(this, false)
         handler.removeCallbacksAndMessages(null)
         closePopupWindow()
         try {
@@ -1490,28 +1456,6 @@ class MainActivity : ComponentActivity() {
             officialWebView.destroy()
         } catch (_: Exception) {}
         super.onDestroy()
-    }
-
-    /** The notification's Stop action: ends the agent loop in the page. */
-    private val stopAgentInPage: () -> Unit = {
-        if (::officialWebView.isInitialized) {
-            officialWebView.post { officialWebView.evaluateJavascript("window.__sdAgent&&window.__sdAgent.stop(true)", null) }
-        }
-    }
-
-    /**
-     * Studio's "Ask the AI": the text goes into the chat's message box (after
-     * anything already typed), never sent, and the keyboard stays closed
-     * until the user taps the box.
-     */
-    private val askAiInPage: (String) -> Unit = { text ->
-        if (::officialWebView.isInitialized) {
-            val js = "(function(){try{var e=window.__sdEngine;if(!e||!e.setComposer)return false;" +
-                    "var c=${composerLookupJs(site)};" +
-                    "var old=c&&c.value?c.value.replace(/\\s+$/,'')+' ':'';" +
-                    "return !!e.setComposer(old+${org.json.JSONObject.quote(text)});}catch(x){return false}})()"
-            officialWebView.post { officialWebView.evaluateJavascript(js, null) }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

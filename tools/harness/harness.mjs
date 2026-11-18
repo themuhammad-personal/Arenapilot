@@ -7,7 +7,7 @@
  * page that behaves like chat.deepseek.com (composer, message rows with the
  * hashed classes, streaming replies, send/stop toggle, history endpoints,
  * SPA navigation). The fake `AndroidBridge` keeps an in-memory store and a
- * scriptable sandbox; every call is recorded and mirrored to localStorage so
+ * scriptable MCP server; every call is recorded and mirrored to localStorage so
  * the log survives a reload.
  *
  * Screenshots go to tools/harness/artifacts/ (never committed).
@@ -68,20 +68,20 @@ export async function launchBrowser() {
 const FIXTURE_HTML = fs.readFileSync(path.join(here, 'fixture/chat.html'), 'utf8');
 
 /**
- * The in-page AndroidBridge double. `sandboxOutputs` maps a tool name (or
+ * The in-page AndroidBridge double. `mcpOutputs` maps a tool name (or
  * `run:<command substring>`) to the text the tool "produces"; every call is
  * recorded in window.__harness.bridge.calls and mirrored to localStorage.
  */
 export function fakeBridgeSource({ locale = 'en-US' } = {}) {
   return `window.__harness = {
-    bridge: { calls: [], store: {}, acts: [], studio: [], picks: [], fetches: [], logs: [] },
+    bridge: { calls: [], store: {}, picks: [], fetches: [], logs: [] },
     events: [],
   };
 (function () {
   var H = window.__harness;
   function persist() {
     try { localStorage.setItem('harness_log', JSON.stringify({
-      calls: H.bridge.calls, acts: H.bridge.acts, studio: H.bridge.studio, fetches: H.bridge.fetches })); } catch (_) {}
+      calls: H.bridge.calls, fetches: H.bridge.fetches })); } catch (_) {}
   }
   function rec(kind, entry) {
     H.bridge.calls.push(Object.assign({ kind: kind, at: Date.now() }, entry));
@@ -91,16 +91,15 @@ export function fakeBridgeSource({ locale = 'en-US' } = {}) {
   window.__harnessRestore = function () {
     try {
       var prev = JSON.parse(localStorage.getItem('harness_log') || 'null');
-      if (prev) { H.bridge.calls = prev.calls || []; H.bridge.acts = prev.acts || []; H.bridge.studio = prev.studio || []; H.bridge.fetches = prev.fetches || []; }
+      if (prev) { H.bridge.calls = prev.calls || []; H.bridge.fetches = prev.fetches || []; }
     } catch (_) {}
   };
   window.__harnessClear = function () {
-    H.bridge.calls = []; H.bridge.acts = []; H.bridge.studio = []; H.bridge.fetches = [];
+    H.bridge.calls = []; H.bridge.fetches = [];
     localStorage.removeItem('harness_log');
   };
 
-  var FS = window.__sandboxFS = window.__sandboxFS || {};
-  var OUTPUTS = window.__sandboxOutputs = window.__sandboxOutputs || {};
+  var OUTPUTS = window.__mcpOutputs = window.__mcpOutputs || {};
 
   function toolText(name, args) {
     if (name === 'run') {
@@ -116,15 +115,12 @@ export function fakeBridgeSource({ locale = 'en-US' } = {}) {
 
   function mcpResult(name, args) {
     rec('mcp', { tool: name, args: args });
-    if (name === 'write_file') { FS[String(args.path)] = String(args.content || ''); }
-    if (name === 'read_file') return String(FS[String(args.path)] !== undefined ? FS[String(args.path)] : 'no such file');
-    if (name === 'list_dir') return Object.keys(FS).join('\\n') || '(empty)';
-    if (name === 'status') return 'Linux sandbox: Alpine 3.20 (x86_64), working\\nWorkspace: /root/workspace';
     return toolText(name, args);
   }
 
-  window.__setSandboxOutputs = function (map) { OUTPUTS = window.__sandboxOutputs = map || {}; };
+  window.__setMcpOutputs = function (map) { OUTPUTS = window.__mcpOutputs = map || {}; };
 
+  H.bridge.store.bds_mcp_servers = JSON.stringify([{ id: 'fixture', name: 'fixture', serverUrl: 'https://tools.example/mcp', enabled: true }]);
   window.AndroidBridge = {
     getStorage: function (k) { return (k in H.bridge.store) ? H.bridge.store[k] : null; },
     setStorage: function (k, v) { H.bridge.store[k] = String(v); persist(); },
@@ -138,25 +134,14 @@ export function fakeBridgeSource({ locale = 'en-US' } = {}) {
     getAssetUrl: function (p) { return 'https://chat.deepseek.com/bds/' + String(p || ''); },
     releaseBlob: function () {},
     onUiPolished: function () { rec('uiPolished', {}); },
-    openStudio: function () { H.bridge.studio.push(Date.now()); persist(); },
-    sandboxAgentActive: function (active) { H.bridge.acts.push(!!active); persist(); },
-    sandboxStop: function () { rec('sandboxStop', {}); return 0; },
-    sandboxReset: function () { rec('sandboxReset', {}); return true; },
-    sandboxInfo: function () {
-      return JSON.stringify({ supported: true, enabled: true, mode: 'auto', installed: true,
-        distro: 'Alpine', version: '3.20', abi: 'x86_64', freeBytes: 512 * 1024 * 1024 });
-    },
-    sandboxContext: function () {
-      return JSON.stringify({ installed: true, mode: 'auto', jobs: 0 });
-    },
     fetch: function (payloadJson) {
       var payload = {};
       try { payload = JSON.parse(payloadJson || '{}'); } catch (e) { return JSON.stringify({ ok: false, error: 'bad json' }); }
       H.bridge.fetches.push(payload);
       persist();
+      if (/^bds-mcp-/.test(payload.type) && payload.serverUrl !== 'https://tools.example/mcp') return JSON.stringify({ok:false, error:'Unknown test endpoint'});
       if (payload.type === 'bds-mcp-list-tools') {
-        return JSON.stringify({ ok: true, tools: ['run', 'job', 'read_file', 'write_file', 'edit_file',
-          'list_dir', 'install_packages', 'preview', 'export_file', 'status'].map(function (n) {
+        return JSON.stringify({ ok: true, tools: ['run', 'write_file'].map(function (n) {
             return { name: n, description: n, inputSchema: { type: 'object', properties: {} } };
           }) });
       }
@@ -269,8 +254,6 @@ export async function shot(page, name) {
 export async function bridgeState(page) {
   return page.evaluate(() => ({
     calls: window.__harness.bridge.calls.slice(),
-    acts: window.__harness.bridge.acts.slice(),
-    studio: window.__harness.bridge.studio.slice(),
     fetches: window.__harness.bridge.fetches.slice(),
     events: window.__harness.events.slice(),
   }));
@@ -280,8 +263,8 @@ export async function setBeats(page, beats) {
   await page.evaluate((b) => window.__fixtureSetBeats(b), beats);
 }
 
-export async function setSandboxOutputs(page, map) {
-  await page.evaluate((m) => window.__setSandboxOutputs(m), map);
+export async function setMcpOutputs(page, map) {
+  await page.evaluate((m) => window.__setMcpOutputs(m), map);
 }
 
 export function mcpCalls(state) {

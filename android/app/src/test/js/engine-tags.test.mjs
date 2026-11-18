@@ -105,7 +105,7 @@ test('every tag means the same with APH: as with BDS:', () => {
   }
 });
 
-test('the built-in system prompt is ArenaPilot, APH and sandbox-first', () => {
+test('the built-in system prompt is ArenaPilot, APH and tool-first', () => {
   const i = CONTENT.indexOf(',sdsLegacyPrompt=[');
   const j = CONTENT.indexOf('].join(', i);
   const lines = vm.runInNewContext(CONTENT.slice(i + ',sdsLegacyPrompt='.length, j + 1));
@@ -113,8 +113,9 @@ test('the built-in system prompt is ArenaPilot, APH and sandbox-first', () => {
   const prompt = lines.filter((l) => !l.startsWith('Older messages, memories')).join('\n');
   assert.equal(lines.length - prompt.split('\n').length, 1);
   assert.match(prompt, /^You are ArenaPilot/);
-  assert.match(prompt, /YOUR LINUX SANDBOX/);
-  assert.match(prompt, /Never claim that you cannot run code/);
+  assert.match(prompt, /YOUR TOOLS/);
+  assert.doesNotMatch(prompt, /linux sandbox|Linux Studio|sandbox:\/\/linux/i);
+  assert.match(prompt, /Use only listed tools/);
   assert.doesNotMatch(prompt, /<BDS:|\bBDS\b|Better ?DeepSeek|you cannot execute code yourself/i);
   assert.match(CONTENT, /,N1=17\b/, 'template version bumped so stored copies are replaced');
 });
@@ -346,5 +347,5 @@ test('every automatic send path is quiet', () => {
 });
 
 test('the prompt keeps tool work out of LONG_WORK', () => {
-  assert.match(CONTENT, /Never wrap sandbox work or tool calls in LONG_WORK/);
+  assert.match(CONTENT, /Never wrap tool calls in LONG_WORK/);
 });

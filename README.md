@@ -31,17 +31,15 @@ untouched official pages.
 
 | Direct Mode page | What the engine does |
 |---|---|
-| **Text** `/text/direct` | Full agent engine: Linux sandbox, MCP tools, memory, projects |
-| **Code** `/code/direct` | Same engine, plus Code rules: complete runnable code, run and check in the sandbox before answering |
+| **Text** `/text/direct` | Configured MCP tools, opt-in memory and projects |
+| **Code** `/code/direct` | Arena’s Code page and its own preview when offered; no device shell |
 | **Search** `/search/direct` | Same engine, plus Search rules: use live search, cite sources, cross-check what matters |
 | **Image** `/image/direct` | The engine stays out of the way — your prompt reaches the image model exactly as typed |
 
 Core capabilities, all in Direct Mode:
 
 - **Agent playbook** — every conversation carries rules for persistence, evidence over guesswork, plan → act → verify,
-  working inside chat limits, resumable progress files and honest completion.
-- **Linux sandbox** — a private Alpine Linux (proot) where the model writes, runs and fixes code. Linux Studio gives a
-  terminal, file browser and preview.
+  working inside chat limits and honest completion.
 - **MCP servers** — connect tools; the model finds and calls them.
 - **Memory and projects** — stored memory (opt-in, off by default) and per-chat projects with files.
 - **Reliable long tasks** — arena's stream is read directly; rate limits, dropped streams and cut-off replies trigger a bounded,
@@ -67,8 +65,7 @@ Android app (Kotlin)
  │          injected.js    request layer: context, memory, tool results
  │          content.js     settings, commands, cards, tool runner
  │          sd-agent.js    agent loop: Stop, keep-going, recovery
- ├─ AndroidBridge ⇄ storage, pickers, downloads, sandbox
- └─ Linux sandbox: proot + Alpine · foreground service
+ └─ AndroidBridge ⇄ existing storage, pickers, downloads and remote MCP
 ```
 
 The app never needs an API key, never bypasses a login or captcha, and only sends through the page's own composer.
@@ -76,8 +73,10 @@ The app never needs an API key, never bypasses a login or captcha, and only send
 ## Develop
 
 ```bash
+# Node 22 and JDK 17 (Android SDK 34)
 npm ci
 npm test                         # engine, release-hygiene and model-list tests
+npm run android:stage-engine
 cd android && ./gradlew testDebugUnitTest assembleDebug
 ```
 

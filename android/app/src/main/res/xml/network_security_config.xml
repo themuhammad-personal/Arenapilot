@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Cleartext and user CAs are allowed on purpose: MCP servers and the Linux
-     sandbox preview often run on plain http (LAN, localhost), and users with a
-     corporate / self-signed CA must still reach their own MCP endpoints. -->
+<!-- Keep the existing certificate and HTTP policy for configured MCP endpoints.
+     Native bridge requests are also checked by NetworkGuard. -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
     <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
         <trust-anchors>

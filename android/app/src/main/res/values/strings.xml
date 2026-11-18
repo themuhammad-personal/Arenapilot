@@ -23,16 +23,6 @@
     <!-- Branded boot overlay (shown while the engine page loads) -->
     <string name="bds_boot_title" translatable="false">ArenaPilot</string>
 
-    <!-- Linux sandbox (foreground service notification) -->
-    <string name="sandbox_channel">Linux sandbox</string>
-    <string name="sandbox_title">Linux sandbox</string>
-    <string name="sandbox_idle">Idle</string>
-    <string name="sandbox_agent_working">The agent is working</string>
-    <string name="sandbox_stop">Stop</string>
-    <plurals name="sandbox_running">
-        <item quantity="one">Running %d command</item>
-        <item quantity="other">Running %d commands</item>
-    </plurals>
     <!-- Independent-app notice, shown once on the first launch (formerly the
      arenaDeck flavor override; the app is arena-only now). It is deliberately
      translatable="false": a legal statement ships verbatim in English with a

@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * `chrome.storage.local.set` rewrote that whole file, and Android waits for
  * pending SharedPreferences writes on the main thread whenever an activity
  * stops or a service starts/stops (QueuedWork). During agent work that froze
- * the UI — e.g. the chat stayed black for seconds after leaving Linux Studio.
+ * the UI when the chat resumed.
  *
  * Here each key is its own file, writes are coalesced (latest value wins) and
  * done off the main thread, and reads come from memory. Small values stay in

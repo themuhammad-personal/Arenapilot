@@ -132,8 +132,8 @@ test('every DeepSeek URL in content.js is classified, with its count', () => {
 // documents (Google Fonts). On a phone that is a foreign dependency — and on a
 // page, one whose CSP may block the script at any moment, so the feature would
 // fail silently. Everything is now the app's own: JavaScript runs natively,
-// TypeScript annotations are stripped locally, Python/Lua/Ruby run in the app's
-// Linux on the phone, and the exports use the phone's fonts.
+// TypeScript annotations are stripped locally, unsupported runtimes are not
+// downloaded, and the exports use the phone's fonts.
 
 const CDN_HOSTS = /(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.opalrb\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/;
 
@@ -146,16 +146,21 @@ test('no bundle fetches a script, stylesheet or font from a third-party CDN', ()
   }
 });
 
-test('the in-page Python runner runs on the app’s own Linux, not in a downloaded runtime', () => {
-  // The playground page calls the sandbox MCP "run" tool through the bridge and
-  // takes the reply from window.__sdBridgeReply, which is the app's contract.
-  assert.match(CONTENT, /serverUrl: "sandbox:\/\/linux",\s*\n\s*toolName: "run"/);
-  assert.match(CONTENT, /window\.__sdPlaygroundReply = function \(replyId, json, blobPath\)/);
+test('the in-page Python playground is gone; the browser runner stays available for JS/TS', () => {
+  // The playground used to call the local Linux sandbox MCP "run" tool through
+  // the bridge and take the reply from window.__sdPlaygroundReply. The local
+  // sandbox is removed, so the playground is gone with it — nothing may call
+  // sandbox://linux or listen for its reply any more.
+  assert.doesNotMatch(CONTENT, /serverUrl: "sandbox:\/\/linux"/);
+  assert.doesNotMatch(CONTENT, /__sdPlaygroundReply/);
   assert.doesNotMatch(CONTENT, /loadPyodide\(/);
+  // The browser runner itself stays: JavaScript and TypeScript run natively.
+  assert.match(CONTENT, /function \$Ct\(e,t="javascript"\)/);
   // A language the browser runner cannot host says where to run it instead of
-  // promising a runtime it will never have.
+  // promising a runtime it will never have — and no longer points at the
+  // removed Linux & Agent page.
   assert.match(CONTENT, /This browser runner has no /);
-  assert.match(CONTENT, /Linux & Agent/);
+  assert.doesNotMatch(CONTENT, /open Linux & Agent/);
 });
 
 test('importing a memory profile from another AI never opens another AI', () => {

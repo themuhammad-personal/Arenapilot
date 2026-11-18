@@ -473,7 +473,7 @@ export const ATTACH_SHEET_ROWS = `/*sdp:attachrows*/(function () {
   var any = function (sel) { return sheet ? Array.prototype.slice.call(sheet.querySelectorAll(sel)) : []; };
   // The quick grid: icon tiles above the list.
   var tiles = any('.bds-quick-tile').map(fact);
-  // The list: "More tools" rows, plus the engine's own Linux Studio / Settings cards.
+  // The list: "More tools" rows, plus the engine's own Settings card.
   var rows = any('.bds-attach-item').map(fact);
   var title = q('.bds-sheet-title');
   var section = q('.bds-sheet-section');
@@ -1317,7 +1317,7 @@ export function acceptanceFailures(result) {
   // The sheet the ENGINE adds is the product surface, in two parts: the quick
   // grid (Files / Camera / Photos) and the "More tools" list (Add to chat /
   // Deep Research / Upload Folder / GitHub Repo / Fetch Web Page) plus the
-  // app's own Linux Studio and Settings cards. A flat single-table read of the
+  // app's own Settings card. A flat single-table read of the
   // sheet is what made a correct sheet fail run 43337677596, so each surface is
   // demanded on its own terms and neither is inferred from the other.
   const sheetRows = result.engineSheetRows;
@@ -1344,13 +1344,13 @@ export function acceptanceFailures(result) {
     for (const want of ['files', 'camera', 'photos']) {
       if (!tileLabels.some((l) => l.includes(want))) errors.push('add-to-chat-tile-missing-' + want);
     }
-    // The list: the engine's tools plus the app's own two cards, which are the
-    // only entries it adds to a sheet it does not own.
-    for (const want of ['upload folder', 'attach project', 'linux studio', 'settings']) {
+    // The list: the engine's tools plus the app's own Settings card, the
+    // only entry it adds to a sheet it does not own.
+    for (const want of ['upload folder', 'attach project', 'settings']) {
       if (!rowLabels.some((l) => l.includes(want))) errors.push('add-to-chat-row-missing-' + want.replace(/ /g, '-'));
     }
     // v2.2.0 scope: these cards were removed on purpose and must not come back.
-    for (const gone of ['deep research', 'github repo', 'fetch web page']) {
+    for (const gone of ['deep research', 'github repo', 'fetch web page', 'linux studio']) {
       if (rowLabels.some((l) => l.includes(gone))) errors.push('add-to-chat-row-should-be-removed-' + gone.replace(/ /g, '-'));
     }
     for (const row of surface) {
@@ -1388,7 +1388,7 @@ export function acceptanceFailures(result) {
     if (doc.doctorLines < 6) errors.push('check-up-page-too-thin');
     if (!(doc.doctorOkLines > 0)) errors.push('check-up-pages-no-passing-line');
     // Some line must admit a limitation — a page that only ever says "fine" is
-    // not a check-up. On arena the API playground and the sandbox rows are off.
+    // not a check-up. On arena the API playground row is off.
     if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
     if (!doc.pageTitle) errors.push('check-up-page-has-no-header');
   }
@@ -1456,7 +1456,7 @@ async function probeModalityRoutes(cdp, host, wait) {
     }
     rows.push({ route, facts });
   }
-  // Leave the WebView where the later smoke steps (sandbox, live message) expect it.
+  // Leave the WebView where the later smoke steps (live message) expect it.
   try {
     await cdp.send('Page.navigate', { url: `https://${host}/text/direct` });
     await sleepMs(Math.min(wait, 8000));

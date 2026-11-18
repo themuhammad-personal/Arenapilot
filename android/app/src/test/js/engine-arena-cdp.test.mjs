@@ -304,7 +304,7 @@ async function startFakeCdp(opts = {}) {
             reachable: true, onTop: !(opts.coveredRow && label === 'Camera'), disabled: false,
           }));
           const rows = ['Add to chat', 'Upload Folder', 'Attach Project',
-            'Linux Studio', 'Settings'].map((label, i) => ({
+            'Settings'].map((label, i) => ({
             label, rect: [16, 240 + i * 56, 288, 48], inViewport: true,
             toggle: false, reachable: true, onTop: true, disabled: false,
           }));
@@ -410,11 +410,12 @@ async function startFakeCdp(opts = {}) {
 
 async function runProbe(opts) {
   const fake = await startFakeCdp(opts);
-  const cdp = await connect(`ws://127.0.0.1:${fake.port}/devtools/page/1`);
+  let cdp;
   try {
+    cdp = await connect(`ws://127.0.0.1:${fake.port}/devtools/page/1`);
     const result = await probe(cdp, { kitSource: KIT, pageHost: 'arena.ai', wait: 0, pause: async () => {} });
     return { fake, result };
-  } finally { cdp.close(); await fake.close(); }
+  } finally { cdp?.close(); await fake.close(); }
 }
 
 // ── 1. the whole probe, end to end ──────────────────────────────────────────
@@ -566,11 +567,12 @@ test('a step that throws is recorded and the others still run', async () => {
   assert.ok(result.network.length >= 1, 'and so did the network part');
 });
 
-test('without capture.js the engine facts still come back', async () => {
+test('without capture.js the engine facts still come back', async (t) => {
   const fake = await startFakeCdp();
+  t.after(() => fake.close());
   const cdp = await connect(`ws://127.0.0.1:${fake.port}/devtools/page/1`);
   const result = await probe(cdp, { kitSource: null, pageHost: 'arena.ai', wait: 0, pause: async () => {} });
-  cdp.close(); await fake.close();
+  cdp.close();
   assert.equal(result.engine.site.id, 'arena');
   assert.equal(result.steps.find((s) => s.name === 'install-kit').ok, false);
   assert.equal(result.kitExport, undefined);

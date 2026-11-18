@@ -22,7 +22,6 @@
   var BLOB_PREFIX = '/__sd/blob/';
   var POOL = 6;
   var FETCH_TIMEOUT_MS = 180000;
-  var SANDBOX_TIMEOUT_MS = 32 * 60 * 1000;
 
   function bridge() { return window.AndroidBridge || null; }
 
@@ -626,14 +625,11 @@
     }
     return new Promise(function (resolve) {
       var id = 'f' + (++seq) + '_' + Math.random().toString(36).slice(2, 8);
-      // Sandbox commands may legitimately run for up to 30 minutes; the
-      // native side always answers (it enforces the command's own timeout).
-      var ms = /^sandbox/i.test(String((payload && payload.serverUrl) || '')) ? SANDBOX_TIMEOUT_MS : FETCH_TIMEOUT_MS;
       var timer = setTimeout(function () {
         if (!pending[id]) return;
         delete pending[id];
         resolve({ ok: false, error: 'Timed out waiting for AndroidBridge.fetch' });
-      }, ms);
+      }, FETCH_TIMEOUT_MS);
       pending[id] = function (reply) { clearTimeout(timer); resolve(reply); };
       try {
         b.fetchAsync(body, id);

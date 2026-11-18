@@ -3,7 +3,7 @@
 Runs the **real engine bundle** (the same files MainActivity injects, in the
 same order) inside a real headless Chromium against a fixture page that
 behaves like `chat.deepseek.com`, with a fake `AndroidBridge` and a scriptable
-Linux sandbox. This is the layer between the vm unit tests and the Android
+configured MCP server. This is the layer between the vm unit tests and the Android
 emulator: same engine code, real DOM, real timers, real fetch interception.
 
 ```bash
@@ -20,7 +20,7 @@ fail the run (CI report-job mode). Results land in
 | Real (unchanged engine code) | Modelled (fixture) |
 | --- | --- |
 | `sd-site.js`, `injected.js`, `content.css`, `our-skin.css`, `content.js`, `sd-native.js`, `sd-agent.js`, `sd-sheets.js`, `sd-health.js` | The `chat.deepseek.com` page: composer (`textarea#chat-input`), `div.ds-message` rows with the hashed classes (`._63c77b1`, `._4f9bf79._43c05b5`, `d29f3d7d`), streaming replies, send/stop toggle, `history_messages`/`fetch_page`, SPA navigation |
-| Prompt injection (`<SuperDeepSeek>` wrapper), token accounting (`bds:token-usage`), MCP tool loop, run-once gate, keep-going nudges, Continue task chip, scroll guard, quiet sends, slash command composer | The DeepSeek **API** (`/api/v0/chat/completion` etc.) — scripted SSE beats per scenario; the **AndroidBridge** — an in-page double that records every call and serves `sandbox` tool outputs |
+| Prompt injection (`<SuperDeepSeek>` wrapper), token accounting (`bds:token-usage`), MCP tool loop, run-once gate, keep-going nudges, Continue task chip, scroll guard, quiet sends, slash command composer | The DeepSeek **API** (`/api/v0/chat/completion` etc.) — scripted SSE beats per scenario; the **AndroidBridge** — an in-page double that records every call and serves fixture MCP tool outputs |
 
 > **⚠️ Fixture provenance:** the page is a *model* of the captured
 > `chat.deepseek.com` DOM, not a capture. Before this layer is trusted for
@@ -39,7 +39,7 @@ fail the run (CI report-job mode). Results land in
 | `scroll-guard` | A reader who scrolls up during streaming is **not pulled back to the bottom** |
 | `keep-going` | Automatic continuation stops after **2 nudges**, then the **Continue task** chip appears; tapping it lets the agent finish (the tap does not spend the budget) |
 | `slash-commands` | Typing `/` mounts the command popup and the command sheet; Enter runs a slash command through `sdRunCommand`; `window.__sdHandleBack` exists for native Back |
-| `settings-pages` | Settings overview lists the Linux & Agent row; the Linux card only appears on its own page *(needs a real-page capture — SKIPped)* |
+| `settings-pages` | Settings overview lists MCP and has no Linux page *(needs a real-page capture — SKIPped)* |
 | `themes` | Light/dark switches keep the engine healthy (`reportTheme`, both screenshots) |
 | `bidi-text` | A mostly-Arabic Arabic-leading paragraph renders RTL; a mixed Bengali/Arabic/English paragraph does not |
 | `sheets-drag` | Touch-dragging a sheet down 220 px closes it *(needs a real-page capture — SKIPped)* |
@@ -76,8 +76,7 @@ seam): `PASS keep-going`.
 
 `npm run test:harness:arena` runs the **real bundle** on `fixture/arena.html`.
 It never contacts arena.ai. Composer markup derives from the anonymous CI
-capture; message/sidebar markup and stream timing are **modelled**. The native
-sandbox is a recording test double, not Linux. It proves:
+capture; message/sidebar markup and stream timing are **modelled**. The configured MCP endpoint is a recording test double, not a real service. It proves:
 
 - default-off privacy reaches the final outgoing request;
 - native attach style reset, button replacement and toolbar relocation leave
@@ -93,8 +92,7 @@ sandbox is a recording test double, not Linux. It proves:
 The dedicated `Arena adapter integration` CI job is a failing gate, unlike
 the older report-only DeepSeek harness job. Screenshots are ignored artifacts.
 This does **not** prove live Arena protocol compatibility, real model compliance,
-lossless arguments after Markdown rendering, authenticated UI, or native Linux
-execution. Those are explicit next milestones in `docs/PLAN.md`.
+lossless arguments after Markdown rendering, authenticated UI, or Arena-hosted code execution.
 
 On a minimal Linux host without NSS, the bundled Chromium includes its libraries:
 

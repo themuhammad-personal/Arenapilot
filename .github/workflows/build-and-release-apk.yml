@@ -71,6 +71,7 @@ jobs:
           npm run test:template
           npm run test:engine
           npm run test:models
+          python3 -m unittest android/ci/test_startup.py
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Stage engine assets
@@ -84,15 +85,6 @@ jobs:
           cp models.json android/app/src/main/assets/models/models.json
           echo "=== Engine assets staged ==="
           ls -lh android/app/src/main/assets/bds/ android/app/src/main/assets/models/
-      - name: Install pinned NDK for sandbox runtime
-        run: sdkmanager 'ndk;27.2.12479018'
-      - name: Build required Linux sandbox runtime
-        # Use the same verified source/patch/NDK as the native emulator gate.
-        # A missing runtime is a build failure, not a silently disabled feature.
-        timeout-minutes: 10
-        run: |
-          python3 scripts/fetch_sandbox_deps.py --patched-proot
-          find android/app/src/main/jniLibs -type f -exec ls -l {} +
       - name: Make Gradle Wrapper Executable
         working-directory: android
         run: chmod +x ./gradlew
@@ -159,16 +151,8 @@ jobs:
             echo "Using the permanent release keystore (same key every build, so updates install over the old app)..."
             cp app/superdeepseek-release.jks ci-release.jks
           else
-            echo "Generating fallback release keystore..."
-            keytool -genkeypair -v \
-              -keystore ci-release.jks \
-              -alias superdeepseek \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 20000 \
-              -storepass superdeepseek \
-              -keypass superdeepseek \
-              -dname "CN=SuperDeepSeek, OU=Mobile, O=SuperDeepSeek, L=Dhaka, ST=Dhaka, C=BD"
+            echo "::error::Release signing key missing. Refusing to change the app's signing identity."
+            exit 1
           fi
           ls -la ci-release.jks
       - name: Build Android Release APK
@@ -179,7 +163,7 @@ jobs:
           # version, so the APK, the release tag and the updater never disagree.
           if ! ./gradlew --no-daemon assembleRelease \
                -PbdsBuildId=${{ github.run_number }} \
-               -PbdsVersionName="$(node -p "require('./package.json').version")" \
+               -PbdsVersionName="$(node -p "require('../package.json').version")" \
                2>&1 | tee /tmp/gradle-release.log; then
             grep -E '^e: |^w: .*(error)|FAILED|Error' /tmp/gradle-release.log | head -40 | while IFS= read -r line; do
               line="${line//'%'/'%25'}"; echo "::error::${line}"
@@ -190,13 +174,12 @@ jobs:
           BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD || 'superdeepseek' }}
           BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS || 'superdeepseek' }}
           BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD || 'superdeepseek' }}
-      - name: Verify the release APK sandbox payload
+      - name: Verify packaged runtime boundaries and startup metadata
         run: |
           set -euo pipefail
           mapfile -t apks < <(find android/app/build/outputs/apk -path "*/release/*.apk" ! -name '*unaligned*')
           [ "${#apks[@]}" -gt 0 ] || { echo "::error::Missing release APK"; exit 1; }
           for apk in "${apks[@]}"; do
-            python3 android/ci/sandbox_apk_check.py "$apk"
             python3 android/ci/startup_check.py "$apk" --aapt "$ANDROID_HOME/build-tools/34.0.0/aapt"
           done
       - name: Prepare APK and Compute Checksums
@@ -226,11 +209,13 @@ jobs:
           unzip -l "$APK_NAME" | grep -E "assets/bds/|lib/" | head -n 20
           echo "=== site profile in the APK (sd-site.js must be staged) ==="
           unzip -l "$APK_NAME" | grep -E "assets/bds/sd-site.js" || { echo "::error::sd-site.js missing from the APK"; exit 1; }
-          echo "=== Native libraries (sandbox) ==="
-          unzip -l "$APK_NAME" | grep -E "lib/.*\.so|assets/sandbox" || echo "::warning::APK has no sandbox runtime"
       - name: Verify APK Signature
         run: |
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose "${{ steps.prep.outputs.apk_path }}"
+          # Public certificate fingerprint from the last shipped v2.4.0 APK (versionCode 1352).
+          # A valid signature from a different key still cannot update an existing installation.
+          signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          "$signer" verify --verbose --print-certs "${{ steps.prep.outputs.apk_path }}" > /tmp/apk-cert.txt
+          grep -Fx 'Signer #1 certificate SHA-256 digest: ffdd6e6acd136fc2a955f6aa7be0df3c851c671caaffb8cbc53c3397e698383c' /tmp/apk-cert.txt
       - name: Upload ArenaPilot APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -361,17 +346,12 @@ jobs:
           mkdir -p android/app/src/main/assets
           rm -rf android/app/src/main/assets/bds
           cp -r android/app/src/main/bds-assets/bds android/app/src/main/assets/bds
-      - name: Install pinned NDK for Arena Linux compatibility runtime
-        run: sdkmanager 'ndk;27.2.12479018'
-      - name: Fetch required Arena sandbox runtime
-        timeout-minutes: 10
-        run: python3 scripts/fetch_sandbox_deps.py --patched-proot
       - name: Build debug APK
         working-directory: android
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon assembleDebug \
-            -PbdsVersionName="$(node -p "require('./package.json').version")" \
+            -PbdsVersionName="$(node -p "require('../package.json').version")" \
             -Dorg.gradle.jvmargs=-Xmx3g
       - name: Enable KVM
         run: |
@@ -395,10 +375,9 @@ jobs:
           # the [arena-live-probe] marker (workflow_dispatch stays the other
           # door; `gh workflow run` is owner-only). The marker makes every live
           # send auditable in git history: one push, one message, never a loop.
-          script: SMOKE_NATIVE_SANDBOX=1 ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
-      - name: Report native sandbox evidence
-        if: always()
-        run: node android/ci/sandbox-smoke.mjs --report
+          script: |
+            ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
+            cd android && ./gradlew --no-daemon connectedDebugAndroidTest
       - name: Report anonymous live message evidence
         if: always() && ((github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')))
         run: node android/ci/arena-live-smoke.mjs --report
@@ -439,7 +418,7 @@ jobs:
     # (then its cache, then the copy inside the APK). Separate from the versioned
     # APK release on purpose — a model shipping must not require a new app version.
     name: Publish the model list
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot') && ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[verify-only]')) || (github.event_name == 'workflow_dispatch' && inputs.publish))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -484,8 +463,8 @@ jobs:
     # channel) resolves to this build; the tag is fixed per version, so
     # re-publishing it just replaces the assets of the same release.
     name: Publish ArenaPilot Release
-    needs: build-apk
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot'
+    needs: [build-apk, arena-harness, emulator]
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/e90647be-arenapilot') && ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[verify-only]')) || (github.event_name == 'workflow_dispatch' && inputs.publish))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -517,11 +496,8 @@ jobs:
             সম্পর্ক নেই। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট ও শর্তাবলির অধীনেই এটি ব্যবহার করছেন।
 
             #### What is inside
-            - The ArenaPilot engine on top of arena.ai Direct Chat (Text, Code,
-              Search and Image pages): an AI agent with its own Linux sandbox
-              (run code, files, export results), projects, opt-in memory, MCP
-              tools and widgets, guided by an agent playbook (persist, verify,
-              work inside chat limits, resume from progress files)
+            - Project context, opt-in memory and configured MCP tools in supported Direct chats.
+              Code execution belongs to Arena; the APK contains no Linux runtime.
             - **+ menu file cards**: text-like files are delivered through the chat
               itself (every model receives them); images go through arena's own picker
             - Privacy defaults (v2): **app instructions are ON** (the tools and
@@ -535,7 +511,7 @@ jobs:
             - Verified on the real site by CI on every push: engine UI mounts, the
               **+** sheet opens with a real click, the settings drawer opens, and the
               engine can drive arena's composer (fill/clear — no message is sent)
-            - Verified on the fixture: full tool loop (assistant tag → sandbox →
+            - Verified on the fixture: full tool loop (assistant tag → configured MCP test double →
               result → follow-up) and widget rendering
             - The one thing CI does not do automatically: send a real message.
               That is the owner-run live probe (Actions → run workflow with

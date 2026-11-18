@@ -161,14 +161,14 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     // the Add to chat sheet's rows, all on top and finger-sized
     engineSheetFacts: { closed: true },
     // the sheet's two surfaces: the quick grid of tiles, then the "More tools"
-    // list, with the app's own Linux Studio / Settings cards last.
+    // list, with the app's own Settings card last.
     engineSheetRows: {
       present: true, count: 7, header: 'Add to chat', section: 'More tools',
       tiles: ['Files', 'Camera', 'Photos']
         .map((label, i) => ({ label, rect: [16 + i * 96, 120, 88, 96], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
       // "Add to chat" is the sheet's HEADER, not a row; Deep Research is its one
-      // switch. The app's own Linux Studio and Settings cards come last.
-      rows: ['Upload Folder', 'Attach Project', 'Linux Studio', 'Settings']
+      // switch. The app's own Settings card comes last.
+      rows: ['Upload Folder', 'Attach Project', 'Settings']
         .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
     },
     // inside the drawer: every page row, no DeepSeek-API row, a real check-up

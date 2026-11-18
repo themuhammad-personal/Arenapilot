@@ -41,16 +41,16 @@ const prompt = site.arenaPrompt;
 test('the base prompt carries the agent playbook', () => {
   assert.match(prompt, /AGENT PLAYBOOK/);
   for (const rule of [/Persist:/, /Evidence over memory/, /Plan, then act/, /Small verified steps/,
-    /Stay inside the chat limits/, /PLAN\.md \/ PROGRESS\.md/, /Finish honestly/]) {
+    /Stay inside the chat limits/, /Finish honestly/]) {
     assert.match(prompt, rule);
   }
 });
 
-test('the playbook sits between the working rules and the Linux/MCP section', () => {
+test('the playbook sits between the working rules and configured MCP instructions', () => {
   const rules = prompt.indexOf('WORKING RULES');
   const playbook = prompt.indexOf('AGENT PLAYBOOK');
-  const linux = prompt.indexOf('LINUX AND MCP');
-  assert.ok(rules >= 0 && rules < playbook && playbook < linux);
+  const mcp = prompt.indexOf('CONFIGURED MCP TOOLS');
+  assert.ok(rules >= 0 && rules < playbook && playbook < mcp);
 });
 
 test('the prompt stays model-neutral and keeps its safety rules', () => {
