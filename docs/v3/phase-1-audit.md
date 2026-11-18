@@ -21,7 +21,7 @@
 |---|---|---|
 | debug APK | 6,993,844 B | 6,839,234 B (−154,610) |
 | unit test (Gradle) | 323 পাস | build + test সফল (পুনর্গণনা হয়নি; ৪টি test ফাইল মোছায় সংখ্যা কমেছে) |
-| Text prompt ≈tok | 1631 | ≈ ১৭১৬ অক্ষর কম নয় — পুনর্মাপ বাকি (শুধু sandbox লাইন বাদ) |
+| inject prompt ≈token (আগে: Text 1631 · Code 1878 · Search 1803 · Image 0) | — | text 1535 | code 1756 | search 1670 | image 0 (`node scripts/v3-baseline-prompts.mjs`, স্টপ-গ্যাপের পর) |
 - release APK-র native lib (proot) আগে/পরে মাপা যায়নি (CI-তে যুক্ত হতো; এখন আর যুক্ত হয় না)।
 
 ## ৪. বাকি / ভাঙা (সৎ তালিকা)
