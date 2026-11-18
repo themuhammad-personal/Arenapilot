@@ -207,3 +207,12 @@ test('emulator gate: Code, Search and Image must be Direct with the right modali
   assert.deepEqual(modalityFailures(code, { composer: false }), [], 'a sign-in or challenge page is skipped, not failed');
   assert.deepEqual(modalityFailures(code, null), ['modality-webdev-unreadable']);
 });
+
+test('before the navigation observer runs, a previous chat config cannot decorate a new request',async()=>{
+  const p=boot({pathname:'/c/old',config:{...CFG,contextPath:'/c/old',activeProject:{name:'old-project',instructions:'private'}}});p.navigate('/c/new');
+  const body=JSON.stringify(turn('chat','untouched','new'));await p.win.fetch(CREATE,{method:'POST',headers:PLAIN,body});assert.equal(p.sent[0].init.body,body);
+});
+test('a mismatched conversation id cannot receive project context even at the same URL',async()=>{
+  const p=boot({pathname:'/c/current',config:{...CFG,contextPath:'/c/current',activeProject:{name:'current',instructions:'private'}}});
+  const body=JSON.stringify(turn('chat','untouched','other'));await p.win.fetch(CREATE,{method:'POST',headers:PLAIN,body});assert.equal(p.sent[0].init.body,body);
+});

@@ -30,6 +30,7 @@ async function send(text) {
 try {
   await page.goto('https://arena.ai/c/fixture');
   await reinstallBridge(page);
+  await page.evaluate(()=>{window.__harness.bridge.store.bds_projects=JSON.stringify([{id:'harness-project',name:'Ledger',customInstructions:'TEST_LEDGER_ONLY'}]);});
   await installEngine(page);
   await wait(() => document.querySelector('.bds-plus-btn'));
   await wait(() => document.querySelector('#bds-settings-rail')?.dataset.dock === 'sheet');
@@ -487,6 +488,15 @@ try {
   assert.equal(openedFromSettingsCard.drawerOpen, true, 'the existing Settings drawer opens from the card');
   assert.equal(openedFromSettingsCard.sheetVisible, false, 'the Add to chat sheet closes before Settings opens');
   assert.equal(openedFromSettingsCard.sidebarRows, 0, 'opening Settings never restores a sidebar row');
+  stage = 'project-membership-in-real-drawer';
+  const projectPicker='#bds-drawer select[aria-label="Active project"]';
+  await page.waitForSelector(projectPicker,{visible:true,timeout:6000});
+  await page.select(projectPicker,'harness-project');
+  await wait(()=>JSON.parse(window.AndroidBridge.getStorage('bds_projects')).some(p=>p.conversations?.some(c=>c.id==='fixture')));
+  assert.equal(await page.$eval('#bds-drawer nav a[href="/c/fixture"]',a=>a.textContent.includes('fixture')),true);
+  await page.select(projectPicker,'');
+  await wait(()=>JSON.parse(window.AndroidBridge.getStorage('bds_projects')).every(p=>!p.conversations?.length));
+  console.log('PASS project selection and detachment update the actual store and conversation list through the drawer');
   await shot(page, 'arena-settings-open');
   await page.evaluate(() => window.__sdHandleBack());
   await page.waitForSelector('.bds-drawer-backdrop', { hidden: true });
