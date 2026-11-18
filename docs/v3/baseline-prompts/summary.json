@@ -1,0 +1,30 @@
+{
+  "arenaPromptChars": 6496,
+  "arenaPromptTokens": 1624,
+  "modes": [
+    {
+      "mode": "text",
+      "modality": "chat",
+      "chars": 6523,
+      "tokens": 1631
+    },
+    {
+      "mode": "code",
+      "modality": "webdev",
+      "chars": 7512,
+      "tokens": 1878
+    },
+    {
+      "mode": "search",
+      "modality": "search",
+      "chars": 7211,
+      "tokens": 1803
+    },
+    {
+      "mode": "image",
+      "modality": "image",
+      "chars": 0,
+      "tokens": 0
+    }
+  ]
+}
