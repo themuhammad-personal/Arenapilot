@@ -138,6 +138,25 @@ dependency_kill_evidence() {
     | grep -aiE 'reason=12|depends on provider|DEPENDENCY DIED' >/dev/null 2>&1
 }
 
+# Only downgrade the *initial second-boot observation*, and only for the exact
+# process we started. Old exit records, unknown providers and renderer deaths
+# remain failures, even if a diagnostic relaunch later happens to be alive.
+matching_provider_restart() {
+  python3 - "$OUT/launch-2-started-pid.txt" "$OUT/second-boot-exit-info.txt" "$PKG" <<'PYREASON'
+import pathlib, re, sys
+pid = pathlib.Path(sys.argv[1]).read_text().strip()
+if not re.fullmatch(r'[1-9]\d*', pid): sys.exit(1)
+rows = re.split(r'ApplicationExitInfo #\d+:', pathlib.Path(sys.argv[2]).read_text(errors='replace'))[1:]
+for record in rows:
+    if not re.search(r'(?m)^\s*process=' + re.escape(sys.argv[3]) + r'\s', record): continue
+    ok = (re.search(r'\bpid=' + pid + r'\s', record) and
+          'reason=12 (DEPENDENCY DIED)' in record and
+          'depends on provider com.google.android.gms/.fonts.provider.FontsProvider in dying proc com.google.android.gms.persistent ' in record)
+    sys.exit(0 if ok else 1)  # newest host-process record, never an older one
+sys.exit(1)
+PYREASON
+}
+
 alive() {
   local pid
   pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')
@@ -162,8 +181,14 @@ snapshot_launch() {
   if [[ "$pid" =~ ^[0-9]+([[:space:]][0-9]+)*$ ]]; then
     echo "::notice::ArenaPilot $phase: process alive (pid=$pid)"
   else
-    echo "::error::ArenaPilot $phase: app process is not alive; exit-info and launch logs saved"
-    STATUS=1
+    local level=error
+    if [ "$phase" = second-boot ] && matching_provider_restart; then
+      level=warning
+      MUST_RETRY_PROVIDER=1
+    else
+      STATUS=1
+    fi
+    echo "::$level::ArenaPilot $phase: app process is not alive; exit-info and launch logs saved"
     # WHY it died, inline (annotations are the readable channel; artifacts
     # need a download): the exit-info reason plus any fatal/crash tail,
     # capped and masked.
@@ -176,7 +201,7 @@ snapshot_launch() {
     local body=""
     [ -n "$why" ] && body="exit-info: $why"
     [ -n "$fatal" ] && body="${body:+$body || }fatal: $fatal"
-    [ -n "$body" ] && echo "::error::ArenaPilot $phase death evidence: $(printf '%s' "$body" | sed ':a;N;$!ba;s/\n/%0A/g' | cut -c1-3000)"
+    [ -n "$body" ] && echo "::$level::ArenaPilot $phase death evidence: $(printf '%s' "$body" | sed ':a;N;$!ba;s/\n/%0A/g' | cut -c1-3000)"
   fi
 }
 
@@ -238,7 +263,9 @@ fi
 echo "== second launch (the notice must not return) =="
 snapshot_launch first-end
 adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
+MUST_RETRY_PROVIDER=0
 launch
+adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' > "$OUT/launch-2-started-pid.txt" || true
 sleep "$BOOT_WAIT"
 snapshot_launch second-boot
 # A boot the SYSTEM ended is retried; a crash we caused is not.
@@ -249,7 +276,7 @@ snapshot_launch second-boot
 #     (reason=12 "dependency died"), which is an emulator infrastructure flake,
 #     not this app's defect. Neither is quietly forgiven: both are reported, and
 #     a boot that never came back still fails the run.
-if ! alive && { renderer_kill_evidence || dependency_kill_evidence; }; then
+if [ "$MUST_RETRY_PROVIDER" = 1 ] || { ! alive && { renderer_kill_evidence || dependency_kill_evidence; }; }; then
   echo "::warning::the system ended the app or its renderer on the second launch — relaunching once"
   echo "::notice::ArenaPilot: the system (not the app) ended the second launch; relaunched once"
   # Write the dead boot's pid file as well: it is evidence that the app was
@@ -262,7 +289,9 @@ fi
 SECOND_EVIDENCE="$OUT/${LAST_SNAPSHOT_PHASE:-second-boot}-pid.txt"
 if [ -s "$SECOND_EVIDENCE" ] && grep -qE "[0-9]" "$SECOND_EVIDENCE" && dump2=$(ui_dump); then
   printf '%s' "$dump2" > "$OUT/ui-second.xml"
-  if grep -q "$NOTICE_TEXT" <<<"$dump2"; then
+  if ! grep -Fq "package=\"$PKG\"" <<<"$dump2"; then
+    echo "::error::the resumed window is not the app; persistence unverified"; STATUS=1
+  elif grep -q "$NOTICE_TEXT" <<<"$dump2"; then
     echo "::error::the notice came back on the second launch — 'seen' was not persisted"; STATUS=1
   else
     echo "no notice on the second launch"
@@ -289,7 +318,7 @@ fi
 # A UiAutomation helper can crash while the APK is healthy. Attribute fatal
 # records by process identity/PID rather than failing on every global FATAL.
 if ! python3 android/ci/crash_check.py "$OUT/logcat.txt" "$PKG" \
-    --pid-file "$OUT/first-boot-pid.txt" --pid-file "$OUT/second-boot-pid.txt" --pid-file "$OUT/pid.txt"; then
+    --pid-file "$OUT/first-boot-pid.txt" --pid-file "$OUT/launch-2-started-pid.txt" --pid-file "$OUT/second-boot-pid.txt" --pid-file "$OUT/pid.txt"; then
   STATUS=1
 fi
 

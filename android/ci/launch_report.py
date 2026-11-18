@@ -16,7 +16,7 @@ def clean(text):
 def summarize(folder, package):
     folder = pathlib.Path(folder)
     result = []
-    for phase in ['first-boot', 'first-end', 'second-boot']:
+    for phase in ['first-boot', 'first-end', 'second-boot', 'second-boot-retry']:
         read = lambda suffix: (folder / f'{phase}-{suffix}.txt').read_text(errors='replace') if (folder / f'{phase}-{suffix}.txt').exists() else ''
         pid = read('pid').strip()
         if not pid and not read('exit-info'):

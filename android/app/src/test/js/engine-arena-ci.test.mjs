@@ -70,22 +70,25 @@ case "$cmd" in
           echo "$*" >> "$S/am-start"
           rm -f "$S/dismissed"
           if [ -f "$S/start-fails" ]; then echo "Error: launch failed"; exit 1; fi
-          if [ "$n" = "2" ] && [ -f "$S/second-dead" ]; then touch "$S/dead"; fi
+          if [ "$n" = "2" ] && [ -f "$S/second-dead" ]; then touch "$S/dead" "$S/just-started"; fi
           # A relaunch starts a FRESH process: when the world says the retry comes
           # back (the real device does), the dead mark is cleared again.
           if [ -f "$S/recover-on-relaunch" ] && [ "$n" -ge 3 ]; then rm -f "$S/dead"; fi
           echo "Status: ok"
         fi
         exit 0 ;;
-      pidof) if [ -f "$S/dead" ]; then exit 1; fi; echo 4242; exit 0 ;;
+      pidof) if [ -f "$S/just-started" ]; then rm "$S/just-started"; echo 5353; exit 0; fi; if [ -f "$S/dead" ]; then exit 1; fi; echo 4242; exit 0 ;;
       dumpsys)
         if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/renderer-kill" ]; then
           echo "  process=com.google.android.webview:sandboxed_process0 reason=13 (OTHER KILLS BY SYSTEM)"
           echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED)"
         fi
         if [ "$1" = "activity" ] && [ "$2" = "exit-info" ] && [ -f "$S/dependency-kill" ]; then
-          echo "  process=com.arenadeck.app reason=12 (DEPENDENCY DIED) subreason=0 (UNKNOWN)"
-          echo "  Killing 5353:com.arenadeck.app/u0a192 (adj 0): depends on provider com.google.android.gms/.fonts.provider.FontsProvider in dying proc com.google.android.gms.persistent"
+          echo "        ApplicationExitInfo #1:"
+          p=5353; if [ -f "$S/stale-exit" ]; then p=1111; fi
+          echo "          timestamp=2026-11-18 15:33:48.150 pid=$p realUid=10192"
+          echo "          process=com.arenadeck.app reason=12 (DEPENDENCY DIED) subreason=0 (UNKNOWN)"
+          echo "          description=depends on provider com.google.android.gms/.fonts.provider.FontsProvider in dying proc com.google.android.gms.persistent (adj -10000)"
         fi
         exit 0 ;;
       input)
@@ -168,6 +171,7 @@ function runSmoke(world = {}) {
     ["tapDoesNothing", "tap-does-nothing"],
     ["startFails", "start-fails"],
     ["secondDead", "second-dead"],
+    ["staleExit", "stale-exit"],
     ["dead", "dead"],
     ["uiBroken", "ui-broken"],
     ["forwardFails", "forward-fails"],
@@ -389,10 +393,17 @@ test("ArenaPilot: a dead dependency is retried, and the retry is the boot that c
     "the relaunch is the boot whose UI must be read");
   assert.doesNotMatch(r.out, /persistence unverified/,
     "a successful relaunch must not be reported as unverified");
-  // The DEAD attempt is still reported as an error on its own line (evidence,
-  // never silence); what must not survive is the run's verdict.
+  assert.equal(r.code, 0, r.out);
+  // The external kill is preserved; only the narrowly attributed case may recover.
   assert.doesNotMatch(r.out, /app process is not alive after launch/,
     "a boot that came back is alive at the end of the run");
+});
+
+test("old provider records and an independent failed gate cannot be forgiven by a healthy retry", () => {
+  const recovered = {noticeFirst:true, secondDead:true, dependencyKill:true, recoverOnRelaunch:true};
+  for (const bad of [{staleExit:true}, {apkCheckExit:1}, {crash:true}, {noticeAgain:true}]) {
+    const r = runSmoke({...recovered,...bad}); assert.equal(r.code,1,r.out);
+  }
 });
 
 test("ArenaPilot: a second boot that dies without system evidence is still a failure", () => {
