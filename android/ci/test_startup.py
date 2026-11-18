@@ -17,7 +17,7 @@ class PackagingAndLaunchTest(unittest.TestCase):
         assets = ['assets/bds/sandbox.html', 'assets/bds/sandbox.js', 'assets/bds/sd-site.js']
         self.assertEqual(check_entries(assets), [])
         self.assertTrue(check_entries(assets[1:]))
-        for retired in ['assets/sandbox/rootfs.json', 'lib/x86_64/libproot.so', 'lib/arm64-v8a/libproot-loader.so', 'lib/x86/libtalloc.so']:
+        for retired in ['assets/sandbox/rootfs.json', 'lib/x86_64/libproot.so', 'lib/arm64-v8a/libproot-loader.so', 'lib/x86/libtalloc.so', 'lib/arm64-v8a/libandroid-shmem.so']:
             self.assertTrue(check_entries(assets + [retired]))
 
     def test_launch_report_preserves_phase_and_ignores_console_and_exit_descriptions(self):

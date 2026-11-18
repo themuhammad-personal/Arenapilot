@@ -576,3 +576,17 @@ test('no implicit server or device controls; continue preference keeps its v2 ke
   win.__sdAgent.setAutoContinue(true);
   assert.equal(win.AndroidBridge.getStorage('sd_agent_autocontinue'), '1');
 });
+
+
+test('a trusted resume does not undo the Stop that invalidated the pending bridge dispatch', async () => {
+  const {win,calls,fire} = load();
+  const msg = {type:'bds-mcp-call',serverUrl:'fixture',toolName:'lookup',args:{}};
+  const old = win.__sdBridgeFetch(msg);
+  win.__sdAgent.stop(true);
+  fire('input',{isTrusted:true, target:{closest: sel => sel.startsWith('textarea') ? {} : null}});
+  assert.equal(win.__sdAgentStopped, false);
+  assert.equal((await old).ok, false);
+  assert.equal(calls.length, 0);
+  assert.equal((await win.__sdBridgeFetch(msg)).ok, true);
+  assert.equal(calls.length, 1);
+});

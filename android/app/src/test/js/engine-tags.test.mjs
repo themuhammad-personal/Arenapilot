@@ -271,9 +271,9 @@ function sendLoop(page) {
   const src = consts.map((n) => `var ${n}=${/=(.*)/.exec(DECLS.get(n).replace(/;$/, ''))[1]};`).join('')
     + DECLS.get('sdComposerValue') + DECLS.get('OW') + ';this.OW=OW;';
   vm.runInContext(src, ctx);
-  const run = async (maxMs = 130000) => {
+  const run = async (maxMs = 130000, allowed) => {
     let result;
-    ctx.OW('test').then((r) => { result = r; });
+    ctx.OW('test', allowed).then((r) => { result = r; });
     while (result === undefined && clock.now < maxMs) {
       clock.timers.sort((x, y) => x.at - y.at);
       const t = clock.timers.shift();
@@ -348,4 +348,22 @@ test('every automatic send path is quiet', () => {
 
 test('the prompt keeps tool work out of LONG_WORK', () => {
   assert.match(CONTENT, /Never wrap tool calls in LONG_WORK/);
+});
+
+
+test('guarded composer retries never send from a replacement chat or a changed user draft', async () => {
+  for (const change of ['scope','composer','draft']) {
+    let alive = true, clicks = 0;
+    const page = { composer: composer('old result'), uploading: false,
+      button: {disabled:true, querySelector:()=>null, click:()=>{clicks++;}} };
+    const loop = sendLoop(page);
+    loop.clock.timers.push({at:700, fn:()=>{
+      if (change === 'scope') alive = false;
+      else if (change === 'composer') page.composer = composer('old result');
+      else page.composer.value = 'my new draft';
+      page.button.disabled = false;
+    }});
+    const {result} = await loop.run(20000, () => alive);
+    assert.equal(result.reason, 'obsolete', change); assert.equal(clicks, 0, change);
+  }
 });

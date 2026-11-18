@@ -229,6 +229,9 @@
   function beginCall(payload) {
     // Nudges are counted per instruction of the user, not per tool call: a
     // model that answers a nudge by redoing work must not earn new nudges.
+    var scope = taskScope();
+    if (scope !== state.scope) { state.pending = 0; flow.base = flow.calls; flow.nudges = 0; }
+    state.scope = scope;
     flow.calls++;
     state.pending++;
     state.active = true;
@@ -238,7 +241,8 @@
     ensurePoll();
   }
 
-  function endCall() {
+  function endCall(scope) {
+    if (scope !== state.scope) return;
     state.pending = Math.max(0, state.pending - 1);
     state.lastActivity = Date.now();
     render();
@@ -274,6 +278,8 @@
 
   function stopAgent(silent) {
     window.__sdAgentStopped = true;
+    window.__sdAgentStopEpoch = (window.__sdAgentStopEpoch || 0) + 1;
+    flow.timers.forEach(clearTimeout); flow.timers = [];
     clearTimeout(recover.timer); recover.pending = false;
     if (directTools()) clickOfficialStop();
     state.active = false;
@@ -522,36 +528,46 @@
       'If the task is complete, reply with one short line saying so and no tool call. Never repeat work that is already done.';
   }
 
-  function sendNudge(body, countBudget) {
-    var e = window.__sdEngine;
-    if (!directTools() || !e || typeof e.sendQuiet !== 'function') return;
-    // A user-tapped Continue never spends the automatic keep-going budget.
-    if (countBudget !== false) flow.nudges++;
-    e.sendQuiet(['<ArenaPilot>', '[APH:AUTO] Agent continue', body, '</ArenaPilot>'].join('\n'), 'Agent continue');
+  // Capture this before scheduling work, not when its callback eventually fires.
+  function taskScope() {
+    if (window.__sdAgentStopped || !directTools()) return null;
+    return String(location.href || '').split(/[?#]/)[0] + '|' +
+      (onArena() ? window.__sdSite.arenaModality() : '') + '|' + (window.__sdAgentStopEpoch || 0);
   }
 
-  function maybeNudge(callsAtEnd) {
-    if (recover.pending) return;
+  function sendNudge(body, countBudget) {
+    var e = window.__sdEngine;
+    var origin = taskScope();
+    if (!origin || !e || typeof e.sendQuiet !== 'function') return;
+    // A user-tapped Continue never spends the automatic keep-going budget.
+    if (countBudget !== false) flow.nudges++;
+    e.sendQuiet(['<ArenaPilot>', '[APH:AUTO] Agent continue', body, '</ArenaPilot>'].join('\n'), 'Agent continue', function () { return origin === taskScope(); });
+  }
+
+  function maybeNudge(callsAtEnd, origin) {
+    if (!origin || origin !== taskScope() || recover.pending) return;
     if (flow.calls !== callsAtEnd || flow.nudges >= MAX_NUDGES || window.__sdAgentStopped || !autoContinue()) return;
     // Only inside a task the agent works on for the current instruction.
-    if (flow.calls === flow.base) return;
+    if (flow.calls === flow.base || state.scope !== origin) return;
     if (state.pending || mcpPending || generating()) return;
     var sid = sessionId();
     if (!sid || !directTools()) return;
     requestHistory(sid).then(function (messages) {
-      if (sid !== sessionId() || !directTools() || flow.calls !== callsAtEnd || window.__sdAgentStopped || state.pending || mcpPending || generating()) return;
+      if (origin !== taskScope() || sid !== sessionId() || flow.calls !== callsAtEnd || window.__sdAgentStopped || state.pending || mcpPending || generating()) return;
       var body = nudgeFor(messages);
       if (body) sendNudge(body);
     });
   }
 
   function onReplyEnd() {
-    if (!directTools()) return;
+    var origin = taskScope();
+    if (!origin) return;
     var callsAtEnd = flow.calls;
-    REPROCESS_AT.forEach(function (ms) { flow.timers.push(setTimeout(reprocess, ms)); });
-    flow.timers.push(setTimeout(function () { maybeNudge(callsAtEnd); }, NUDGE_AT));
+    function later(f, ms) { flow.timers.push(setTimeout(function () { if (origin === taskScope()) f(); }, ms)); }
+    REPROCESS_AT.forEach(function (ms) { later(reprocess, ms); });
+    later(function () { maybeNudge(callsAtEnd, origin); }, NUDGE_AT);
     // After the automatic path has had its chance, offer the human one.
-    flow.timers.push(setTimeout(function () { maybeOfferContinue(); }, NUDGE_AT + 1500));
+    later(maybeOfferContinue, NUDGE_AT + 1500);
   }
 
   // ── Recovery: a server error or a cut-off reply must not end the task ───────
@@ -674,14 +690,15 @@
     sendNudge(recoveryBody(kind, d), false);
   }
 
-  function recoveryScope() { return location.href + '|' + window.__sdSite.arenaModality(); }
+  function recoveryScope() { return taskScope(); }
 
   function scheduleRecovery(kind, d) {
     if (recover.pending) return;
     if (kind === 'empty') {
       toast(t('Arena returned an empty reply. Tap Continue (or send "continue") to retry.',
         'Arena খালি উত্তর দিয়েছে। আবার চেষ্টা করতে Continue চাপুন (বা "continue" পাঠান)।'));
-      setTimeout(function () { maybeOfferContinue(); }, 1500);
+      var atEmpty = taskScope();
+      setTimeout(function () { if (atEmpty === taskScope()) maybeOfferContinue(); }, 1500);
       return;
     }
     if (kind === 'fatal') {
@@ -765,9 +782,15 @@
 
   function watchReplies() {
     var lastSig = threadSig();
-    var lastGrow = 0;
+    var lastGrow = 0, lastScope = taskScope();
     setInterval(function () {
-      if (!directTools()) {
+      var scope = taskScope();
+      if (lastScope !== scope) {
+        lastScope = scope; lastSig = threadSig(); lastGrow = 0; lastEndSig = lastSig;
+        flow.was = false; hideContinueChip();
+        if (chip) chip.hidden = true;
+      }
+      if (!scope) {
         if (flow.timers.length) { flow.timers.forEach(clearTimeout); flow.timers = []; }
         hideContinueChip();
         if (chip) chip.hidden = true;
@@ -792,8 +815,11 @@
       // injected.js fires this when a completion response ends — the most
       // reliable end-of-reply signal on the real page.
       window.addEventListener('bds:token-usage', function () {
-        setTimeout(checkReplyEnd, 600);
-        var late = setTimeout(checkReplyEnd, 1800);
+        var scope = taskScope();
+        if (!scope) return;
+        function check() { if (scope === taskScope()) checkReplyEnd(); }
+        setTimeout(check, 600);
+        var late = setTimeout(check, 1800);
         if (late && typeof late.unref === 'function') late.unref();
       });
     } catch (_) {}
@@ -843,7 +869,7 @@
   }
 
   var continueChip = null;
-  var continueKind = null;
+  var continueKind = null, continueScope = null;
 
   function ensureContinueChip() {
     if (continueChip && document.body && document.body.contains(continueChip)) return continueChip;
@@ -866,9 +892,9 @@
     btn.textContent = t('Continue task', 'কাজ চালিয়ে যান');
     btn.addEventListener('click', function (ev) {
       ev.preventDefault(); ev.stopPropagation();
-      var kind = continueKind;
+      var kind = continueKind, current = continueScope === taskScope();
       hideContinueChip();
-      if (kind && !window.__sdAgentStopped) sendNudge(continueBody(kind), false);
+      if (kind && current && !window.__sdAgentStopped) sendNudge(continueBody(kind), false);
     });
     var x = document.createElement('button');
     x.type = 'button';
@@ -884,13 +910,13 @@
   }
 
   function showContinueChip(kind) {
-    continueKind = kind;
+    continueKind = kind; continueScope = taskScope();
     var c = ensureContinueChip();
     if (c) c.hidden = false;
   }
 
   function hideContinueChip() {
-    continueKind = null;
+    continueKind = null; continueScope = null;
     var c = document.getElementById && document.getElementById('sd-continue-chip');
     if (c) c.hidden = true;
   }
@@ -902,10 +928,10 @@
     // live signals — not the recency flag.
     if (!directTools() || window.__sdAgentStopped || state.pending > 0 || mcpPending) return;
     if (generating()) return;
-    var sid = sessionId();
-    if (!sid || !directTools()) return;
+    var sid = sessionId(), scope = taskScope();
+    if (!sid || !scope) return;
     requestHistory(sid).then(function (messages) {
-      if (sid !== sessionId() || !directTools() || !messages || window.__sdAgentStopped || state.pending > 0 || mcpPending) return;
+      if (scope !== taskScope() || sid !== sessionId() || !messages || window.__sdAgentStopped || state.pending > 0 || mcpPending) return;
       if (generating()) return;
       var kind = lastTaskStall(messages);
       if (kind) showContinueChip(kind);
@@ -990,7 +1016,7 @@
     if (!directTools()) { if (chip) chip.hidden = true; return; }
     var c = ensureChip();
     if (!c) return;
-    c.hidden = !state.active;
+    c.hidden = !state.active || state.scope !== taskScope();
     var label = c.querySelector('.sd-label');
     if (label) label.textContent = state.pending > 0 ? state.label : t('Agent is working…', 'এজেন্ট কাজ করছে…');
   }
@@ -1241,8 +1267,12 @@
           if (!directTools() || window.__sdAgentStopped || !configured(payload.serverUrl)) {
             return Promise.resolve({ ok: false, error: 'MCP tool call is not enabled here.' });
           }
+          var scope = taskScope();
           beginCall(payload);
-          return trackMcp(Promise.resolve().then(function () { return inner(payload); })).finally(endCall);
+          return trackMcp(Promise.resolve().then(function () {
+            if (scope !== taskScope() || !configured(payload.serverUrl)) return { ok: false, error: 'MCP call cancelled.' };
+            return inner(payload);
+          })).finally(function () { endCall(scope); });
         }
         return inner(payload);
       };

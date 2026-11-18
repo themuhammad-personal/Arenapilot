@@ -158,3 +158,35 @@ test('a pending result and remaining batch calls stay in their originating Direc
     assert.deepEqual(calls, ['first']); assert.deepEqual(sent, []);
   }
 });
+
+
+test('Stop then resume cannot deliver the old response or start its sibling, but new work runs', async () => {
+  const {ctx, sent, calls} = setup();
+  let started, finish;
+  const waiting = new Promise(r => { started = r; });
+  ctx.chrome.runtime.sendMessage = (m, cb) => {
+    calls.push(m.toolName);
+    if (m.toolName === 'slow') { finish = cb; started(); }
+    else cb({ok:true, result:{text:'new task'}});
+  };
+  const old = Promise.all([ctx.nCe('fixture','slow',{}), ctx.nCe('fixture','obsolete',{})]);
+  await waiting;
+  ctx.__sdAgentStopped = true; ctx.__sdAgentStopEpoch = 1;
+  ctx.__sdAgentStopped = false;
+  const next = ctx.nCe('fixture','current',{});
+  finish({ok:true,result:{text:'old task'}});
+  await Promise.all([old, next]);
+  assert.deepEqual(calls, ['slow','current']);
+  assert.deepEqual(sent.map(x => blocks(x.text)[0].toolName), ['current']);
+});
+
+test('two Direct conversations may independently use the same server, tool and arguments', async () => {
+  const {ctx, sent, calls} = setup();
+  for (const thread of ['/c/one','/c/two']) {
+    ctx.location.pathname = thread;
+    await ctx.nCe('fixture','lookup',{q:'same'});
+    await ctx.nCe('fixture','lookup',{q:'same'});
+  }
+  assert.deepEqual(calls, ['lookup','lookup']);
+  assert.equal(sent.length, 2);
+});

@@ -237,3 +237,13 @@ test('a delayed retry cannot send or show a recovery toast in Image, Battle, or 
     assert.equal(sent.length, 0); assert.equal(toasts.length, 0);
   }
 });
+
+
+test('a delayed retry cannot move from one valid Direct conversation to another', async () => {
+  const {win,turn,sent} = load();
+  turn({...OK,finishReason:'length'});
+  win.location.href = 'https://arena.ai/c/another';
+  await wait(80); assert.equal(sent.length, 0);
+  turn({...OK,finishReason:'length'});
+  await wait(80); assert.equal(sent.length, 1, 'a fresh retry in the new conversation still works');
+});
