@@ -882,7 +882,7 @@ class WebViewBridge(
             if (engineStore.has(key)) engineStore.remove(key)
             prefs.edit().putString(key, v).apply()
         }
-        if (key == McpClient.STORE) mcp.reconcile()
+        if (key == McpClient.STORE) { permissions.revoke(); mcp.reconcile() }
     }
 
     @JavascriptInterface
@@ -891,7 +891,7 @@ class WebViewBridge(
         if (key.isNullOrEmpty()) return
         engineStore.remove(key)
         prefs.edit().remove(key).apply()
-        if (key == McpClient.STORE) mcp.reconcile()
+        if (key == McpClient.STORE) { permissions.revoke(); mcp.reconcile() }
     }
 
     @JavascriptInterface
@@ -1115,8 +1115,10 @@ class WebViewBridge(
         val id = sanitizeCallbackId(callbackId)
         if (id.isEmpty()) return
         ioExecutor.execute {
-            val result = fetch(payloadJson)
-            postScript(buildBridgeReplyScript(id, result, blobs))
+            val reply: (String) -> Unit = { result -> postScript(buildBridgeReplyScript(id, result, blobs)) }
+            val p = runCatching { JSONObject(payloadJson ?: "{}") }.getOrNull()
+            if (p?.optString("type") == "bds-mcp-authorize") authorizeMcp(p) { reply(it.toString()) }
+            else reply(fetch(payloadJson))
         }
     }
 
@@ -1155,7 +1157,7 @@ class WebViewBridge(
                 "bds-fetch-github-zip" -> handleFetchGithubZip(payload, response)
                 "bds-fetch-github-commits" -> handleFetchGithubCommits(payload, response)
                 "bds-mcp-list-tools" -> return mcp.request(payload, listing = true).toString()
-                "bds-mcp-call" -> return mcp.request(payload, listing = false).toString()
+                "bds-mcp-call" -> return if (permissions.consume(payload)) mcp.request(payload, listing = false).toString() else permissionDenied().toString()
                 "bds-get-youtube-transcript" -> handleYoutubeTranscript(payload, response)
                 // The model list the site's picker reads. Native because it is a
                 // release asset of THIS repo, not a page URL; see ModelList.kt.
@@ -1724,6 +1726,28 @@ class WebViewBridge(
         if (rateLimited) {
             response.put("rateLimited", true)
         }
+    }
+
+    private val permissions = McpPermissions()
+    internal var askMcp: ((JSONObject, (Boolean) -> Unit) -> Unit)? = null
+    internal fun revokeMcp() = permissions.revoke()
+    private fun permissionDenied() = JSONObject().put("ok", false).put("code", "permission")
+        .put("error", "Blocked: this MCP call needs your approval.")
+    internal fun authorizeMcp(p: JSONObject, done: (JSONObject) -> Unit) {
+        val epoch = permissions.epoch()
+        if (!trustedPage || askMcp == null) { done(permissionDenied()); return }
+        val review = mcp.review(p)
+        if (!review.optBoolean("ok")) { done(review); return }
+        val once = java.util.concurrent.atomic.AtomicBoolean()
+        val decide: (Boolean) -> Unit = { allow ->
+            if (once.compareAndSet(false, true)) {
+                val token = if (allow && trustedPage) permissions.grant(p, epoch) else null
+                done(if (token == null) permissionDenied() else JSONObject().put("ok", true).put("approval", token))
+            }
+        }
+        val ask = askMcp
+        if (ask == null || epoch != permissions.epoch()) decide(false)
+        else runCatching { ask(review, decide) }.onFailure { decide(false) }
     }
 
     // Persisted configuration is the authority, not a URL or API key in page JSON.

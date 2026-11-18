@@ -145,7 +145,11 @@ export function fakeBridgeSource({ locale = 'en-US' } = {}) {
             return { name: n, description: n, inputSchema: { type: 'object', properties: {} } };
           }) });
       }
+      if (payload.type === 'bds-mcp-authorize') {
+        return JSON.stringify(H.denyMcp ? {ok:false, code:'permission', error:'Denied by fixture user'} : {ok:true, approval:'fixture-once'});
+      }
       if (payload.type === 'bds-mcp-call') {
+        if (payload.approval !== 'fixture-once') return JSON.stringify({ok:false,code:'permission',error:'No fixture approval'});
         var args = payload.args || {};
         return JSON.stringify({ ok: true, result: { content: [{ type: 'text', text: mcpResult(payload.toolName, args) }] } });
       }

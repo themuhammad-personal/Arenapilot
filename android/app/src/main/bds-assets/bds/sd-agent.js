@@ -1263,6 +1263,10 @@
     var inner = window.__sdBridgeFetch;
     if (typeof inner === 'function' && !inner.__sdAgentWrapped) {
       var wrapped = function (payload) {
+        if (payload && payload.type === 'bds-mcp-authorize' &&
+            (!directTools() || window.__sdAgentStopped || !configured(payload.serverUrl))) {
+          return Promise.resolve({ok:false, code:'permission', error:'MCP approval is unavailable here.'});
+        }
         if (payload && payload.type === 'bds-mcp-call') {
           if (!directTools() || window.__sdAgentStopped || !configured(payload.serverUrl)) {
             return Promise.resolve({ ok: false, error: 'MCP tool call is not enabled here.' });

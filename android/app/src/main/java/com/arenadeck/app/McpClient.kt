@@ -54,7 +54,22 @@ internal class McpClient(client: OkHttpClient, private val settings: () -> Strin
         if (key.isNotEmpty() && !target.isHttps) fail("url", "Use HTTPS for an MCP API key.")
         sessions[url]?.takeIf { matches(it, row) } ?: Connection(row.getString("id"), url, key).also { sessions[url] = it }
     }
-    fun request(payload: JSONObject, listing: Boolean): JSONObject = try {
+    /** Verify live discovery before presenting an exact, plain-text review to the user. */
+    fun review(payload: JSONObject): JSONObject = guarded {
+        val c = connection(payload.optString("serverUrl").trim())
+        val tool = payload.optString("toolName")
+        val args = payload.optJSONObject("args") ?: fail("arguments", "Tool arguments must be an object.")
+        if (args.toString().length > 32_768) fail("limit", "Arguments too large to review. Split the request.")
+        synchronized(c) {
+            if (c.names == null) discover(c)
+            check(c)
+            if (tool !in c.names.orEmpty()) fail("not_listed", "The connected server does not advertise that tool.")
+        }
+        val target = c.url.toHttpUrlOrNull()!!
+        JSONObject().put("ok", true).put("destination", "${target.scheme}://${target.host}:${target.port}${target.encodedPath}")
+            .put("tool", tool).put("arguments", args.toString(2))
+    }
+    fun request(payload: JSONObject, listing: Boolean): JSONObject = guarded {
         val c = connection(payload.optString("serverUrl").trim())
         synchronized(c) {
             check(c)
@@ -78,7 +93,8 @@ internal class McpClient(client: OkHttpClient, private val settings: () -> Strin
                 JSONObject().put("ok", true).put("result", result)
             }
         }
-    } catch (e: Problem) {
+    }
+    private inline fun guarded(block: () -> JSONObject): JSONObject = try { block() } catch (e: Problem) {
         JSONObject().put("ok", false).put("code", e.kind).put("error", e.message).also { if (e.status != null) it.put("status", e.status) }
     } catch (_: IOException) {
         JSONObject().put("ok", false).put("code", "network").put("error", "MCP connection interrupted or timed out. Execution was not retried.")

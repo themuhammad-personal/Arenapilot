@@ -32,4 +32,7 @@
     <!-- N0 native chat shell: the floating affordance that returns from the
          raw web view (sign-in, settings) to the native chat. -->
     <string name="arena_notice_ok" translatable="false">OK</string>
+    <string name="mcp_review_title">Allow this tool call?</string>
+    <string name="mcp_allow_once">Allow once</string>
+    <string name="mcp_review_body">Server: %1$s\nTool: %2$s\n\nArguments that will be sent:\n%3$s</string>
 </resources>

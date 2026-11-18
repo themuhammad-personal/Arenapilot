@@ -16,4 +16,7 @@
     <!-- App Shortcuts -->
     <string name="shortcut_new_chat">নতুন চ্যাট</string>
     <string name="shortcut_deep_research">গভীর গবেষণা</string>
+    <string name="mcp_review_title">এই টুল কলের অনুমতি দেবেন?</string>
+    <string name="mcp_allow_once">একবার অনুমতি দিন</string>
+    <string name="mcp_review_body">সার্ভার: %1$s\nটুল: %2$s\n\nযে তথ্য পাঠানো হবে:\n%3$s</string>
 </resources>

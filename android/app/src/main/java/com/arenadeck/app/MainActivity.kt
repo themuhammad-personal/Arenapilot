@@ -40,6 +40,15 @@ import androidx.webkit.UserAgentMetadata
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewFeature
 
+/** A plain-text native dialog: the remote endpoint cannot supply markup or the button labels. */
+internal fun buildMcpReviewDialog(activity: android.app.Activity, review: org.json.JSONObject, decide: (Boolean) -> Unit) =
+    android.app.AlertDialog.Builder(activity)
+        .setTitle(R.string.mcp_review_title)
+        .setMessage(activity.getString(R.string.mcp_review_body, review.getString("destination"), review.getString("tool"), review.getString("arguments")))
+        .setNegativeButton(android.R.string.cancel) { _, _ -> decide(false) }
+        .setPositiveButton(R.string.mcp_allow_once) { _, _ -> decide(true) }
+        .create()
+
 // Helper functions for unit tests
 internal fun applyRootWindowInsets(view: View, windowInsets: WindowInsetsCompat): WindowInsetsCompat {
     val systemBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -620,6 +629,7 @@ class MainActivity : ComponentActivity() {
         cookieManager.setAcceptCookie(true)
 
         bridge = WebViewBridge(applicationContext)
+        bridge.askMcp = ::reviewMcp
         // Service-worker fetches bypass WebViewClient.shouldInterceptRequest; a
         // page worker must not turn the blob paths into network 404s.
         try {
@@ -709,6 +719,7 @@ class MainActivity : ComponentActivity() {
                     // also land here on some WebView versions; only the main
                     // frame's URL decides (MainFrameTracker).
                     bridge.trustedPage = MainFrameTracker.trustedForPage(url, view.url, site)
+                    if (!bridge.trustedPage || MainFrameTracker.isMainFrame(url, view.url)) { bridge.revokeMcp(); mcpDialog?.dismiss() }
                     if (!bridge.trustedPage) {
                         // Picked files and async bridge replies are scoped to the
                         // trusted chat document. Drop their opaque URLs before a
@@ -1382,6 +1393,19 @@ class MainActivity : ComponentActivity() {
         webView.evaluateJavascript(UiPolish.buildScript(site), null)
     }
 
+    private fun reviewMcp(review: org.json.JSONObject, decide: (Boolean) -> Unit) {
+        runOnUiThread {
+            if (!isForeground || !bridge.trustedPage || isFinishing || isDestroyed || mcpDialog != null) {
+                decide(false)
+            } else {
+                val dialog = buildMcpReviewDialog(this, review) { approved -> decide(approved && isForeground && bridge.trustedPage) }
+                val expire = Runnable { dialog.dismiss() }
+                dialog.setOnDismissListener { handler.removeCallbacks(expire); mcpDialog = null; decide(false) }
+                runCatching { dialog.show(); mcpDialog = dialog; handler.postDelayed(expire, 60_000) }.onFailure { decide(false) }
+            }
+        }
+    }
+    private var mcpDialog: android.app.AlertDialog? = null
     @Volatile private var isForeground = false
 
     override fun onResume() {
@@ -1433,6 +1457,8 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         isForeground = false
+        if (::bridge.isInitialized) bridge.revokeMcp()
+        mcpDialog?.dismiss()
         cookieManager.flush()
         if (::bridge.isInitialized) bridge.flushStorageSoon()
     }
@@ -1444,6 +1470,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        if (::bridge.isInitialized) { bridge.askMcp = null; bridge.revokeMcp() }
+        mcpDialog?.dismiss()
         handler.removeCallbacksAndMessages(null)
         closePopupWindow()
         try {

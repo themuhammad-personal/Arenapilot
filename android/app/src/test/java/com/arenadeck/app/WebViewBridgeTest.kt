@@ -595,6 +595,14 @@ class WebViewBridgeTest {
     private fun mcp(url: String, tool: String? = null): JSONObject {
         val p = JSONObject().put("serverUrl", url).put("apiKey", "not-authority")
         if (tool == null) p.put("type", "bds-mcp-list-tools") else p.put("type", "bds-mcp-call").put("toolName", tool).put("args", JSONObject())
+        if (tool != null) {
+            bridge.askMcp = { _, decide -> decide(true) }
+            var review: JSONObject? = null
+            bridge.authorizeMcp(p) { review = it }
+            val yes = requireNotNull(review)
+            if (!yes.optBoolean("ok")) return yes
+            p.put("approval", yes.getString("approval"))
+        }
         return JSONObject(bridge.fetch(p.toString()))
     }
     @Test fun `discovery follows a cursor and negotiates a session without forwarding caller credentials`() {
@@ -634,4 +642,25 @@ class WebViewBridgeTest {
         server.enqueue(MockResponse().setResponseCode(307).setHeader("Location", server.url("/different")))
         assertEquals(307, mcp(url).getInt("status")); assertEquals(2, server.requestCount)
     }
+    @Test fun `native calls need a one use grant from the human bound to exact arguments`() {
+        val url = endpoint(); hello(); listPage(2,"calc")
+        val p = JSONObject().put("type","bds-mcp-call").put("serverUrl",url).put("toolName","calc").put("args",JSONObject().put("n",2))
+        assertEquals("permission", JSONObject(bridge.fetch(p.toString())).getString("code")); assertEquals(0, server.requestCount)
+        bridge.askMcp = { _, decide -> decide(false) }; bridge.authorizeMcp(p){ assertEquals("permission",it.getString("code")) }
+        assertEquals(3, server.requestCount)
+        bridge.askMcp = { view, decide -> assertEquals("calc",view.getString("tool")); assertEquals(p.getJSONObject("args").getInt("n"), JSONObject(view.getString("arguments")).getInt("n")); decide(true) }
+        bridge.authorizeMcp(p) { p.put("approval",it.getString("approval")) }
+        p.put("args",JSONObject().put("n",3)); assertEquals("permission", JSONObject(bridge.fetch(p.toString())).getString("code")); assertEquals(3, server.requestCount)
+        bridge.authorizeMcp(p) { p.put("approval",it.getString("approval")) }; enqueueJson(3,"""{"content":[]}""");assertTrue(JSONObject(bridge.fetch(p.toString())).getBoolean("ok"))
+        assertEquals("permission",JSONObject(bridge.fetch(p.toString())).getString("code")); assertEquals(4,server.requestCount)
+    }
+    @Test fun `a foreground change while waiting for a tap invalidates the approval`() {
+        val url=endpoint(); hello();listPage(2,"calc");bridge.askMcp={ _, decide -> bridge.revokeMcp(); decide(true) }
+        val p=JSONObject().put("serverUrl",url).put("toolName","calc").put("args",JSONObject());bridge.authorizeMcp(p){assertEquals("permission",it.getString("code"))}
+        assertEquals(3,server.requestCount)
+    }
+    @Test fun `unused grant expires without touching persistence`() {
+        var now=0L; val gate=McpPermissions { now };val p=JSONObject().put("serverUrl","example").put("toolName","lookup").put("args",JSONObject());p.put("approval",gate.grant(p,gate.epoch()));now=15_000;assertFalse(gate.consume(p))
+    }
+
 }

@@ -90,9 +90,9 @@ class WebViewBridgeSsrfTest {
             put("toolName", "run")
             put("args", JSONObject())
         }
-        val response = JSONObject(bridge.fetch(payload.toString()))
-        assertEquals(false, response.optBoolean("ok"))
-        assertTrue(response.optString("error").contains("Blocked:"))
+        bridge.askMcp = { _, _ -> throw AssertionError("must block before asking") }
+        var response = JSONObject(); bridge.authorizeMcp(payload) { response = it }
+        assertEquals(false, response.optBoolean("ok")); assertEquals("blocked", response.optString("code"))
     }
 
     @Test
