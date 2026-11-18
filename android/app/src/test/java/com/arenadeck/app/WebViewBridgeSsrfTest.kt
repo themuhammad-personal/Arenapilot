@@ -36,6 +36,8 @@ class WebViewBridgeSsrfTest {
         `when`(context.getSharedPreferences(any(), eq(Context.MODE_PRIVATE))).thenReturn(prefs)
         `when`(context.getString(R.string.bds_asset_authority)).thenReturn("bds-asset.local")
 
+        // Ensure these tests reach the address policy, not just the disabled-server gate.
+        `when`(prefs.getString(McpClient.STORE, null)).thenReturn("""[{"id":"a","serverUrl":"http://127.0.0.1:3000/mcp","enabled":true},{"id":"b","serverUrl":"http://10.0.0.5/mcp","enabled":true}]""")
         bridge = WebViewBridge(context)
     }
 

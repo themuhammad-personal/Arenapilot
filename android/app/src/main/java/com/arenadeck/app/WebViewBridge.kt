@@ -882,6 +882,7 @@ class WebViewBridge(
             if (engineStore.has(key)) engineStore.remove(key)
             prefs.edit().putString(key, v).apply()
         }
+        if (key == McpClient.STORE) mcp.reconcile()
     }
 
     @JavascriptInterface
@@ -890,6 +891,7 @@ class WebViewBridge(
         if (key.isNullOrEmpty()) return
         engineStore.remove(key)
         prefs.edit().remove(key).apply()
+        if (key == McpClient.STORE) mcp.reconcile()
     }
 
     @JavascriptInterface
@@ -1152,8 +1154,8 @@ class WebViewBridge(
                 "bds-fetch-url" -> handleFetchUrl(payload, response)
                 "bds-fetch-github-zip" -> handleFetchGithubZip(payload, response)
                 "bds-fetch-github-commits" -> handleFetchGithubCommits(payload, response)
-                "bds-mcp-list-tools" -> handleMcpListTools(payload, response)
-                "bds-mcp-call" -> handleMcpCallTool(payload, response)
+                "bds-mcp-list-tools" -> return mcp.request(payload, listing = true).toString()
+                "bds-mcp-call" -> return mcp.request(payload, listing = false).toString()
                 "bds-get-youtube-transcript" -> handleYoutubeTranscript(payload, response)
                 // The model list the site's picker reads. Native because it is a
                 // release asset of THIS repo, not a page URL; see ModelList.kt.
@@ -1724,251 +1726,9 @@ class WebViewBridge(
         }
     }
 
-    // ── MCP (Model Context Protocol) Implementation ──────────────────────────
+    // Persisted configuration is the authority, not a URL or API key in page JSON.
+    private val mcp = McpClient(client = this.httpClient, settings = { getStorage(McpClient.STORE) }, networkPolicy = networkPolicy)
 
-    private data class McpSession(val sessionId: String?, val authMethod: String)
-    private val mcpSessionCache = java.util.concurrent.ConcurrentHashMap<String, McpSession>()
-    private val mcpReqId = java.util.concurrent.atomic.AtomicInteger(100)
-
-    private fun handleMcpListTools(payload: JSONObject, response: JSONObject) {
-        val serverUrl = payload.optString("serverUrl").trim()
-        val apiKey = payload.optString("apiKey").trim()
-
-        if (serverUrl.isEmpty()) {
-            response.put("ok", false)
-            response.put("error", "No MCP server URL provided.")
-            return
-        }
-        try {
-            val result = executeMcpJsonRpc(serverUrl, "tools/list", JSONObject(), apiKey)
-            val toolsArray = when {
-                result.has("tools") -> result.optJSONArray("tools") ?: JSONArray()
-                else -> JSONArray()
-            }
-            response.put("ok", true)
-            response.put("tools", toolsArray)
-        } catch (t: Throwable) {
-            Log.e(TAG, "MCP list tools failed for $serverUrl", t)
-            response.put("ok", false)
-            response.put("error", t.message ?: "Failed to list MCP tools")
-        }
-    }
-
-    private fun handleMcpCallTool(payload: JSONObject, response: JSONObject) {
-        val serverUrl = payload.optString("serverUrl").trim()
-        val toolName = payload.optString("toolName").trim()
-        val args = payload.optJSONObject("args") ?: JSONObject()
-        val apiKey = payload.optString("apiKey").trim()
-
-        if (serverUrl.isEmpty() || toolName.isEmpty()) {
-            response.put("ok", false)
-            response.put("error", "Missing MCP server URL or tool name.")
-            return
-        }
-        try {
-            val params = JSONObject().apply {
-                put("name", toolName)
-                put("arguments", args)
-            }
-            val result = executeMcpJsonRpc(serverUrl, "tools/call", params, apiKey)
-            response.put("ok", true)
-            response.put("result", result)
-        } catch (t: Throwable) {
-            Log.e(TAG, "MCP tool call failed: $toolName on $serverUrl", t)
-            response.put("ok", false)
-            response.put("error", t.message ?: "MCP tool call failed")
-        }
-    }
-
-    private fun executeMcpJsonRpc(
-            serverUrl: String,
-            method: String,
-            params: JSONObject,
-            apiKey: String,
-            retryOnExpiry: Boolean = true
-    ): JSONObject {
-        val session = mcpEnsureInitialized(serverUrl, apiKey)
-        val id = mcpReqId.incrementAndGet()
-        val reqBody = JSONObject().apply {
-            put("jsonrpc", "2.0")
-            put("id", id)
-            put("method", method)
-            put("params", params)
-        }
-
-        return try {
-            val fetchResult = mcpFetch(serverUrl, reqBody, apiKey, session.sessionId, session.authMethod)
-            fetchResult.result
-        } catch (t: McpSessionExpiredException) {
-            if (retryOnExpiry) {
-                mcpSessionCache.remove("$serverUrl|$apiKey")
-                executeMcpJsonRpc(serverUrl, method, params, apiKey, retryOnExpiry = false)
-            } else {
-                throw t
-            }
-        }
-    }
-
-    private class McpSessionExpiredException(message: String) : Exception(message)
-
-    private class McpServerError(message: String) : Exception(message)
-
-    private fun mcpEnsureInitialized(serverUrl: String, apiKey: String): McpSession {
-        val cacheKey = "$serverUrl|$apiKey"
-        mcpSessionCache[cacheKey]?.let { return it }
-
-        val initBody = JSONObject().apply {
-            put("jsonrpc", "2.0")
-            put("id", 1)
-            put("method", "initialize")
-            put("params", JSONObject().apply {
-                put("protocolVersion", "2024-11-05")
-                put("capabilities", JSONObject())
-                put("clientInfo", JSONObject().apply {
-                    put("name", "super-deepseek-android")
-                    put("version", "1.0.0")
-                })
-            })
-        }
-
-        val authMethods = if (apiKey.isNotEmpty()) {
-            listOf("bearer", "x-api-key", "none")
-        } else {
-            listOf("none")
-        }
-
-        var lastError: Throwable? = null
-        for (authMethod in authMethods) {
-            try {
-                val fetchResult = mcpFetch(serverUrl, initBody, apiKey, sessionId = null, authMethod = authMethod)
-                val session = McpSession(fetchResult.sessionId, authMethod)
-                mcpSessionCache[cacheKey] = session
-
-                // Send notifications/initialized (best effort notification)
-                try {
-                    val notifyBody = JSONObject().apply {
-                        put("jsonrpc", "2.0")
-                        put("method", "notifications/initialized")
-                    }
-                    mcpFetch(serverUrl, notifyBody, apiKey, sessionId = session.sessionId, authMethod = authMethod)
-                } catch (_: Throwable) {}
-
-                return session
-            } catch (t: Throwable) {
-                val msg = t.message.orEmpty()
-                if (msg.contains("401") || msg.contains("403")) {
-                    lastError = t
-                    continue
-                }
-                throw t
-            }
-        }
-
-        throw lastError ?: Exception("Failed to initialize MCP connection to $serverUrl")
-    }
-
-    private data class McpFetchResult(val result: JSONObject, val sessionId: String?)
-
-    private fun mcpFetch(
-            serverUrl: String,
-            body: JSONObject,
-            apiKey: String,
-            sessionId: String?,
-            authMethod: String,
-            timeoutSeconds: Long = 30L
-    ): McpFetchResult {
-        val httpUrl = normalizeHttpUrl(serverUrl) ?: throw IllegalArgumentException("Invalid MCP URL: $serverUrl")
-        // An MCP server URL is steerable like any other bridge fetch: same SSRF
-        // rules apply.
-        networkPolicy(httpUrl)?.let { reason ->
-            throw IllegalArgumentException("Blocked: $reason is not allowed (local and private network addresses are off-limits).")
-        }
-
-        val builder = Request.Builder()
-                .url(httpUrl)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json, text/event-stream")
-                .header("User-Agent", DEFAULT_FETCH_USER_AGENT)
-
-        if (apiKey.isNotEmpty()) {
-            when (authMethod) {
-                "bearer" -> builder.header("Authorization", "Bearer $apiKey")
-                "x-api-key" -> builder.header("X-API-Key", apiKey)
-            }
-        }
-        if (!sessionId.isNullOrEmpty()) {
-            builder.header("Mcp-Session-Id", sessionId)
-        }
-
-        val requestBody = body.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        builder.post(requestBody)
-
-        val client = httpClient.newBuilder()
-                .connectTimeout(minOf(15L, timeoutSeconds), TimeUnit.SECONDS)
-                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
-                .build()
-
-        client.newCall(builder.build()).execute().use { resp ->
-            val code = resp.code
-            val bodyString = resp.body?.string().orEmpty()
-            val responseSessionId = resp.header("Mcp-Session-Id")
-
-            // 400/404 only mean "session expired" when a session was sent; on a
-            // fresh request they are real errors (wrong URL, bad request) and
-            // re-initialising would just repeat them with a misleading message.
-            if ((code == 400 || code == 404) && !sessionId.isNullOrEmpty()) {
-                throw McpSessionExpiredException("MCP session expired or invalid (HTTP $code)")
-            }
-            if (!resp.isSuccessful) {
-                throw Exception("MCP server returned HTTP $code: ${bodyString.take(200)}")
-            }
-
-            val contentType = resp.header("Content-Type", "")?.lowercase() ?: ""
-            val resultJson: JSONObject = if (contentType.contains("text/event-stream")) {
-                var lastResult: JSONObject? = null
-                for (line in bodyString.lineSequence()) {
-                    val trimmed = line.trim()
-                    if (trimmed.startsWith("data:")) {
-                        val data = trimmed.removePrefix("data:").trim()
-                        if (data == "[DONE]" || data.isEmpty()) continue
-                        try {
-                            val parsed = JSONObject(data)
-                            if (parsed.has("error")) {
-                                val errObj = parsed.optJSONObject("error")
-                                val errMsg = errObj?.optString("message") ?: parsed.optString("error")
-                                throw McpServerError("MCP error: $errMsg")
-                            }
-                            if (parsed.has("result")) {
-                                val resVal = parsed.get("result")
-                                lastResult = if (resVal is JSONObject) resVal else JSONObject().put("value", resVal)
-                            }
-                        } catch (e: Exception) {
-                            // A server error must reach the caller; it used to be
-                            // swallowed here and reported as an empty result.
-                            if (e is McpSessionExpiredException || e is McpServerError) throw e
-                            // Continue parsing other SSE lines
-                        }
-                    }
-                }
-                lastResult ?: JSONObject()
-            } else {
-                if (bodyString.isNotBlank()) {
-                    val parsed = JSONObject(bodyString)
-                    if (parsed.has("error")) {
-                        val errObj = parsed.optJSONObject("error")
-                        val errMsg = errObj?.optString("message") ?: parsed.optString("error")
-                        throw Exception("MCP error: $errMsg")
-                    }
-                    val resVal = parsed.opt("result")
-                    if (resVal is JSONObject) resVal else JSONObject().put("tools", resVal ?: JSONArray())
-                } else {
-                    JSONObject()
-                }
-            }
-
-            return McpFetchResult(resultJson, responseSessionId)
-        }
-    }
 
     // ── YouTube Transcript Implementation ────────────────────────────────────
 

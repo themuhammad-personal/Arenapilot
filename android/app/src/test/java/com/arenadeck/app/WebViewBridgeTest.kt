@@ -571,67 +571,67 @@ class WebViewBridgeTest {
 
     // ── mcp ─────────────────────────────────────────────────────────────
 
-    @Test
-    fun `mcp list tools initializes and lists tools successfully`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("Mcp-Session-Id", "sess-123")
-                .setBody("""{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}""")
-        )
-        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("Mcp-Session-Id", "sess-123")
-                .setBody("""{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"test_tool","description":"A test tool"}]}}""")
-        )
-
-        val payload = JSONObject().apply {
-            put("type", "bds-mcp-list-tools")
-            put("serverUrl", server.url("/mcp").toString())
-            put("apiKey", "test-key")
-        }
-        val response = JSONObject(bridge.fetch(payload.toString()))
-
-        assertTrue(response.getBoolean("ok"))
-        val tools = response.getJSONArray("tools")
-        assertEquals(1, tools.length())
-        assertEquals("test_tool", tools.getJSONObject(0).getString("name"))
+    private fun endpoint(enabled: Boolean = true): String {
+        val url = server.url("/mcp").toString()
+        `when`(prefs.getString(McpClient.STORE, null)).thenReturn(org.json.JSONArray().put(JSONObject()
+            .put("id", "fixture").put("name", "fixture").put("serverUrl", url).put("enabled", enabled)).toString())
+        return url
     }
-
-    @Test
-    fun `mcp call tool executes tool call with args successfully`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("Mcp-Session-Id", "sess-call")
-                .setBody("""{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}""")
-        )
-        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("Mcp-Session-Id", "sess-call")
-                .setBody("""{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Tool output"}]}}""")
-        )
-
-        val payload = JSONObject().apply {
-            put("type", "bds-mcp-call")
-            put("serverUrl", server.url("/mcp-call").toString())
-            put("toolName", "calc")
-            put("args", JSONObject().apply { put("query", "2+2") })
-            put("apiKey", "test-key")
-        }
-        val response = JSONObject(bridge.fetch(payload.toString()))
-
-        assertTrue(response.getBoolean("ok"))
-        val result = response.getJSONObject("result")
-        val content = result.getJSONArray("content")
-        assertEquals("Tool output", content.getJSONObject(0).getString("text"))
+    private fun enqueueJson(id: Int, result: String, sid: String? = null) {
+        server.enqueue(MockResponse().setHeader("Content-Type", "application/json").apply {
+            sid?.let { setHeader("Mcp-Session-Id", it) }
+        }.setBody("""{"jsonrpc":"2.0","id":$id,"result":$result}"""))
+    }
+    private fun hello(id: Int = 1) {
+        enqueueJson(id, """{"protocolVersion":"2025-11-25","capabilities":{"tools":{}}}""", "session")
+        server.enqueue(MockResponse().setResponseCode(202))
+    }
+    private fun listPage(id: Int, name: String, next: String? = null) {
+        val page = JSONObject().put("tools", org.json.JSONArray().put(JSONObject().put("name", name)
+            .put("inputSchema", JSONObject().put("type", "object"))))
+        if (next != null) page.put("nextCursor", next)
+        enqueueJson(id, page.toString())
+    }
+    private fun mcp(url: String, tool: String? = null): JSONObject {
+        val p = JSONObject().put("serverUrl", url).put("apiKey", "not-authority")
+        if (tool == null) p.put("type", "bds-mcp-list-tools") else p.put("type", "bds-mcp-call").put("toolName", tool).put("args", JSONObject())
+        return JSONObject(bridge.fetch(p.toString()))
+    }
+    @Test fun `discovery follows a cursor and negotiates a session without forwarding caller credentials`() {
+        val url = endpoint(); hello(); listPage(2,"first","next"); listPage(3,"second")
+        val tools = mcp(url).getJSONArray("tools"); assertEquals(2, tools.length()); assertEquals("second", tools.getJSONObject(1).getString("name"))
+        val reqs = (1..4).map { server.takeRequest(1, TimeUnit.SECONDS)!! }
+        assertTrue(reqs.all { it.getHeader("Authorization") == null && it.getHeader("X-API-Key") == null })
+        assertEquals("session", reqs.last().getHeader("Mcp-Session-Id")); assertEquals("2025-11-25", reqs.last().getHeader("MCP-Protocol-Version"))
+        assertEquals("next", JSONObject(reqs.last().body.readUtf8()).getJSONObject("params").getString("cursor"))
+    }
+    @Test fun `tool call uses the correlated response and supports multiline SSE`() {
+        val url = endpoint(); hello(); listPage(2,"calc")
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+            "data: {\"jsonrpc\":\"2.0\",\"id\":999,\"result\":{}}\n\n" +
+            "data: {\"jsonrpc\":\"2.0\",\"id\":3,\n" +
+            "data: \"result\":{\"content\":[{\"type\":\"text\",\"text\":\"4\"}]}}\n\n"))
+        assertEquals("4", mcp(url,"calc").getJSONObject("result").getJSONArray("content").getJSONObject(0).getString("text"))
+    }
+    @Test fun `disabled or missing configuration refuses all dispatch and revoked discovery cannot be reused`() {
+        val url = endpoint(false); assertEquals("disconnected",mcp(url,"calc").getString("code"));assertEquals(0,server.requestCount)
+        endpoint(); hello(); listPage(2,"calc"); assertTrue(mcp(url).getBoolean("ok"))
+        assertEquals("not_listed",mcp(url,"other").getString("code")); assertEquals(3,server.requestCount)
+        endpoint(false); bridge.setStorage(McpClient.STORE, "[]"); assertEquals("disconnected",mcp(url,"calc").getString("code")); assertEquals(3,server.requestCount)
+    }
+    @Test fun `tool errors and expired calls are not reported as success or automatically replayed`() {
+        val url = endpoint(); hello();listPage(2,"calc");enqueueJson(3,"""{"content":[],"isError":true}""")
+        assertEquals("tool_error", mcp(url,"calc").getString("code"));server.enqueue(MockResponse().setResponseCode(404))
+        assertEquals("expired", mcp(url,"calc").getString("code")); assertEquals(5,server.requestCount)
+    }
+    @Test fun `wrong response id or repeated pagination fails without exposing a partial catalog`() {
+        val url = endpoint();hello();listPage(2,"first","x");listPage(3,"second","x")
+        assertEquals("protocol",mcp(url).getString("code"));listPage(55,"later"); assertEquals("protocol",mcp(url,"first").getString("code")); assertEquals(5,server.requestCount)
+    }
+    @Test fun `401 and redirects never leak remote error bodies or forward credentials`() {
+        val url = endpoint(); server.enqueue(MockResponse().setResponseCode(401).setBody("PRIVATE DETAIL"))
+        val failed = mcp(url); assertEquals("authentication",failed.getString("code")); assertFalse(failed.toString().contains("PRIVATE"))
+        server.enqueue(MockResponse().setResponseCode(307).setHeader("Location", server.url("/different")))
+        assertEquals(307, mcp(url).getInt("status")); assertEquals(2, server.requestCount)
     }
 }
