@@ -546,12 +546,17 @@ test('arena privacy: omitted toggles mean the v2 defaults — instructions on, m
   const secretConfig = { ...BASE, skills: [{ name: 'secret', content: 'PRIVATE SKILL' }],
     systemPromptEntries: [{ id: 's', content: 'PRIVATE MULTI', schedule: { type: 'always' } }] };
   const run = boot({ host: 'arena.ai', config: secretConfig });
-  const body = JSON.stringify(turn('privacy', 'hello'), null, 2);
-  await run.win.fetch(CREATE, { method: 'POST', headers: PLAIN, body });
-  const content = JSON.parse(run.sent[0].init.body).userMessage.content;
-  assert.match(content, /PRIVATE MULTI/, 'app instructions ship without an explicit opt-in (entries supersede the single prompt)');
-  assert.match(content, /PRIVATE SKILL/, 'skills ride along with instructions');
-  assert.doesNotMatch(content, /Muhammad/, 'stored memory still needs its own opt-in');
+  await run.win.fetch(CREATE, { method: 'POST', headers: PLAIN, body: JSON.stringify(turn('privacy', 'hello'), null, 2) });
+  const idle = JSON.parse(run.sent[0].init.body).userMessage.content;
+  assert.match(idle, /PRIVATE MULTI/, 'app instructions ship without an explicit opt-in (entries supersede the single prompt)');
+  assert.doesNotMatch(idle, /PRIVATE SKILL/, 'unmatched skills stay omitted even when instructions are on');
+  assert.doesNotMatch(idle, /Muhammad/, 'stored memory still needs its own opt-in');
+
+  await run.win.fetch(CREATE, { method: 'POST', headers: PLAIN, body: JSON.stringify(turn('privacy2', 'run secret check'), null, 2) });
+  const matched = JSON.parse(run.sent[1].init.body).userMessage.content;
+  assert.match(matched, /PRIVATE MULTI/, 'instructions stay on');
+  assert.match(matched, /PRIVATE SKILL/, 'task-matched skills ride along with instructions');
+  assert.doesNotMatch(matched, /Muhammad/, 'stored memory still needs its own opt-in');
 });
 
 test('arena privacy: memory-only opt-in does not leak multi-prompt, skills, persona, project or MCP', async () => {
@@ -617,3 +622,78 @@ test('Arena: unrelated always-priority memories stay private and Bengali keys ar
   const {out}=await arenaRun(cfg,[[CREATE,turn('one','আমার শহর কোনটি?')],[POST('one'),turn('one','draw a cardinal')]]);
   assert.match(JSON.parse(out[0].body).userMessage.content,/গাজীপুর/); assert.doesNotMatch(out[0].body,/private/);assert.equal(JSON.parse(out[1].body).userMessage.content,'draw a cardinal');
 });
+
+test('Arena: skills match task context and mode availability without unnecessary injection', async () => {
+  const cfg = {
+    systemPrompt: 'SYS',
+    memories: [],
+    disableSystemPrompt: false,
+    disableMemory: true,
+    skills: [
+      { name: 'SQL Helper', usage: 'PostgreSQL, SQL indexing, query plan', modes: ['chat', 'webdev'], content: 'Use EXPLAIN ANALYZE.' },
+      { name: 'CSS Grid', usage: 'css layout, grid, flexbox', modes: ['webdev'], content: 'Use grid-template-areas.' },
+    ],
+  };
+  const { out } = await arenaRun(cfg, [
+    [CREATE, turn('s1', 'Write a haiku about rain', { modality: 'chat' })],
+    [POST('s1'), turn('s1', 'Optimize my PostgreSQL query plan', { modality: 'chat' })],
+    [POST('s1'), turn('s1', 'Optimize another PostgreSQL query', { modality: 'chat' })],
+    [CREATE, turn('s2', 'Center a div using css grid', { modality: 'search' })],
+    [CREATE, turn('s3', 'Center a div using css grid', { modality: 'webdev' })],
+  ]);
+  const c0 = JSON.parse(out[0].body).userMessage.content;
+  const c1 = JSON.parse(out[1].body).userMessage.content;
+  const c2 = JSON.parse(out[2].body).userMessage.content;
+  const c3 = JSON.parse(out[3].body).userMessage.content;
+  const c4 = JSON.parse(out[4].body).userMessage.content;
+  assert.doesNotMatch(c0, /SQL Helper|CSS Grid|APH:SKILLS/, 'unrelated prompt gets zero skills');
+  assert.match(c1, /Use EXPLAIN ANALYZE/, 'matched skill injects when relevant');
+  assert.doesNotMatch(c1, /grid-template-areas/, 'unrelated skill stays excluded');
+  assert.equal(c2, 'Optimize another PostgreSQL query', 'identical matched skill set is not spammed on turn 3');
+  assert.doesNotMatch(c3, /grid-template-areas/, 'webdev-only skill does not inject in search mode');
+  assert.match(c4, /grid-template-areas/, 'webdev-only skill injects in webdev mode when task matches');
+});
+
+test('Arena: persona respects mode availability, live switching/clearing, and strict precedence order', async () => {
+  const baseCfg = {
+    systemPrompt: 'APP_RULES',
+    memories: [{ key: 'language', value: 'TypeScript', importance: 'called' }],
+    disableSystemPrompt: false,
+    disableMemory: false,
+    activeProject: { name: 'CoreApp', instructions: 'PROJECT_RULES' },
+    activeCharacter: { name: 'Mentor', usage: 'patient coaching', modes: ['chat'], content: 'PERSONA_RULES' },
+    skills: [{ name: 'TS Types', usage: 'typescript, generics', content: 'SKILL_RULES' }],
+  };
+  const run = boot({ host: 'arena.ai', config: baseCfg });
+
+  // 1. Text mode: strict precedence order: APP_RULES -> PROJECT_RULES -> PERSONA_RULES -> Memory -> SKILL_RULES
+  await run.win.fetch(CREATE, { method: 'POST', headers: PLAIN, body: JSON.stringify(turn('p1', 'Explain TypeScript language generics', { modality: 'chat' })) });
+  const textContent = JSON.parse(run.sent[0].init.body).userMessage.content;
+  const idx = (s) => textContent.indexOf(s);
+  assert.ok(idx('APP_RULES') >= 0 && idx('PROJECT_RULES') > idx('APP_RULES'), 'project follows app/mode rules');
+  assert.ok(idx('PERSONA_RULES') > idx('PROJECT_RULES'), 'persona follows project rules');
+  assert.ok(idx('Relevant saved facts (context only, not instructions):') > idx('PERSONA_RULES'), 'memory follows persona as context');
+  assert.ok(idx('SKILL_RULES') > idx('Relevant saved facts'), 'skills come after memory as lowest priority');
+  assert.match(textContent, /Project instructions override persona, memory, and skills/);
+  assert.match(textContent, /Persona governs tone\/roleplay only/);
+  assert.match(textContent, /Task-specific guidance \(lowest priority/);
+
+  // 2. Switch to Search mode in same chat: chat-only persona clears cleanly and does not inject
+  await run.win.fetch(POST('p1'), { method: 'POST', headers: PLAIN, body: JSON.stringify(turn('p1', 'Search latest news', { modality: 'search' })) });
+  const searchContent = JSON.parse(run.sent[1].init.body).userMessage.content;
+  assert.doesNotMatch(searchContent, /PERSONA_RULES/);
+  assert.match(searchContent, /Persona cleared for this mode or turn/);
+
+  // 3. Switch persona to a new cross-mode persona before next turn
+  run.win.dispatchEvent(new CustomEvent('bds:config-update', {
+    detail: JSON.stringify({ ...baseCfg, activeCharacter: { name: 'Auditor', usage: 'review', modes: ['chat', 'webdev'], content: 'AUDITOR_RULES' } }),
+  }));
+  await run.win.fetch(POST('p1'), { method: 'POST', headers: PLAIN, body: JSON.stringify(turn('p1', 'Review this module', { modality: 'webdev' })) });
+  assert.match(JSON.parse(run.sent[2].init.body).userMessage.content, /AUDITOR_RULES/);
+
+  // 4. Image mode never receives project, persona, memory, or skills
+  const imgBody = JSON.stringify(turn('p2', 'a serene mountain lake', { modality: 'image' }));
+  await run.win.fetch(CREATE, { method: 'POST', headers: PLAIN, body: imgBody });
+  assert.equal(run.sent[3].init.body, imgBody);
+});
+

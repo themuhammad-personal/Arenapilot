@@ -612,6 +612,72 @@ try {
   await wait(()=>{const rows=JSON.parse(window.AndroidBridge.getStorage('bds_projects')||'[]');return rows[0]?.memories?.currency?.value==='Taka';});
   assert.ok(!JSON.parse(await page.evaluate(()=>window.AndroidBridge.getStorage('bds_memories'))||'{}').currency);
   console.log('PASS a settled assistant memory suggestion is not saved until the user approves it for the current project');
+
+  stage = 'personas-and-skills-in-drawer';
+  await page.evaluate(() => {
+    window.__cfgs = [];
+    window.addEventListener('bds:config-update', (ev) => {
+      try { window.__cfgs.push(JSON.parse(ev.detail)); } catch {}
+    });
+  });
+  await page.$eval('#bds-drawer .bds-drawer-header .bds-back-btn', (b) => b.click());
+  await page.waitForSelector('#bds-drawer.bds-open .bds-set-row[data-bds-page="prompts"]', { visible: true });
+  await page.$eval('#bds-drawer.bds-open .bds-set-row[data-bds-page="prompts"]', (b) => b.click());
+  await page.waitForSelector('#bds-drawer .bds-sub-segment-btn', { visible: true });
+
+  // Switch to Personas sub-tab and create a mode-scoped persona inline
+  await page.$eval('#bds-drawer .bds-sub-segment-bar', (bar) => bar.querySelectorAll('button')[1].click());
+  await page.waitForSelector('#bds-character-list', { visible: true });
+  await page.click('#bds-drawer .sd-create-toggle');
+  await page.waitForSelector('#bds-drawer .sd-create-form:not([hidden])', { visible: true });
+  await page.evaluate(() => {
+    const form = document.querySelector('#bds-drawer .sd-create-form');
+    const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
+    const contentIn = form.querySelector('textarea.bds-input');
+    nameIn.value = 'Code Critic';
+    usageIn.value = 'code review';
+    contentIn.value = 'Check edge cases first.';
+    const checks = form.querySelectorAll('.sd-mode-picker input[type="checkbox"]');
+    // Uncheck Text and Search so persona is Code-only
+    checks[0].click();
+    checks[1].click();
+  });
+  await page.click('#bds-drawer .sd-create-form .bds-btn');
+  await wait(() => {
+    const chars = JSON.parse(window.AndroidBridge.getStorage('bds_characters') || '[]');
+    return chars.length === 1 && chars[0].active === true && JSON.stringify(chars[0].modes) === '["webdev"]';
+  });
+  assert.match(await page.$eval('#bds-character-list .sd-item-modes', (el) => el.textContent), /Code/);
+  // Toggle back to None (Assistant) and verify deactivation propagates
+  await page.$eval('#bds-character-list .bds-skill-item input[type="radio"]', (el) => el.click());
+  await wait(() => {
+    const chars = JSON.parse(window.AndroidBridge.getStorage('bds_characters') || '[]');
+    return chars.length === 1 && chars[0].active === false;
+  });
+
+  // Switch to Skills sub-tab and create a task-matched, mode-scoped skill inline
+  await page.$eval('#bds-drawer .bds-sub-segment-bar', (bar) => bar.querySelectorAll('button')[2].click());
+  await page.waitForSelector('#bds-skill-list', { visible: true });
+  await page.click('#bds-drawer .sd-create-toggle');
+  await page.waitForSelector('#bds-drawer .sd-create-form:not([hidden])', { visible: true });
+  await page.evaluate(() => {
+    const form = document.querySelector('#bds-drawer .sd-create-form');
+    const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
+    const contentIn = form.querySelector('textarea.bds-input');
+    nameIn.value = 'SQL Planner';
+    usageIn.value = 'postgresql, query plan';
+    contentIn.value = 'Prefer EXPLAIN ANALYZE before indexing.';
+    const checks = form.querySelectorAll('.sd-mode-picker input[type="checkbox"]');
+    // Search off -> Text & Code only
+    checks[1].click();
+  });
+  await page.click('#bds-drawer .sd-create-form .bds-btn');
+  await wait(() => {
+    const skills = JSON.parse(window.AndroidBridge.getStorage('bds_skills') || '[]');
+    const latest = window.__cfgs && window.__cfgs[window.__cfgs.length - 1];
+    return skills.length === 1 && latest && latest.skills && latest.skills[0] && latest.skills[0].usage === 'postgresql, query plan' && JSON.stringify(latest.skills[0].modes) === '["chat","webdev"]';
+  });
+  console.log('PASS Personas & Skills inline creation, mode availability, switching, and config sync work in real drawer');
   assert.deepEqual(errors, [], 'no runtime errors');
 } catch (error) {
   // Only fixture state, never live traffic. Surface enough in GitHub annotations

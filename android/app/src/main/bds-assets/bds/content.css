@@ -243,3 +243,10 @@
 
 /* v2.2.0: toasts are information only. `#bds-root>*{pointer-events:auto}` used to win over the stack rule, so a toast sitting over the composer swallowed taps on Send. */
 #bds-root>#bds-toast-stack,#bds-root>#bds-toast-stack *{pointer-events:none}
+.sd-create-bar{margin:8px 0 10px;display:flex;flex-direction:column;gap:8px}
+.sd-create-toggle{align-self:flex-start}
+.sd-mode-picker{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
+.sd-mode-picker-label{font-size:12px;color:var(--bds-text-secondary);font-weight:500}
+.sd-mode-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--bds-text-primary);cursor:pointer;user-select:none}
+.sd-mode-chip input{accent-color:var(--bds-accent, #4d6bfe)}
+.sd-item-modes{font-size:10px;color:var(--bds-accent, #4d6bfe);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
