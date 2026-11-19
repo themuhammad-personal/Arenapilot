@@ -2,7 +2,9 @@ package com.arenadeck.app
 
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.atomic.AtomicReference
@@ -20,7 +22,10 @@ class McpConsentTest {
         val result = AtomicReference<Boolean?>()
         activity.scenario.onActivity { a -> buildMcpReviewDialog(a, JSONObject().put("destination", "https://tools.example/mcp")
             .put("tool", "lookup").put("arguments", "{\"city\":\"Dhaka\"}")) { result.set(it) }.show() }
-        onView(withId(button)).perform(click())
+        // Wait for the dialog window itself: on a loaded emulator the default (focused) root can
+        // still be the activity for a moment after show(), which made this click flaky.
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        onView(withId(button)).inRoot(isDialog()).perform(click())
         return result.get()
     }
     @Test fun cancelAndAllowOnceAreSeparateUserDecisions() {
