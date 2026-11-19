@@ -92,6 +92,14 @@ class SiteTest {
             assertEquals("https://arena.ai/$slug/direct", ChatUrls.restorable("https://www.arena.ai/$slug/direct", Sites.ARENA))
             assertTrue(isTrustedBridgeUrl("https://arena.ai/$slug/direct", Sites.ARENA))
         }
+        // the unified /chat composer (Auto, Text, Code, Web Search, Image, Video) is restorable too
+        assertEquals("https://arena.ai/chat", ChatUrls.restorable("https://arena.ai/chat", Sites.ARENA))
+        assertEquals("https://arena.ai/chat", ChatUrls.restorable("https://www.arena.ai/chat", Sites.ARENA))
+        assertTrue(isTrustedBridgeUrl("https://arena.ai/chat", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/chat?x=1", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/chat/extra", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/agent", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/chat", Sites.DEEPSEEK))
         // not on DeepSeek, and never with a query, other hosts or other modes
         assertNull(ChatUrls.restorable("https://arena.ai/code/direct", Sites.DEEPSEEK))
         assertNull(ChatUrls.restorable("https://arena.ai/code/direct?x=1", Sites.ARENA))

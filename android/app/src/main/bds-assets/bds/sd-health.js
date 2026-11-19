@@ -408,8 +408,10 @@
       var form = input && input.closest('form');
       if (mode === 'direct' || !form) { if (old) old.remove(); return mode; }
       var text = mode === 'unsupported'
-        ? t('ArenaPilot tools support Direct Chat only. Switch to Direct to use them; website chat is still available.', 'ArenaPilot-এর টুল শুধু Direct Chat-এ সমর্থিত। টুল ব্যবহার করতে Direct বেছে নিন; সাইটের চ্যাট ব্যবহার করা যাবে।')
-        : t('ArenaPilot tools are paused: Direct Chat mode could not be verified. Select Direct to continue.', 'Direct Chat মোড নিশ্চিত করা যায়নি, তাই ArenaPilot-এর টুল থামানো আছে। চালাতে Direct বেছে নিন।');
+        ? t('ArenaPilot tools work in single-model Chat (Auto, Text, Code, Web Search, Image, Video). Battle and Side-by-side stay on the official page.', 'ArenaPilot-এর টুল একক-মডেল Chat-এ (Auto, Text, Code, Web Search, Image, Video) কাজ করে। Battle ও Side-by-side অফিসিয়াল পেজেই থাকে।')
+        : mode === 'agent'
+        ? t('Agent mode runs on Arena\u2019s own tools and sandbox. ArenaPilot shared engines are paused here; Settings stay available in Chat.', 'Agent মোড Arena-র নিজস্ব টুল ও স্যান্ডবক্সে চলে। এখানে ArenaPilot-এর শেয়ার্ড ইঞ্জিন থামানো আছে; Chat-এ Settings ব্যবহার করা যাবে।')
+        : t('ArenaPilot tools are paused: the Chat mode could not be verified. Select Chat and a model to continue.', 'Chat মোড নিশ্চিত করা যায়নি, তাই ArenaPilot-এর টুল থামানো আছে। চালাতে Chat ও একটি মডেল বেছে নিন।');
       if (!old) {
         old = document.createElement('div'); old.id = 'sd-arena-mode-notice';
         old.className = 'bds-mode-notice'; old.setAttribute('role', 'status');

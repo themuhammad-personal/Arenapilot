@@ -419,7 +419,13 @@
   // guessed: EEvaluationModality = {AUTO,CHAT,WEBDEV,SEARCH,IMAGE,P2L,VIDEO,AUDIO}.
   var MODALITY_BY_SLUG = { text: 'chat', code: 'webdev', search: 'search', image: 'image', video: 'video' };
   var DIRECT_HOME = /^\/(text|code|search|image|video)\/direct\/?$/;
-  var UNSUPPORTED_ROUTE = /^\/(text|code|search|image|video)\/(battle|side-by-side|arena|agent)(?:\/|$)|^\/agent(?:\/|$)/;
+  // Arena's unified composer lives at /chat (Chat | Agent toggle plus the Auto / Text / Code /
+  // Web Search / Image / Video modality menu). Chat conversations still open at /c/{id}.
+  var UNIFIED_HOME = /^\/chat\/?$/;
+  var AGENT_ROUTE = /^\/agent(?:\/|$)|^\/(text|code|search|image|video)\/agent(?:\/|$)/;
+  var UNSUPPORTED_ROUTE = /^\/(text|code|search|image|video)\/(battle|side-by-side|arena)(?:\/|$)/;
+  // Modality-menu labels of the unified composer (lower-cased, whitespace-collapsed).
+  var MODALITY_BY_LABEL = { auto: 'auto', text: 'chat', code: 'webdev', 'web search': 'search', search: 'search', image: 'image', video: 'video' };
   var lastModality = null;
 
   var CODE_ADDENDUM = [
@@ -467,34 +473,97 @@
     return lastModality;
   }
 
-  /** Current modality: the route when it names one, otherwise the last one seen
-   * in a request body or on a home route (a /c/{id} URL does not say). */
-  function arenaModality() {
-    if (site.id !== 'arena') return null;
-    var m = /^\/(text|code|search|image|video)\//.exec(String(location.pathname || ''));
-    if (m && DIRECT_HOME.test(String(location.pathname || ''))) lastModality = MODALITY_BY_SLUG[m[1]];
-    return lastModality || 'chat';
+  /** Visible text / aria-label of the composer's own mode and modality controls.
+   * Only Arena's composer form is read, never model replies or tool UI. The first
+   * entry always comes from form.querySelector so older fixtures keep working. */
+  function composerLabels() {
+    var out = [];
+    try {
+      var ta = document.querySelector('textarea[name="message"]');
+      var form = ta && ta.closest('form');
+      if (!form) return out;
+      var add = function (el) {
+        if (!el) return;
+        var raw = [el.textContent, el.getAttribute && el.getAttribute('aria-label')];
+        for (var i = 0; i < raw.length; i++) {
+          var l = String(raw[i] || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          if (l && l.length <= 40 && out.indexOf(l) < 0) out.push(l);
+        }
+      };
+      add(form.querySelector('button[role="combobox"]'));
+      if (typeof form.querySelectorAll === 'function') {
+        var all = form.querySelectorAll('button[role="combobox"], button[aria-haspopup]');
+        for (var j = 0; j < all.length && j < 12; j++) add(all[j]);
+      }
+    } catch (_) {}
+    return out;
   }
 
-  /** A /c/ URL is shared by chat modes; it is NOT proof of Direct Chat.
+  /** The modality named by the unified composer's own modality control, or null. */
+  function uiModality(labels) {
+    var l = labels || composerLabels();
+    for (var i = 0; i < l.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(MODALITY_BY_LABEL, l[i])) return MODALITY_BY_LABEL[l[i]];
+    }
+    return null;
+  }
+
+  /** Current modality: the route when it names one, then the composer's own
+   * modality control, otherwise the last one seen in a request body (a /c/{id}
+   * URL does not say). The unified /chat home defaults to Auto. */
+  function arenaModality() {
+    if (site.id !== 'arena') return null;
+    var path = String(location.pathname || '');
+    var m = /^\/(text|code|search|image|video)\//.exec(path);
+    if (m && DIRECT_HOME.test(path)) { lastModality = MODALITY_BY_SLUG[m[1]]; return lastModality; }
+    var ui = (UNIFIED_HOME.test(path) || /^\/c\/[^/]+\/?$/.test(path)) ? uiModality() : null;
+    if (ui) { lastModality = ui; return ui; }
+    return lastModality || (UNIFIED_HOME.test(path) ? 'auto' : 'chat');
+  }
+
+  /** What an Auto request is really about, from the user's own words only.
+   * Arena picks the final modality server-side; this decides only whether the
+   * app may add context (Image/Video never get any) and which mode policy
+   * applies. Deliberately conservative: anything unclear is plain chat. */
+  function classifyAuto(text) {
+    var t = String(text == null ? '' : text).slice(0, 4000).toLowerCase();
+    if (!t.trim()) return 'chat';
+    var make = '(?:generate|create|make|produce|render|draw|paint|design|animate|edit)';
+    var codeWords = /\b(?:html|css|javascript|typescript|react|svg|component|function|script|api|website|web ?app|landing page|python|sql|regex|bug|compile|code|java|kotlin|node)\b|```/;
+    var isCode = codeWords.test(t);
+    if (!isCode) {
+      if (new RegExp('\\b' + make + '\\b[^.\\n]{0,50}\\b(?:video|clip|animation|movie|short film)\\b').test(t) ||
+          /(?:ভিডিও|ভিডিও)[^.\n]{0,30}(?:বানা|তৈরি|জেনারেট|করে দাও)|(?:বানা|তৈরি|জেনারেট)[^.\n]{0,30}(?:ভিডিও|ভিডিও)/.test(t)) return 'video';
+      if (new RegExp('\\b' + make + '\\b[^.\\n]{0,50}\\b(?:image|picture|photo|illustration|logo|poster|wallpaper|portrait|drawing|painting|artwork|icon)\\b').test(t) ||
+          /\bdraw (?:me|a|an)\b/.test(t) ||
+          /(?:ছবি|ইমেজ|লোগো|পোস্টার)[^.\n]{0,30}(?:বানা|আঁক|আঁকো|তৈরি|জেনারেট|করে দাও)|(?:বানা|আঁক|আঁকো|তৈরি|জেনারেট)[^.\n]{0,30}(?:ছবি|ইমেজ|লোগো|পোস্টার)/.test(t)) return 'image';
+    }
+    if (isCode) return 'webdev';
+    if (/\b(?:latest|news|today|current(?:ly)?|right now|this week|weather|who won|score|stock price|price of|search the web|look up|find sources|cite sources|20(?:2[5-9]|3\d))\b/.test(t) ||
+        /আজকের|সর্বশেষ|খবর|বর্তমান|দাম কত|ওয়েবে খুঁজ/.test(t)) return 'search';
+    return 'chat';
+  }
+
+  /** A /c/ URL is shared by chat modes; it is NOT proof of a supported surface.
    * Read only Arena's own composer mode control, never model replies/tool UI.
-   * Missing or unfamiliar evidence stays unknown (tool scanning fails closed).
-   */
+   * Returns 'direct' (single-model Chat), 'agent', 'unsupported' (Battle /
+   * Side-by-side) or 'unknown' (tool scanning fails closed). */
   function arenaMode() {
     if (site.id !== 'arena') return null;
     var pathname = String(location.pathname || '');
     if (UNSUPPORTED_ROUTE.test(pathname)) return 'unsupported';
-    var directPath = DIRECT_HOME.test(pathname);
+    if (AGENT_ROUTE.test(pathname)) return 'agent';
+    var directPath = DIRECT_HOME.test(pathname) || UNIFIED_HOME.test(pathname);
     if (!directPath && !/^\/c\/[^/]+\/?$/.test(pathname)) return 'unknown';
-    if (directPath) arenaModality();
-    try {
-      var ta = document.querySelector('textarea[name="message"]');
-      var form = ta && ta.closest('form');
-      var control = form && form.querySelector('button[role="combobox"]');
-      var label = String(control && control.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      if (/^(battle|side.by.side|arena|agent)( chat)?$/.test(label)) return 'unsupported';
-      if (/^direct( chat)?$/.test(label)) return 'direct';
-    } catch (_) {}
+    if (DIRECT_HOME.test(pathname)) arenaModality();
+    var labels = composerLabels(), verdict = null;
+    for (var i = 0; i < labels.length; i++) {
+      var label = labels[i];
+      if (/^(battle|side.by.side|arena)( chat)?$/.test(label)) return 'unsupported';
+      if (/^agent( mode)?$/.test(label)) verdict = 'agent';
+      else if (!verdict && /^(direct|chat)( chat| mode)?$/.test(label)) verdict = 'direct';
+    }
+    if (verdict) return verdict;
     return directPath ? 'direct' : 'unknown';
   }
 
@@ -516,10 +585,14 @@
       modality = arenaModality();
       profile = modalityProfile(modality);
     } catch (_) { return off; }
-    var tools = modality === 'chat' || modality === 'search' || modality === 'webdev';
+    // Text, Code, Web Search and Auto share the tool, memory, project, persona and skill
+    // engines. Image and Video (profile.inject === false) get nothing. Auto is resolved
+    // per request by classifyAuto(), so an Auto request that turns out to be Image/Video
+    // is left untouched at the payload layer.
+    var tools = profile.tools === true;
     return { sharedUi: true, promptContext: profile.inject === true,
       assistantScanning: profile.tools === true, mcp: tools, continuity: tools,
-      memories: modality === 'chat', projects: profile.inject === true,
+      memories: profile.inject === true, projects: profile.inject === true,
       personasSkills: profile.inject === true };
   }
 
@@ -530,6 +603,8 @@
     arenaPrompt: ARENA_PROMPT,
     arenaMode: arenaMode,
     arenaModality: arenaModality,
+    classifyAuto: classifyAuto,
+    uiModality: uiModality,
     arenaCapabilities: arenaCapabilities,
     modalityProfile: modalityProfile,
     noteModality: noteModality,
