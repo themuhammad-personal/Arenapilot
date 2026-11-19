@@ -438,7 +438,10 @@
     '- Keep the answer direct: the finding first, then the evidence.',
   ].join('\n');
 
-  var PROFILES = {
+  // Keep this distinct from the host-site profile map above. Both are exposed
+  // through the same seam, so a duplicate declaration would replace host
+  // detection at runtime and make Arena fail closed incorrectly.
+  var MODALITY_PROFILES = {
     chat:   { id: 'chat',   label: 'Text',   inject: true,  tools: true,  addendum: '' },
     webdev: { id: 'webdev', label: 'Code',   inject: true,  tools: true,  addendum: CODE_ADDENDUM },
     search: { id: 'search', label: 'Search', inject: true,  tools: true,  addendum: SEARCH_ADDENDUM },
@@ -455,7 +458,7 @@
    * like chat, so a rename cannot silently switch the engine off. */
   function modalityProfile(name) {
     var key = String(name == null ? '' : name).toLowerCase();
-    return PROFILES[key] || PROFILES.chat;
+    return MODALITY_PROFILES[key] || MODALITY_PROFILES.chat;
   }
 
   /** Remember the modality arena itself reported (request body field). */
@@ -510,7 +513,7 @@
     /** The active profile, or null when the built-in config is used as-is. */
     profile: site.profile,
     /** Read-only view of the known profiles (tests, sd-health notices). */
-    profiles: PROFILES,
+    profiles: MODALITY_PROFILES,
     detect: detect,
     /** Resolved facts for bundle code that used to hardcode DeepSeek. */
     home: urls.home,
