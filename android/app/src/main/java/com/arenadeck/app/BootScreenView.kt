@@ -429,10 +429,10 @@ internal class BootScreenView(
         const val FILL_START_S = 1.6f
         const val FILL_TAU_S = 5.5f
 
-        /** DeepSeek brand blue, used only as a faint glow. */
-        const val ACCENT = 0xFF4D6BFE.toInt()
+        /** ArenaPilot brand blue, used only as a faint glow. */
+        const val ACCENT = 0xFF1E8CFF.toInt()
         /** Soft blue at the leading edge of the fill. */
-        const val EDGE = 0xFF9DB0FF.toInt()
+        const val EDGE = 0xFF6FE6FF.toInt()
         /** Loaded letters: the chat's own near-white text. */
         const val TEXT = 0xFFF1F2F4.toInt()
 

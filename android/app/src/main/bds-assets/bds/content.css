@@ -250,3 +250,102 @@
 .sd-mode-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--bds-text-primary);cursor:pointer;user-select:none}
 .sd-mode-chip input{accent-color:var(--bds-accent, #4d6bfe)}
 .sd-item-modes{font-size:10px;color:var(--bds-accent, #4d6bfe);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* === ArenaPilot V3 design layer === */
+/* Brand: the new launcher mark — cyan #24E8FF → blue #0A62E8 on deep navy.
+   Scoped to the engine-owned drawer (#bds-drawer) and its sheets only; nothing
+   here targets Arena's own page chrome. Every colour is a token, so light and
+   dark follow the page theme. */
+#bds-drawer{--ap-cyan:36,232,255;--ap-blue:19,140,250;--ap-grad:linear-gradient(135deg,#24e8ff 0%,#138cfa 55%,#0a62e8 100%);--bds-accent:#0a6cf0;--bds-accent-glow:rgba(10,108,240,.14);--ap-tile:rgba(10,20,40,.04)}
+html.dark #bds-drawer,body.dark #bds-drawer{--bds-bg-panel:#0f1422;--bds-bg-elevated:#171d2e;--bds-bg-hover:rgba(140,170,255,.09);--bds-bg-input:#121828;--bds-border:#262e46;--bds-border-hover:#38425f;--bds-text-secondary:#98a2c0;--bds-text-tertiary:#6f7a99;--bds-accent:#3da2ff;--bds-accent-glow:rgba(61,162,255,.18);--ap-tile:rgba(255,255,255,.04);--sd-list:#151b2b;--sd-field:#0f1422}
+.bds-drawer-backdrop{background:rgba(4,8,18,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+@media (max-width:767px){
+  #bds-drawer{border-radius:28px 28px 0 0!important;border-color:var(--bds-border)!important;box-shadow:0 -18px 60px rgba(2,6,18,.55),0 -1px 0 rgba(var(--ap-cyan),.12) inset!important}
+  html.dark #bds-drawer,body.dark #bds-drawer{background:linear-gradient(180deg,#131a2b 0,#0f1422 120px)!important}
+}
+#bds-drawer .bds-drag-handle{width:44px;height:5px;background:var(--ap-grad);opacity:.55;margin:6px auto 12px}
+
+/* header: brand tile + title */
+#bds-drawer .bds-drawer-header:has(.bds-ov-head)::before{content:"";flex:none;width:44px;height:44px;border-radius:14px;border:1px solid rgba(120,135,190,.38);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='180 215 725 570'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2324E8FF'/%3E%3Cstop offset='.5' stop-color='%2313A0F8'/%3E%3Cstop offset='1' stop-color='%230A62E8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M200 752 L461 232 L567 232 L696 487 L582 531 L508 402 L392 635 L782 472 L440 700 L340 745 L290 764 L215 764Z'/%3E%3Cpath fill='url(%23g)' d='M720 533 L829 745 L745 754 L668 700 L614 600Z'/%3E%3Cpath fill='%2328E4FF' d='M885 398 L727 433 L780 466 L803 524Z'/%3E%3C/svg%3E") center/72% no-repeat,linear-gradient(160deg,#182034,#0b0f1a);box-shadow:0 6px 18px rgba(10,98,232,.28)}
+#bds-drawer .bds-ov-title{font-size:20px;font-weight:750;letter-spacing:-.02em}
+#bds-drawer .bds-ov-sub{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;letter-spacing:.04em;color:var(--bds-accent)}
+#bds-drawer .bds-ov-sub::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ap-grad);box-shadow:0 0 0 3px rgba(var(--ap-blue),.18)}
+#bds-drawer #bds-close,#bds-drawer .bds-back-btn{width:36px!important;height:36px!important;background:var(--bds-bg-elevated)!important;border:1px solid var(--bds-border)!important}
+#bds-drawer .bds-header-title{font-size:18px!important;font-weight:700!important;letter-spacing:-.015em}
+
+/* privacy / info note */
+#bds-drawer .bds-arena-privacy-note{margin:0 0 4px;padding:12px 14px 12px 16px;border-radius:16px;border:1px solid rgba(var(--ap-blue),.28);background:linear-gradient(135deg,rgba(var(--ap-cyan),.08),rgba(var(--ap-blue),.06));color:var(--bds-text-secondary);font-size:12px;line-height:1.5;position:relative;overflow:hidden}
+#bds-drawer .bds-arena-privacy-note::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ap-grad)}
+
+/* grouped lists */
+#bds-drawer .bds-set{gap:22px}
+#bds-drawer .bds-set-sec{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.09em;color:var(--bds-text-tertiary);padding:0 6px 9px}
+#bds-drawer .bds-set-sec::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--ap-grad)}
+#bds-drawer .bds-set-list{border-radius:20px;background:var(--sd-list);border:1px solid var(--bds-border);box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 8px 24px rgba(2,6,18,.14)}
+#bds-drawer .bds-set-row{min-height:66px;padding:12px 14px;gap:14px;position:relative}
+#bds-drawer .bds-set-row+.bds-set-row{border-top:1px solid var(--bds-border)}
+#bds-drawer .bds-set-row:active{background:var(--bds-bg-hover);transform:scale(.995)}
+#bds-drawer .bds-set-title{font-size:15px;font-weight:650;letter-spacing:-.005em}
+#bds-drawer .bds-set-sub{font-size:12px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#bds-drawer .bds-set-val{padding:3px 9px;border-radius:999px;background:var(--bds-bg-hover);color:var(--bds-text-secondary);font-size:11.5px;font-weight:600;max-width:32%}
+#bds-drawer .bds-set-chev{color:var(--bds-text-tertiary);opacity:.8}
+
+/* icon tiles: one hue per page, rgb triplet in --ic */
+#bds-drawer .bds-set-ico{--ic:var(--ap-blue);width:42px;height:42px;border-radius:13px;color:rgb(var(--ic));background:linear-gradient(145deg,rgba(var(--ic),.22),rgba(var(--ic),.08));border:1px solid rgba(var(--ic),.32);box-shadow:0 4px 12px rgba(var(--ic),.12)}
+#bds-drawer .bds-set-ico svg{width:20px;height:20px;stroke-width:1.9}
+#bds-drawer .bds-set-chev.bds-set-ico{width:auto;height:auto;border:0;background:none;box-shadow:none;color:var(--bds-text-tertiary)}
+#bds-drawer .bds-set-row[data-bds-page="prompts"]{--ic:139,92,246}
+#bds-drawer .bds-set-row[data-bds-page="memory"]{--ic:236,72,153}
+#bds-drawer .bds-set-row[data-bds-page="language"]{--ic:20,184,166}
+#bds-drawer .bds-set-row[data-bds-page="deep_research"],#bds-drawer .bds-set-row[data-bds-page="research"]{--ic:14,165,233}
+#bds-drawer .bds-set-row[data-bds-page="mcp"]{--ic:245,158,11}
+#bds-drawer .bds-set-row[data-bds-page="commands"]{--ic:99,102,241}
+#bds-drawer .bds-set-row[data-bds-page="projects"]{--ic:59,130,246}
+#bds-drawer .bds-set-row[data-bds-page="chat"],#bds-drawer .bds-set-row[data-bds-page="agentContinue"]{--ic:34,197,94}
+#bds-drawer .bds-set-row[data-bds-page="appearance"]{--ic:249,115,22}
+#bds-drawer .bds-set-row[data-bds-page="data"]{--ic:6,182,212}
+#bds-drawer .bds-set-row[data-bds-page="doctor"]{--ic:16,185,129}
+#bds-drawer .bds-set-row[data-bds-page="api"]{--ic:168,85,247}
+#bds-drawer .bds-set-row .bds-set-ico:first-child{--ic:inherit}
+
+/* toggles */
+#bds-drawer .bds-set-switch{width:48px;height:28px;background:var(--bds-border-hover);box-shadow:inset 0 1px 3px rgba(0,0,0,.25)}
+#bds-drawer .bds-set-switch::after{top:3px;left:3px;width:22px;height:22px;box-shadow:0 2px 5px rgba(0,0,0,.35)}
+#bds-drawer .bds-set-switch.bds-on{background:var(--ap-grad);box-shadow:0 0 0 3px rgba(var(--ap-blue),.16)}
+#bds-drawer .bds-set-switch.bds-on::after{transform:translateX(20px)}
+#bds-drawer .bds-switch .bds-switch-track,#bds-drawer .bds-ios-slider{background:var(--bds-border-hover)!important}
+#bds-drawer .bds-switch input:checked+.bds-switch-track,#bds-drawer .bds-ios-switch input:checked+.bds-ios-slider{background:var(--ap-grad)!important}
+
+/* Advanced settings / detail pages */
+#bds-drawer .bds-advanced-inner{padding:4px 0 28px!important}
+#bds-drawer .bds-card{margin:0 0 24px!important}
+#bds-drawer .bds-card .bds-card-title{display:flex!important;align-items:center;gap:8px;font-size:11px!important;font-weight:700!important;letter-spacing:.09em!important}
+#bds-drawer .bds-card .bds-card-title::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--ap-grad)}
+#bds-drawer .bds-card .bds-sub-content{border-radius:20px!important;background:var(--sd-list)!important;box-shadow:0 8px 24px rgba(2,6,18,.14)}
+#bds-drawer .bds-card .bds-sub-inner{padding:2px 16px!important}
+#bds-drawer .bds-card .bds-toggle-row{padding:14px 0!important}
+#bds-drawer .bds-toggle-label{font-size:14.5px!important;font-weight:550!important}
+#bds-drawer .bds-input,#bds-drawer .bds-select,#bds-drawer textarea,#bds-drawer input[type="text"],#bds-drawer input[type="number"],#bds-drawer input[type="password"],#bds-drawer input[type="url"],#bds-drawer input[type="search"]{border-radius:12px!important;padding:10px 12px;transition:border-color .15s ease,box-shadow .15s ease}
+#bds-drawer .bds-input:focus,#bds-drawer .bds-select:focus,#bds-drawer textarea:focus{border-color:var(--bds-accent)!important;box-shadow:0 0 0 3px var(--bds-accent-glow)!important}
+#bds-drawer input[type="checkbox"],#bds-drawer input[type="radio"],#bds-drawer input[type="range"]{accent-color:var(--bds-accent)}
+
+/* buttons */
+#bds-drawer .bds-btn{background:var(--ap-grad);color:#fff;border-radius:12px;min-height:38px;padding:8px 16px;font-weight:650;box-shadow:0 6px 16px rgba(10,98,232,.28)}
+#bds-drawer .bds-btn:active{transform:scale(.97);opacity:.92}
+#bds-drawer .bds-btn-outlined,#bds-drawer .bds-btn-secondary,#bds-drawer .bds-lang-btn{border-radius:12px!important;font-weight:600}
+#bds-drawer .bds-btn-outlined:active,#bds-drawer .bds-btn-secondary:active,#bds-drawer .bds-lang-btn:active{background:var(--bds-bg-hover)!important}
+#bds-drawer .bds-btn-danger{border-radius:10px;padding:6px 12px}
+#bds-drawer .bds-add-prompt-btn{border-radius:14px!important;min-height:44px;font-weight:650}
+#bds-drawer .bds-btn-export{border-radius:14px;background:linear-gradient(135deg,rgba(var(--ap-cyan),.12),rgba(var(--ap-blue),.1));border-color:rgba(var(--ap-blue),.45);min-height:44px}
+
+/* segmented controls & tabs */
+#bds-drawer .bds-sub-segment-bar{background:var(--bds-bg-input);border:1px solid var(--bds-border);border-radius:14px;padding:4px}
+#bds-drawer .bds-sub-segment-btn{border-radius:10px;padding:8px 10px;font-weight:600}
+#bds-drawer .bds-sub-segment-btn.active{background:var(--ap-grad);color:#fff;box-shadow:0 4px 12px rgba(10,98,232,.3)}
+
+/* list items: memory, skills, personas, projects, saved items */
+#bds-drawer .bds-memory-item,#bds-drawer .bds-skill-item,#bds-drawer .bds-saved-item,#bds-drawer .bds-manage-row{border-radius:14px;border:1px solid var(--bds-border);background:var(--bds-bg-input)}
+#bds-drawer .bds-sd-doc,#bds-drawer .bds-doc{border-radius:14px}
+#bds-drawer .bds-drawer-body::-webkit-scrollbar{width:4px}
+#bds-drawer .bds-drawer-body::-webkit-scrollbar-thumb{background:rgba(var(--ap-blue),.35);border-radius:4px}
+@media (prefers-reduced-motion:reduce){#bds-drawer .bds-set-row,#bds-drawer .bds-btn{transition:none;transform:none!important}}

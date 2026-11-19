@@ -7,7 +7,7 @@
       colour has been measured on the device, the launch screen eases into it.
       launcher_background is the adaptive-icon backdrop (ArenaPilot navy).
     -->
-    <color name="launcher_background">#0A1020</color>
+    <color name="launcher_background">#0F1422</color>
     <color name="bds_splash_bg">#1E1F23</color>
     <color name="bds_window_bg">#1E1F23</color>
 </resources>

@@ -45,6 +45,13 @@ The Core sequence is **shared features → Text → Search → Image → officia
 - **Phase 7 (Agent) — no code change.** The context-only checkpoint above stays: Agent keeps Arena’s native tools and sandbox, receives only read-only project/persona/relevant-memory/skill context, and nothing is scanned, executed or duplicated. Arena’s Agent request body and tool/sandbox protocol are still unverified against a signed-in account, so MCP/tag tools stay off there and no integration beyond context is claimed.
 - **Not verified:** any signed-in Image/Video/Auto/Agent session; whether Arena’s Auto routing agrees with the keyword heuristic; reference-media upload on a device. Image/Video editing, prompt reuse and generation quality are Arena-model capabilities; the app only guarantees it does not alter the prompt or attachments.
 
+## V3 Core release — brand and settings design (3.0.0)
+
+- **Audit result for Phases 5–7:** the Auto reference-media/continuity guard, Image/Video byte-for-byte handling and the read-only Agent context checkpoint are on `main` (`525f38e`, CI green). No further code change was found necessary; the limits recorded above (no signed-in Image/Video/Auto/Agent evidence) still stand and are not claimed as verified.
+- **Icon:** new ArenaPilot mark (an “A” whose crossbar is a flight-path blade ending in an arrowhead, cyan → blue on navy). `tools/icon/arena_deck_icon.py` now needs only the Python standard library; it regenerates the five adaptive-foreground PNGs, the 512 px boot-screen icon and `docs/assets/icon.png`. Application ID, signing key and `ic_launcher*.xml` names are unchanged, so the release installs over the existing app.
+- **Design:** an appended, `#bds-drawer`-scoped layer in `content.css` restyles the bottom drawer, the per-page icon tiles (one hue per page via `data-bds-page`), switches, buttons, segmented controls, inputs and the Advanced-settings detail pages with the brand palette. No engine script, storage key or Arena-owned selector was touched. Boot-screen glow colours follow the brand.
+- **Version:** 3.0.0 in `package.json`, `package-lock.json` and the Gradle fallback (release tag, `versionName` and updater stay in step).
+
 ## Remaining acceptance gates
 
 | Phase | What counts as evidence |
