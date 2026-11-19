@@ -628,8 +628,16 @@ try {
   // Switch to Personas sub-tab and create a mode-scoped persona inline
   await page.$eval('#bds-drawer .bds-sub-segment-bar', (bar) => bar.querySelectorAll('button')[1].click());
   await page.waitForSelector('#bds-character-list', { visible: true });
-  await page.click('#bds-drawer .sd-create-toggle');
-  await page.waitForSelector('#bds-drawer .sd-create-form:not([hidden])', { visible: true });
+  // The retained Memory panel owns another hidden create bar. Scope the click
+  // to the visible Personas list's sibling panel instead of taking the first
+  // matching toggle in the drawer.
+  await page.$eval('#bds-character-list', (list) => {
+    const panel = list.parentElement;
+    const toggle = panel && panel.querySelector('.sd-create-toggle:not([hidden])');
+    if (!toggle) throw new Error('visible persona create toggle missing');
+    toggle.click();
+  });
+  await page.waitForSelector('#bds-character-list ~ .sd-create-bar .sd-create-form:not([hidden])', { visible: true });
   await page.evaluate(() => {
     const form = document.querySelector('#bds-drawer .sd-create-form');
     const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
