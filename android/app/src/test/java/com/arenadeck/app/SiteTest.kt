@@ -87,7 +87,7 @@ class SiteTest {
 
     @Test
     fun `every Direct Mode home page is restorable, so a relaunch returns to Code Search or Image`() {
-        for (slug in listOf("text", "code", "search", "image")) {
+        for (slug in listOf("text", "code", "search", "image", "video")) {
             assertEquals("https://arena.ai/$slug/direct", ChatUrls.restorable("https://arena.ai/$slug/direct", Sites.ARENA))
             assertEquals("https://arena.ai/$slug/direct", ChatUrls.restorable("https://www.arena.ai/$slug/direct", Sites.ARENA))
             assertTrue(isTrustedBridgeUrl("https://arena.ai/$slug/direct", Sites.ARENA))
@@ -96,7 +96,7 @@ class SiteTest {
         assertNull(ChatUrls.restorable("https://arena.ai/code/direct", Sites.DEEPSEEK))
         assertNull(ChatUrls.restorable("https://arena.ai/code/direct?x=1", Sites.ARENA))
         assertNull(ChatUrls.restorable("https://arena.ai.evil.example/code/direct", Sites.ARENA))
-        assertNull(ChatUrls.restorable("https://arena.ai/video/direct", Sites.ARENA))
+        assertNull(ChatUrls.restorable("https://arena.ai/video/battle", Sites.ARENA))
     }
 
     @Test

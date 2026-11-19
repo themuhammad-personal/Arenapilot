@@ -3228,7 +3228,7 @@ function sdSyncModeBadges(listEl,items,offset){
         const col=row.querySelector("label>div");
         if(col){badge=document.createElement("span");badge.className="sd-item-modes";col.appendChild(badge)}
       }
-      if(badge)badge.textContent=txt;
+      if(badge&&badge.textContent!==txt)badge.textContent=txt;
     }else if(badge)badge.remove();
   }
 }
