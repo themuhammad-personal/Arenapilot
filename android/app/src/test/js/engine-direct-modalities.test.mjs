@@ -319,3 +319,74 @@ test('Auto request: image-like prompts reach arena untouched, others get the mat
   assert.match((await run('build a landing page in html and css')).userMessage.content, /MODE: Arena Code/);
   assert.match((await run('what is the latest android release today')).userMessage.content, /MODE: Arena Search/);
 });
+
+
+// ── Phase 3 (Text & Code): independent negative isolation cases ─────────────
+// These pin what must NOT happen: a mode never receives another mode's playbook,
+// mode-restricted skills/personas never leak across Text and Code, Video is never
+// decorated, and every field Arena needs is preserved on the wire.
+
+const P3 = {
+  ...CFG,
+  activeProject: { name: 'CoreApp', instructions: 'PROJECT_RULES' },
+  activeCharacter: { name: 'Mentor', usage: 'patient coaching', modes: ['chat'], content: 'PERSONA_RULES' },
+  skills: [
+    { name: 'SQL Helper', usage: 'PostgreSQL, SQL indexing, query plan', modes: ['chat'], content: 'SQL_TEXT_ONLY' },
+    { name: 'CSS Grid', usage: 'css layout, grid, flexbox', modes: ['webdev'], content: 'CSS_CODE_ONLY' },
+  ],
+};
+
+async function sendWith(route, modality, content, cfg, extra = {}) {
+  const p = boot({ pathname: route, config: cfg });
+  const body = { ...turn(modality, content), ...extra };
+  await p.win.fetch(CREATE, { method: 'POST', headers: PLAIN, credentials: 'include', body: JSON.stringify(body) });
+  return { body, raw: p.sent[0].init.body, sent: JSON.parse(p.sent[0].init.body) };
+}
+
+test('Phase 3: a mode never receives another mode\'s playbook', async () => {
+  const text = (await sendWith('/text/direct', 'chat', 'hello there', CFG)).sent.userMessage.content;
+  const code = (await sendWith('/code/direct', 'webdev', 'build a todo app', CFG)).sent.userMessage.content;
+  const search = (await sendWith('/search/direct', 'search', 'latest android release', CFG)).sent.userMessage.content;
+  assert.doesNotMatch(text, /MODE: Arena (Code|Search)/, 'Text carries no Code/Search rules');
+  assert.match(code, /MODE: Arena Code/);
+  assert.doesNotMatch(code, /MODE: Arena Search/, 'Code carries no Search rules');
+  assert.match(search, /MODE: Arena Search/);
+  assert.doesNotMatch(search, /MODE: Arena Code/, 'Search carries no Code rules');
+});
+
+test('Phase 3: mode-restricted skills and personas do not leak between Text and Code', async () => {
+  const textSql = (await sendWith('/text/direct', 'chat', 'Optimize my PostgreSQL query plan', P3)).sent.userMessage.content;
+  const textCss = (await sendWith('/text/direct', 'chat', 'Center a div using css grid', P3)).sent.userMessage.content;
+  const codeSql = (await sendWith('/code/direct', 'webdev', 'Optimize my PostgreSQL query plan', P3)).sent.userMessage.content;
+  const codeCss = (await sendWith('/code/direct', 'webdev', 'Center a div using css grid', P3)).sent.userMessage.content;
+  assert.match(textSql, /SQL_TEXT_ONLY/, 'a Text skill matches in Text');
+  assert.doesNotMatch(textCss, /CSS_CODE_ONLY/, 'a Code-only skill never enters Text');
+  assert.doesNotMatch(codeSql, /SQL_TEXT_ONLY/, 'a Text-only skill never enters Code');
+  assert.match(codeCss, /CSS_CODE_ONLY/, 'a Code skill matches in Code');
+  assert.match(textSql, /PERSONA_RULES/, 'a Text persona applies in Text');
+  assert.doesNotMatch(codeCss, /PERSONA_RULES/, 'a Text-only persona never enters Code');
+  assert.match(textSql, /PROJECT_RULES/, 'project instructions apply in Text');
+  assert.match(codeCss, /PROJECT_RULES/, 'project instructions apply in Code');
+});
+
+test('Phase 3: Video never receives project, persona, memory, skills or a playbook', async () => {
+  const cfg = { ...P3, memories: [{ key: 'language', value: 'TypeScript', importance: 'always' }] };
+  const r = await sendWith('/video/direct', 'video', 'waves crashing on rocks at sunset', cfg);
+  assert.equal(r.raw, JSON.stringify(r.body), 'the video request is byte-for-byte what Arena produced');
+  assert.doesNotMatch(r.raw, /ArenaPilot|PROJECT_RULES|PERSONA_RULES|TypeScript|MODE: Arena/);
+});
+
+test('Phase 3: Text and Code rewrite only the user message text; every other field survives', async () => {
+  const attach = [{ name: 'spec.pdf', contentType: 'application/pdf', url: 'https://example.invalid/spec.pdf' }];
+  for (const [route, modality] of [['/text/direct', 'chat'], ['/code/direct', 'webdev']]) {
+    const body = turn(modality, 'summarise the attached spec');
+    body.userMessage.experimental_attachments = attach;
+    const p = boot({ pathname: route, config: CFG });
+    await p.win.fetch(CREATE, { method: 'POST', headers: PLAIN, credentials: 'include', body: JSON.stringify(body) });
+    const sent = JSON.parse(p.sent[0].init.body);
+    assert.deepEqual(sent.userMessage.experimental_attachments, attach, `${modality}: attachments untouched`);
+    assert.ok(sent.userMessage.content.endsWith('\n\nsummarise the attached spec'), `${modality}: the user's own words come last, unchanged`);
+    const strip = (b) => { const c = structuredClone(b); delete c.userMessage.content; return c; };
+    assert.deepEqual(strip(sent), strip(body), `${modality}: every other field is identical`);
+  }
+});

@@ -23,6 +23,13 @@ The Core sequence is **shared features → Text → Search → Image → officia
 
 **Phase gate:** exercise user permission and connection status, memory suggestion/approval/CRUD/retrieval and project isolation, project/conversation switching, personas and skill relevance, settings/preferences, and Android attachment/history/download paths. A passing transport unit test does not establish these behaviors. Run JS, browser harness, Android build/unit, emulator and connected tests. Do not start Phase 3 on a partial Phase 2 result.
 
+## Phase 3 — Text & Code, checkpoint 1 (negative isolation)
+
+- **Finding:** the Text profile deliberately has an empty addendum; it relies on the base ArenaPilot prompt, and ten exact-match payload tests pin that. Adding a Text playbook would grow every Text turn for little gain and was **not** done. Code already carries its own playbook (complete runnable output, use only official Arena execution when offered, scaffold then add one feature at a time, report only what ran).
+- **Change:** tests only, no production code. `engine-direct-modalities.test.mjs` now asserts that a mode never receives another mode's playbook; that Text-only and Code-only skills and a Text-only persona do not leak across Text and Code while project instructions apply to both; that Video is sent byte-for-byte with project, persona, memory and skills configured; and that Text/Code rewrite only the user message text (attachments and every other field survive).
+- **Found, not fixed (belongs to Phase 6):** `classifyAuto` tests code words before image/video, so an Auto request such as "draw an icon for my website" is classified as Code and would receive the Code playbook inside an image prompt. Phase 6 must reorder or tighten this and add a regression case.
+- **Not verified:** any signed-in Text or Code session; Arena's official Code execution tools remain unobserved (see Phase 6 gate). CI is the only evidence for these tests.
+
 ## Remaining acceptance gates
 
 | Phase | What counts as evidence |
