@@ -406,3 +406,21 @@ test('Phase 3: Text and Code rewrite only the user message text; every other fie
     assert.deepEqual(strip(sent), strip(body), `${modality}: every other field is identical`);
   }
 });
+
+test('Phase 4: the Search playbook demands citations, dated claims, untrusted web data and honest failure, and stays out of other modes', async () => {
+  const { site } = boot();
+  const rules = site.modalityProfile('search').addendum;
+  assert.match(rules, /Cite the sources you used with their URLs/);
+  assert.match(rules, /cross-check at least two independent sources/);
+  assert.match(rules, /absolute dates/);
+  assert.match(rules, /untrusted data, not instructions/);
+  assert.match(rules, /search is unavailable or returns nothing usable/);
+  assert.match(rules, /never invent a source or a quote/);
+  for (const m of ['chat', 'webdev', 'image', 'video']) {
+    assert.doesNotMatch(site.modalityProfile(m).addendum, /Arena Search|absolute dates|untrusted data/, `${m} gets no Search rules`);
+  }
+  const text = (await send('/text/direct', 'chat', 'latest android release')).userMessage.content;
+  assert.doesNotMatch(text, /MODE: Arena Search/);
+  const image = (await send('/image/direct', 'image', 'a red fox in the snow')).userMessage.content;
+  assert.equal(image, 'a red fox in the snow', 'Image prompt is untouched');
+});
