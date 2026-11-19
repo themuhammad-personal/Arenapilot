@@ -301,6 +301,18 @@ test('Auto classification: only the user words decide; image/video generation is
     ['why does my python function raise a TypeError', 'webdev'],
     ['what is the latest android release today', 'search'],
     ['আজকের খবর কী', 'search'],
+    // Phase 3 finding: a media request that merely targets a website must stay Image/Video
+    ['draw an icon for my website', 'image'],
+    ['make a logo for my web app', 'image'],
+    ['generate a poster for the landing page', 'image'],
+    ['create a video for my website', 'video'],
+    ['আমার website এর জন্য লোগো বানাও', 'image'],
+    // ...while a website that merely contains media, or a language/code word, stays code
+    ['create a website with a hero image', 'webdev'],
+    ['design a landing page', 'webdev'],
+    ['draw a mockup of my website', 'webdev'],
+    ['create an svg icon', 'webdev'],
+    ['write a REST api', 'webdev'],
   ];
   for (const [text, expected] of cases) assert.equal(site.classifyAuto(text), expected, text);
 });
@@ -318,6 +330,10 @@ test('Auto request: image-like prompts reach arena untouched, others get the mat
   assert.equal(text.modality, 'auto', 'arena still receives the modality it was sent');
   assert.match((await run('build a landing page in html and css')).userMessage.content, /MODE: Arena Code/);
   assert.match((await run('what is the latest android release today')).userMessage.content, /MODE: Arena Search/);
+  // an Auto image request that names a website is still sent byte-for-byte
+  assert.equal((await run('draw an icon for my website')).userMessage.content, 'draw an icon for my website');
+  assert.equal((await run('create a video for my website')).userMessage.content, 'create a video for my website');
+  assert.match((await run('create a website with a hero image')).userMessage.content, /MODE: Arena Code/);
 });
 
 

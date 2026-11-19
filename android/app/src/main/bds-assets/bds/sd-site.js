@@ -524,21 +524,29 @@
   /** What an Auto request is really about, from the user's own words only.
    * Arena picks the final modality server-side; this decides only whether the
    * app may add context (Image/Video never get any) and which mode policy
-   * applies. Deliberately conservative: anything unclear is plain chat. */
+   * applies. Deliberately conservative: anything unclear is plain chat.
+   * Strong code words (a language, "component", a code fence) always mean code.
+   * Weak ones (website, web app, landing page, api) only name a subject, so a
+   * media request that merely targets one ("draw an icon for my website") stays
+   * Image; a weak word BEFORE the media noun ("a website with a hero image")
+   * is the thing being built, so that stays code. */
   function classifyAuto(text) {
     var t = String(text == null ? '' : text).slice(0, 4000).toLowerCase();
     if (!t.trim()) return 'chat';
     var make = '(?:generate|create|make|produce|render|draw|paint|design|animate|edit)';
-    var codeWords = /\b(?:html|css|javascript|typescript|react|svg|component|function|script|api|website|web ?app|landing page|python|sql|regex|bug|compile|code|java|kotlin|node)\b|```/;
-    var isCode = codeWords.test(t);
-    if (!isCode) {
-      if (new RegExp('\\b' + make + '\\b[^.\\n]{0,50}\\b(?:video|clip|animation|movie|short film)\\b').test(t) ||
+    var weak = '(?:api|website|web ?app|landing page)';
+    var gap = '(?:(?!\\b' + weak + '\\b)[^.\\n]){0,50}';
+    var strongCode = /\b(?:html|css|javascript|typescript|react|svg|component|function|script|python|sql|regex|bug|compile|code|java|kotlin|node)\b|```/;
+    var hasStrong = strongCode.test(t);
+    var hasWeak = new RegExp('\\b' + weak + '\\b').test(t);
+    if (!hasStrong) {
+      if (new RegExp('\\b' + make + '\\b' + gap + '\\b(?:video|clip|animation|movie|short film)\\b').test(t) ||
           /(?:ভিডিও|ভিডিও)[^.\n]{0,30}(?:বানা|তৈরি|জেনারেট|করে দাও)|(?:বানা|তৈরি|জেনারেট)[^.\n]{0,30}(?:ভিডিও|ভিডিও)/.test(t)) return 'video';
-      if (new RegExp('\\b' + make + '\\b[^.\\n]{0,50}\\b(?:image|picture|photo|illustration|logo|poster|wallpaper|portrait|drawing|painting|artwork|icon)\\b').test(t) ||
-          /\bdraw (?:me|a|an)\b/.test(t) ||
+      if (new RegExp('\\b' + make + '\\b' + gap + '\\b(?:image|picture|photo|illustration|logo|poster|wallpaper|portrait|drawing|painting|artwork|icon)\\b').test(t) ||
+          (!hasWeak && /\bdraw (?:me|a|an)\b/.test(t)) ||
           /(?:ছবি|ইমেজ|লোগো|পোস্টার)[^.\n]{0,30}(?:বানা|আঁক|আঁকো|তৈরি|জেনারেট|করে দাও)|(?:বানা|আঁক|আঁকো|তৈরি|জেনারেট)[^.\n]{0,30}(?:ছবি|ইমেজ|লোগো|পোস্টার)/.test(t)) return 'image';
     }
-    if (isCode) return 'webdev';
+    if (hasStrong || hasWeak) return 'webdev';
     if (/\b(?:latest|news|today|current(?:ly)?|right now|this week|weather|who won|score|stock price|price of|search the web|look up|find sources|cite sources|20(?:2[5-9]|3\d))\b/.test(t) ||
         /আজকের|সর্বশেষ|খবর|বর্তমান|দাম কত|ওয়েবে খুঁজ/.test(t)) return 'search';
     return 'chat';
