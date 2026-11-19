@@ -637,7 +637,11 @@ try {
     if (!toggle) throw new Error('visible persona create toggle missing');
     toggle.click();
   });
-  await page.waitForSelector('#bds-character-list ~ .sd-create-bar .sd-create-form:not([hidden])', { visible: true });
+  await wait(() => {
+    const list = document.querySelector('#bds-character-list');
+    const form = list && list.parentElement && list.parentElement.querySelector('.sd-create-form:not([hidden])');
+    return !!(form && getComputedStyle(form).display !== 'none');
+  });
   await page.evaluate(() => {
     const form = document.querySelector('#bds-drawer .sd-create-form');
     const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
