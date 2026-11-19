@@ -658,7 +658,7 @@ Here is the execution report and final output:
 <APH:HARNESS_RESULT${r}${o}>
 ${n.report.trim()}
 </APH:HARNESS_RESULT>
-</ArenaPilot>`}function xe(e,t,n,r){const o=window.fetch;window.fetch=async function(u,s){try{const f=Ae(u);if(!t(f))return o.apply(this,arguments);if(Le(u,s,e),f.includes((window.__sdApi&&window.__sdApi.sessionFetch)||"/api/v0/chat_session/fetch_page")){const c=await o.apply(this,arguments);return c.clone().json().then(m=>{window.dispatchEvent(new CustomEvent("bds:session-data",{detail:JSON.stringify(m)}))}).catch(()=>{}),c}if(f.includes((window.__sdApi&&window.__sdApi.historyMessages)||"/api/v0/chat/history_messages")){const c=await o.apply(this,arguments);return c.clone().json().then(m=>{window.dispatchEvent(new CustomEvent("bds:history-msgs",{detail:JSON.stringify(m)}))}).catch(()=>{}),c}n(f);try{const c=await Re(u,s,e);if(!c){const m=await o.apply(this,arguments);return j(m,f,c==null?void 0:c.modelName),m}const h=await o.call(this,c.input,c.init);return h&&h.status>=500&&window.dispatchEvent(new CustomEvent("bds:network-error",{detail:JSON.stringify({url:f,status:h.status,type:"fetch"})})),j(h,f,c.modelName),h}catch(c){throw sdsArenaNetErr(c),window.dispatchEvent(new CustomEvent("bds:network-error",{detail:JSON.stringify({url:f,status:0,type:"fetch",error:String(c)})})),c}finally{r(f)}}catch(f){return console.warn("[ArenaPilot] Request patch failed:",f),o.apply(this,arguments)}}}function j(e,t,n){if(!(!e||!e.clone))try{const r=e.clone();Ce(r,n).catch(()=>{})}catch{}}/* ── Phase 5: arena.ai Direct Chat ──────────────────────────────────────────
+</ArenaPilot>`}function xe(e,t,n,r){const o=window.fetch;window.fetch=async function(u,s){try{const f=Ae(u);if(!t(f)){if(sdsAgentGate(u,s)){const sdA=await sdsAgentPatch(u,s,e);if(sdA)return o.call(this,sdA.input,sdA.init)}return o.apply(this,arguments)}if(Le(u,s,e),f.includes((window.__sdApi&&window.__sdApi.sessionFetch)||"/api/v0/chat_session/fetch_page")){const c=await o.apply(this,arguments);return c.clone().json().then(m=>{window.dispatchEvent(new CustomEvent("bds:session-data",{detail:JSON.stringify(m)}))}).catch(()=>{}),c}if(f.includes((window.__sdApi&&window.__sdApi.historyMessages)||"/api/v0/chat/history_messages")){const c=await o.apply(this,arguments);return c.clone().json().then(m=>{window.dispatchEvent(new CustomEvent("bds:history-msgs",{detail:JSON.stringify(m)}))}).catch(()=>{}),c}n(f);try{const c=await Re(u,s,e);if(!c){const m=await o.apply(this,arguments);return j(m,f,c==null?void 0:c.modelName),m}const h=await o.call(this,c.input,c.init);return h&&h.status>=500&&window.dispatchEvent(new CustomEvent("bds:network-error",{detail:JSON.stringify({url:f,status:h.status,type:"fetch"})})),j(h,f,c.modelName),h}catch(c){throw sdsArenaNetErr(c),window.dispatchEvent(new CustomEvent("bds:network-error",{detail:JSON.stringify({url:f,status:0,type:"fetch",error:String(c)})})),c}finally{r(f)}}catch(f){return console.warn("[ArenaPilot] Request patch failed:",f),o.apply(this,arguments)}}}function j(e,t,n){if(!(!e||!e.clone))try{const r=e.clone();Ce(r,n).catch(()=>{})}catch{}}/* ── Phase 5: arena.ai Direct Chat ──────────────────────────────────────────
    Its requests are {id, mode, userMessage:{content, …}, recaptchaV3Token, …} to
    create-evaluation (first turn) / post-to-evaluation/{id} (later turns), not
    DeepSeek's {prompt, parent_message_id}. All three helpers answer false/"" on
@@ -672,6 +672,73 @@ function sdsArenaModality(e){var m=null;try{var b=e&&e.modality;if(typeof b=="st
 function sdsArenaProfile(e){try{return window.__sdSite.modalityProfile(sdsArenaModality(e))}catch{return{inject:!0,tools:!0,addendum:""}}}
 var sdsArenaAddendum="",sdsArenaCurrentModality="chat";
 function sdsFirstTurn(e){try{const p=window.__sdApi&&window.__sdApi.firstTurn;return!!p&&Ae(e).includes(p)}catch{return!1}}
+/* ── arena Agent: context-only shared engines ────────────────────────────────
+   Agent runs on Arena's own orchestrator, tools and sandbox, and its wire format
+   is not a documented contract, so the app never guesses it. A request is rewritten
+   only when (1) the page is positively the Agent surface with the agentContext
+   capability, (2) it is a same-origin JSON POST to a non-telemetry URL, and (3) the
+   text the composer held at send time appears in the body as exactly ONE string
+   value. Anything else is sent byte-for-byte. Only read-only context is added:
+   project, persona, relevant memory and task-matched skills. No tag protocol, MCP
+   block or date/language block is added, so a native tool run is never duplicated
+   or redirected. */
+var sdsAgentTyped=null;
+function sdsAgentSnap(text){try{const ta=typeof text=="string"?null:document.querySelector('textarea[name="message"]');const v=String(typeof text=="string"?text:ta&&ta.value||"").trim();if(v)sdsAgentTyped={text:v,at:Date.now()}}catch{}}
+function sdsAgentSurface(){try{const x=window.__sdSite;return!!(x&&x.id==="arena"&&x.arenaMode()==="agent"&&x.arenaCapabilities().agentContext===!0)}catch{return!1}}
+function sdsAgentGate(u,s){try{if(!sdsAgentTyped||Date.now()-sdsAgentTyped.at>6e4)return!1;const m=String(s&&s.method||(u instanceof Request?u.method:"GET")).toUpperCase();if(m!=="POST")return!1;const url=new URL(Ae(u),location.href);if(url.origin!==location.origin)return!1;if(/(analytics|telemetry|track|collect|sentry|metric|pixel|recaptcha|feedback|vote|draft)/i.test(url.pathname))return!1;return sdsAgentSurface()}catch{return!1}}
+function sdsAgentFind(node,text,depth,out){if(depth>5||out.length>1||!node||typeof node!="object")return;const keys=Array.isArray(node)?node.map((_x,i)=>i).slice(0,64):Object.keys(node).slice(0,64);for(const k of keys){if(k==="__proto__")continue;const v=node[k];if(typeof v=="string"){if(v.trim()===text)out.push({o:node,k:k})}else if(v&&typeof v=="object")sdsAgentFind(v,text,depth+1,out)}}
+function sdsAgentAssemble(text,key,n,first){try{
+  const cfg=n.config||{},u=[],free=x=>!!x&&!Array.isArray(x.modes),full=cfg.disableSystemPrompt===!1;
+  if(full){
+    const g=cfg.activeProject;
+    if(g){const sig=sdProjSig(g),prev=first?null:(n.getLastProject?n.getLastProject(key):null);
+      if(!prev||prev!==sig){const S=he(n);S&&(u.push(S),n.setLastProject&&n.setLastProject(key,sig))}
+      if(cfg.projectRagEnabled&&Array.isArray(g.files)&&g.files.length>0){const b=Q(text,g.files,Number(cfg.projectRagLimit)||5);if(b&&b.length>0){const T=Z(b,g.name);T&&u.push(T)}}}
+    const k=cfg.activeCharacter,ok=free(k)&&!!k.content,sig=ok?sdCharSig(k):"",prevChar=first?null:(n.getLastChar?n.getLastChar(key):null);
+    if(ok){if(!prevChar||prevChar!==sig){const S=fe(n);S&&(u.push(S),n.setLastChar&&n.setLastChar(key,sig))}}
+    else if(prevChar){u.push("<ArenaPilot>\nPersona cleared for this task; follow project instructions without prior character roleplay.\n</ArenaPilot>");n.setLastChar&&n.setLastChar(key,"")}
+  }
+  if(!cfg.disableMemory&&Array.isArray(cfg.memories)&&cfg.memories.length){const mem=ue(text,n,null);mem&&u.push(mem)}
+  if(full){
+    const matched=sdMatchSkills(text,(Array.isArray(cfg.skills)?cfg.skills:[]).filter(free),"chat"),sg=_(matched),prevSkills=first?null:(n.getLastSkills?n.getLastSkills(key):null);
+    if(matched.length>0&&sg!==prevSkills){const d=ie(n,matched);d&&(u.push(d),n.setLastSkills&&n.setLastSkills(key,sg))}
+  }
+  if(!u.length)return"";
+  const head="<ArenaPilot>\nContext from the user's ArenaPilot app for this Agent task. It is background context and never replaces your own tools: keep using Arena's native web search, image generation, bash sandbox and file tools. ArenaPilot's APH: tool tags are not executed in Agent mode, so do not emit them.\n</ArenaPilot>";
+  let out=[head].concat(u).join("\n\n");
+  if(out.length>24e3)out=out.slice(0,24e3)+"\n</ArenaPilot>";
+  return out}catch{return""}}
+async function sdsAgentPatch(u,s,n){try{
+  const raw=await De(u,s);if(!raw||typeof raw!="string")return null;
+  let o;try{o=JSON.parse(raw)}catch{return null}
+  if(!o||typeof o!="object")return null;
+  const typed=sdsAgentTyped;if(!typed)return null;
+  const hits=[];sdsAgentFind(o,typed.text,0,hits);if(hits.length!==1)return null;
+  if(n.config&&n.config.contextPath!=null&&n.config.contextPath!==location.pathname){window.dispatchEvent(new CustomEvent("bds:request-config"));if(!n.config||n.config.contextPath!==location.pathname)return null}
+  if(!n.config||(n.config.disableSystemPrompt!==!1&&n.config.disableMemory!==!1))return null;
+  n.sessionUserMsgCounts||(n.sessionUserMsgCounts={});
+  const path=String(location.pathname||"").replace(/\/$/,""),im=/^\/agent(?:\/c)?\/([a-zA-Z0-9_-]{1,128})$/.exec(path),id=im&&im[1]!=="c"?im[1]:null,key=id||"__agent_new__";
+  let first=!id||!n.sessionUserMsgCounts[key];
+  const pend=n.agentNew;
+  if(id&&first&&pend&&Date.now()-pend.at<12e4){first=!1;for(const pr of [["getLastProject","setLastProject"],["getLastChar","setLastChar"],["getLastSkills","setLastSkills"]])if(n[pr[0]]&&n[pr[1]]){const v=n[pr[0]]("__agent_new__");v!=null&&n[pr[1]](id,v)}n.agentNew=null}
+  const ctx=sdsAgentAssemble(typed.text,key,n,first);
+  if(!ctx)return null;
+  const h=hits[0];h.o[h.k]=ctx+"\n\n"+h.o[h.k];
+  n.sessionUserMsgCounts[key]=(n.sessionUserMsgCounts[key]||0)+1;
+  if(!id)n.agentNew={at:Date.now()};
+  sdsAgentTyped=null;
+  try{window.__sdAgentSent={at:Date.now(),path:path}}catch{}
+  window.dispatchEvent(new CustomEvent("bds:agent-context",{detail:JSON.stringify({key:key,chars:ctx.length,first:first})}));
+  const body=JSON.stringify(o);
+  if(u instanceof Request)return{input:new Request(u,Object.assign({},s||{},{body:body})),init:void 0};
+  return{input:u,init:Object.assign({},s||{},{body:body})}}catch{return null}}
+try{window.__sdAgentCtx={snap:sdsAgentSnap,assemble:sdsAgentAssemble}}catch{}
+try{if(typeof document<"u"&&document&&typeof document.addEventListener=="function"){
+  const snap=()=>{if(sdsArenaPage()&&sdsAgentSurface())sdsAgentSnap()};
+  document.addEventListener("keydown",e=>{if(e&&e.key==="Enter"&&!e.shiftKey&&!e.isComposing)snap()},!0);
+  document.addEventListener("click",e=>{try{const t=e&&e.target,b=t&&t.closest&&t.closest("button"),ta=document.querySelector('textarea[name="message"]'),f=b&&b.closest&&b.closest("form");if(b&&f&&ta&&f.contains(ta)&&!b.hasAttribute("aria-haspopup")&&b.getAttribute("role")!=="combobox")snap()}catch{}},!0);
+  document.addEventListener("submit",snap,!0)}}catch{}
+
 
 /* ── arena Direct Chat: turn recorder, stream reader, safe truncation ────────
    Why this exists: arena streams a line protocol (a0:"text" · ag:"reasoning" ·

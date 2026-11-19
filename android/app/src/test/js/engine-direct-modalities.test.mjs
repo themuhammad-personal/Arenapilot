@@ -127,7 +127,7 @@ test('a /c/{id} conversation keeps the modality it was started in', () => {
   assert.equal(p.site.arenaModality(), 'search', 'a modality reported by a request body wins');
 });
 
-test('every non-Direct route stays unsupported or unknown — Battle, Side-by-side and Agent are untouched', () => {
+test('every non-Direct route stays unsupported or unknown — Battle and Side-by-side are untouched, Agent is context-only', () => {
   for (const slug of ['text', 'code', 'search', 'image', 'video']) {
     for (const mode of ['battle', 'side-by-side']) {
       assert.equal(boot({ pathname: `/${slug}/${mode}` }).site.arenaMode(), 'unsupported', `${slug}/${mode}`);
@@ -137,7 +137,9 @@ test('every non-Direct route stays unsupported or unknown — Battle, Side-by-si
   assert.equal(boot({ pathname: '/agent' }).site.arenaMode(), 'agent');
   for (const route of ['/agent', '/agent/some-task', '/text/agent']) {
     const caps = boot({ pathname: route }).site.arenaCapabilities();
-    for (const [key, value] of Object.entries(caps)) assert.equal(value, false, `${route} ${key}: Agent transport is not verified, so no shared engine is injected`);
+    // Agent is context-only: read-only project/persona/skill/memory context, never tags, scanning or MCP.
+    assert.equal(caps.agentContext, true, route);
+    for (const key of ['sharedUi', 'assistantScanning', 'mcp', 'continuity', 'memories']) assert.equal(caps[key], false, `${route} ${key}: no tag protocol or tool automation next to Arena's native tools`);
   }
   for (const route of ['/leaderboard', '/c/id/extra', '/code', '/image/direct/extra']) {
     assert.notEqual(boot({ pathname: route }).site.arenaMode(), 'direct', route);

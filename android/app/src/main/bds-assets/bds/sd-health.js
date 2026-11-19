@@ -410,7 +410,7 @@
       var text = mode === 'unsupported'
         ? t('ArenaPilot tools work in single-model Chat (Auto, Text, Code, Web Search, Image, Video). Battle and Side-by-side stay on the official page.', 'ArenaPilot-এর টুল একক-মডেল Chat-এ (Auto, Text, Code, Web Search, Image, Video) কাজ করে। Battle ও Side-by-side অফিসিয়াল পেজেই থাকে।')
         : mode === 'agent'
-        ? t('Agent mode runs on Arena\u2019s own tools and sandbox. ArenaPilot shared engines are paused here; Settings stay available in Chat.', 'Agent মোড Arena-র নিজস্ব টুল ও স্যান্ডবক্সে চলে। এখানে ArenaPilot-এর শেয়ার্ড ইঞ্জিন থামানো আছে; Chat-এ Settings ব্যবহার করা যাবে।')
+        ? t('Agent mode runs on Arena\u2019s own tools and sandbox. ArenaPilot adds only read-only context here (project, persona, relevant memory, matching skills) when the request can be verified; MCP and tag tools stay off so nothing runs twice.', 'Agent মোড Arena-র নিজস্ব টুল ও স্যান্ডবক্সে চলে। অনুরোধ যাচাই করা গেলে ArenaPilot এখানে শুধু পড়ার-মতো প্রসঙ্গ (প্রজেক্ট, পারসোনা, প্রাসঙ্গিক মেমরি, মিলে যাওয়া স্কিল) যোগ করে; কোনো কাজ দুবার চলতে না দিতে MCP ও ট্যাগ-টুল বন্ধ থাকে।')
         : t('ArenaPilot tools are paused: the Chat mode could not be verified. Select Chat and a model to continue.', 'Chat মোড নিশ্চিত করা যায়নি, তাই ArenaPilot-এর টুল থামানো আছে। চালাতে Chat ও একটি মডেল বেছে নিন।');
       if (!old) {
         old = document.createElement('div'); old.id = 'sd-arena-mode-notice';

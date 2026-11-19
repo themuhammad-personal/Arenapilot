@@ -2017,7 +2017,10 @@ function sdSaveMembership(chat,project,files){
 }
 function sdProjectRoute(){
   if(!sdsIsArena())return null;const path=String(location.pathname||"").replace(/\/$/,"");
-  if(!sdsArenaDirect())return {path:"",chat:null,home:false};
+  const agent=!sdsArenaDirect()&&sdsArenaCapability("agentContext");
+  if(!sdsArenaDirect()&&!agent)return {path:"",chat:null,home:false};
+  // Agent: context-only grant. Projects follow the chat id exactly like Direct chats do.
+  if(agent){const a=/^\/(?:agent(?:\/c)?|c)\/([a-zA-Z0-9_-]{1,128})$/.exec(path);return {path,chat:a&&a[1]!=="c"?a[1]:null,home:/^\/(agent|chat)$/.test(path)||path==="",agent:true}}
   const m=/^\/c\/([a-zA-Z0-9_-]{1,128})$/.exec(path);return {path,chat:m?m[1]:null,home:/^\/(text|code|search|image|video)\/direct$/.test(path)||path===""};
 }
 function sdRestoreProject(){
@@ -2025,6 +2028,10 @@ function sdRestoreProject(){
   if(r.path!==sdProjectPath){
     if(r.chat&&sdProjectCandidate&&sdProjectCandidate.id===r.chat&&sdProjectCandidate.from===sdProjectPath&&B.projects.some(p=>p.id===sdProjectCandidate.project))
       sdSaveMembership(r.chat,sdProjectCandidate.project,sdProjectCandidate.files);
+    // Agent has no observable first-send chat id. Bind the draft only when this app itself
+    // just added context to a send from this very home route and the new chat is unowned.
+    if(r.agent&&r.chat&&!sdProjectCandidate&&sdProjectDraft&&/^\/(agent|chat)$/.test(sdProjectPath||"")&&window.__sdAgentSent&&window.__sdAgentSent.path===sdProjectPath&&Date.now()-window.__sdAgentSent.at<3e4&&B.projects.some(p=>p.id===sdProjectDraft.project)&&!B.projects.some(p=>(p.conversations||[]).some(c=>c.id===r.chat)))
+      sdSaveMembership(r.chat,sdProjectDraft.project,sdProjectDraft.files);
     sdProjectPath=r.path;sdProjectDraft=null;sdProjectCandidate=null;
   }
   const owners=r.chat?B.projects.filter(p=>(p.conversations||[]).some(c=>c.id===r.chat)):[];
@@ -3613,7 +3620,7 @@ function sdBuildOverview(root,h){
   sdRow(tools,{key:"mcp",icon:"mcp",title:sdT("MCP servers","MCP \u09B8\u09BE\u09B0\u09CD\u09AD\u09BE\u09B0"),sub:sdT("Connect external tools to the AI","AI-\u098F\u09B0 \u09B8\u09BE\u09A5\u09C7 \u09AC\u09BE\u0987\u09B0\u09C7\u09B0 \u099F\u09C1\u09B2 \u09AF\u09C1\u0995\u09CD\u09A4 \u0995\u09B0\u09C1\u09A8"),value:sdCount(mcpOn),onClick:function(){h.go("mcp")}});
   var status=document.createElement("div");status.id="sd-mcp-connection-status";status.setAttribute("role","status");status.style.cssText="white-space:pre-line;font-size:.85em;margin:4px 16px;overflow-wrap:anywhere";
   tools.appendChild(status);Promise.resolve().then(sdMcpStatusPaint);
-  if(sdsIsArena()&&B.projects&&B.projects.length&&sdsArenaDirect()){
+  if(sdsIsArena()&&B.projects&&B.projects.length&&(sdsArenaDirect()||sdsArenaCapability("agentContext"))){
     var projects=sdSection(root,sdT("Project for this conversation","এই কথোপকথনের প্রজেক্ট"));
     var picker=document.createElement("select"),links=document.createElement("nav");picker.setAttribute("aria-label",sdT("Active project","সক্রিয় প্রজেক্ট"));picker.className="bds-select";
     var option=(id,text)=>{var el=document.createElement("option");el.value=id;el.textContent=text;picker.appendChild(el)};

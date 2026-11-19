@@ -39,12 +39,17 @@ test('unsupported route overrides a stale Direct control; non-chat routes fail c
   assert.equal(load('/text/direct', 'Battle').gate(), false, 'a mode transition cannot temporarily permit Battle tags');
 });
 
-test('Agent, unknown routes and unsupported modes receive no Arena shared-engine capabilities', () => {
+test('unknown routes and unsupported modes receive no Arena shared-engine capabilities; Agent gets context only', () => {
   const keys = ['sharedUi','promptContext','assistantScanning','mcp','continuity','memories','projects','personasSkills'];
-  for (const route of ['/agent','/text/agent','/code/agent','/text/battle','/text/side-by-side','/c/conversation']) {
+  for (const route of ['/text/battle','/text/side-by-side','/c/conversation']) {
     const p = load(route, route === '/c/conversation' ? '' : 'Direct');
     assert.deepEqual(JSON.parse(JSON.stringify(p.ctx.window.__sdSite.arenaCapabilities())),
       Object.fromEntries(keys.map((key) => [key, false])), route);
+  }
+  for (const route of ['/agent','/text/agent','/code/agent']) {
+    const caps = JSON.parse(JSON.stringify(load(route, 'Agent').ctx.window.__sdSite.arenaCapabilities()));
+    assert.equal(caps.agentContext, true, route);
+    for (const key of ['sharedUi','assistantScanning','mcp','continuity','memories']) assert.equal(caps[key], false, `${route} ${key}`);
   }
   const direct = load('/text/direct');
   assert.equal(direct.capability('sharedUi'), true);

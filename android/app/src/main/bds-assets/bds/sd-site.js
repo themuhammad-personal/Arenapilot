@@ -568,9 +568,9 @@
   }
 
   /* Shared-engine capabilities are granted only to a positively identified
-   * Arena Direct surface. Agent, Battle, Side-by-side and unfamiliar modes
-   * remain official, untouched pages: their private transports/tools are not
-   * an app integration contract. Keep each capability narrow so Image/Video
+   * Arena Chat surface, plus a context-only grant for Agent (see below).
+   * Battle, Side-by-side and unfamiliar modes remain official, untouched
+   * pages: their private transports/tools are not an app integration contract. Keep each capability narrow so Image/Video
    * prompts and Arena-native tooling cannot acquire Text/Code behavior. */
   function arenaCapabilities() {
     var off = { sharedUi: false, promptContext: false, assistantScanning: false,
@@ -581,6 +581,13 @@
     var mode, modality, profile;
     try {
       mode = arenaMode();
+      // Agent runs on Arena's own orchestrator, tools and sandbox. It receives ONLY
+      // read-only context (project, persona, relevant memory, task-matched skills),
+      // never the APH tag protocol: no tag scanning, no auto-created records, no MCP
+      // tag calls and no continuity nudges that could duplicate a native tool run.
+      if (mode === 'agent') return { sharedUi: false, promptContext: true,
+        assistantScanning: false, mcp: false, continuity: false, memories: false,
+        projects: true, personasSkills: true, agentContext: true };
       if (mode !== 'direct') return off;
       modality = arenaModality();
       profile = modalityProfile(modality);
