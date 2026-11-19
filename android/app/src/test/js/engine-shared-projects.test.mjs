@@ -9,7 +9,7 @@ const code=part('function w_(){','async function I8t(')+part('function fA(','cla
 const turn=()=>new Promise(done=>setImmediate(done));
 function boot(store={}){
  let seq=0;const events=[];const c={B:{projects:[],projectFiles:[],settings:{},memories:{},characters:[],skills:[],mcpServers:[],deepResearch:{},deepCode:{}},
- location:{pathname:'/c/alpha'},sdsIsArena:()=>true,sdsArenaDirect:()=>true,Us:()=>`p${++seq}`,TD:async()=>{},st:{projects:'bds_projects',projectFiles:'bds_project_files',memories:'bds_memories'},
+ location:{pathname:'/c/alpha'},sdsIsArena:()=>true,sdsArenaDirect:()=>true,sdsArenaCapability:()=>true,Us:()=>`p${++seq}`,TD:async()=>{},st:{projects:'bds_projects',projectFiles:'bds_project_files',memories:'bds_memories'},
  chrome:{storage:{local:{set:async obj=>Object.assign(store,JSON.parse(JSON.stringify(obj)))}}},console,TextEncoder,window:{__sdSite:{arenaModality:()=>'chat'},dispatchEvent:e=>{if(e.detail)events.push(JSON.parse(e.detail))}},CustomEvent,
  sdT:a=>a,T6:s=>s,du:'fixture',BA:{configUpdate:'cfg'},M_e:()=>'',UD:()=>[],m1:async()=>[]};vm.createContext(c);vm.runInContext(code+part('let sdConfigRevision=','function Lme('),c);
  c.B.memories=c.QQ(store.bds_memories);c.B.projects=c.Qme(store.bds_projects);c.B.projectFiles=c.Hme(store.bds_project_files);

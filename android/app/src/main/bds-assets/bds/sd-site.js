@@ -417,8 +417,8 @@
   // chat | webdev (the "code" route) | search | image  (video / audio / auto /
   // p2l also exist in arena's enum). Verified in arena's shipped chunks, not
   // guessed: EEvaluationModality = {AUTO,CHAT,WEBDEV,SEARCH,IMAGE,P2L,VIDEO,AUDIO}.
-  var MODALITY_BY_SLUG = { text: 'chat', code: 'webdev', search: 'search', image: 'image' };
-  var DIRECT_HOME = /^\/(text|code|search|image)\/direct\/?$/;
+  var MODALITY_BY_SLUG = { text: 'chat', code: 'webdev', search: 'search', image: 'image', video: 'video' };
+  var DIRECT_HOME = /^\/(text|code|search|image|video)\/direct\/?$/;
   var UNSUPPORTED_ROUTE = /^\/(text|code|search|image|video)\/(battle|side-by-side|arena|agent)(?:\/|$)|^\/agent(?:\/|$)/;
   var lastModality = null;
 
@@ -471,7 +471,7 @@
    * in a request body or on a home route (a /c/{id} URL does not say). */
   function arenaModality() {
     if (site.id !== 'arena') return null;
-    var m = /^\/(text|code|search|image)\//.exec(String(location.pathname || ''));
+    var m = /^\/(text|code|search|image|video)\//.exec(String(location.pathname || ''));
     if (m && DIRECT_HOME.test(String(location.pathname || ''))) lastModality = MODALITY_BY_SLUG[m[1]];
     return lastModality || 'chat';
   }

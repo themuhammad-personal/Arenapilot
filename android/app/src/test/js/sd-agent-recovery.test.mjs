@@ -41,6 +41,7 @@ function load({ site = 'arena', href = 'https://arena.ai/c/E1', ring = [], lastU
   };
   ctx.window = ctx;
   ctx.__sdSite = { id: site, arenaMode: () => 'direct', arenaModality: () => 'chat' };
+  ctx.__sdSite.arenaCapabilities = () => ({ mcp: ctx.__sdSite.arenaMode() === 'direct' && ['chat', 'search', 'webdev'].includes(ctx.__sdSite.arenaModality()) });
   ctx.__sdArena = { history: () => ring, lastUser: () => lastUser };
   ctx.__sdEngine = {
     hasMcpServer: (ref) => ref === 'fixture',

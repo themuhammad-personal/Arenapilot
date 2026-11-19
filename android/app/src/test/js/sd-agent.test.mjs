@@ -154,6 +154,7 @@ test('Arena Stop uses only an actionable official composer control, never DeepSe
     };
     const form = { querySelectorAll: () => scenario === 'missing' ? [] : scenario === 'ambiguous' ? [button, { ...button }] : [button] };
     win.__sdSite = { id: 'arena', arenaMode: () => 'direct', arenaModality: () => 'chat', profile: { selectors: { stopButton: { selectors: ['button[aria-label*="Stop"]'] } } } };
+    win.__sdSite.arenaCapabilities = () => ({ mcp: win.__sdSite.arenaMode() === 'direct' && ['chat', 'search', 'webdev'].includes(win.__sdSite.arenaModality()) });
     win.document.querySelector = (selector) => {
       assert.equal(selector, 'textarea[name="message"]', 'Arena must not scan DeepSeek icons');
       return { closest: () => form };

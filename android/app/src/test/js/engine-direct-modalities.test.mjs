@@ -83,6 +83,15 @@ test('all four Direct home routes are Direct Mode, each with its own modality', 
   }
 });
 
+test('the Video Direct route is a Direct surface whose prompt is never touched', () => {
+  const p = boot({ pathname: '/video/direct' });
+  assert.equal(p.site.arenaMode(), 'direct');
+  assert.equal(p.site.arenaModality(), 'video');
+  const caps = p.site.arenaCapabilities();
+  assert.equal(caps.sharedUi, true);
+  for (const key of ['promptContext', 'assistantScanning', 'mcp', 'continuity', 'memories', 'projects', 'personasSkills']) assert.equal(caps[key], false, key);
+});
+
 test('the content-script gate opens on every Direct route (it used to open on /text/direct only)', () => {
   const gate = BUNDLE.slice(BUNDLE.indexOf('function sdsArenaCapability(name){'), BUNDLE.indexOf('\nfunction sdsArenaMessages()'));
   for (const route of ['/text/direct', '/code/direct', '/search/direct', '/image/direct']) {

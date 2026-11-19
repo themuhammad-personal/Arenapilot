@@ -20,7 +20,7 @@ import vm from 'node:vm';
 
 const content = fs.readFileSync(new URL('../../main/bds-assets/bds/content.js', import.meta.url), 'utf8');
 const SCANNER = content.slice(
-  content.indexOf('function sdsArenaDirect('),
+  content.indexOf('function sdsArenaCapability('),
   content.indexOf('function sdsArenaObserveMessages('),
 );
 
@@ -88,7 +88,7 @@ function page({ tree, dir = new Map(), mode = 'direct', containers } = {}) {
   const htmlRoot = tree;
   const computed = dir;
   const ctx = vm.createContext({
-    window: { __sdSite: { arenaMode: () => mode } },
+    window: { __sdSite: { id: 'arena', arenaMode: () => mode, arenaCapabilities: () => ({ sharedUi: mode === 'direct' }) } },
     document: {
       body: htmlRoot,
       querySelector: (sel) => descendants(htmlRoot).find((d) => matchSelector(d, sel)) || null,

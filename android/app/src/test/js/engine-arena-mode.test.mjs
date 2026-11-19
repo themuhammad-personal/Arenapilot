@@ -49,7 +49,7 @@ test('Agent, unknown routes and unsupported modes receive no Arena shared-engine
   const direct = load('/text/direct');
   assert.equal(direct.capability('sharedUi'), true);
   assert.equal(direct.capability('memories'), true);
-  direct.ctx.window.__sdSite.arenaMode = () => { throw new Error('mode unavailable'); };
+  direct.ctx.location = null; // arenaMode() now throws while reading the route
   assert.equal(direct.capability('mcp'), false, 'resolver exceptions fail closed');
 });
 

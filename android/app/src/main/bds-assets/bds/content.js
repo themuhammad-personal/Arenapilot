@@ -2018,7 +2018,7 @@ function sdSaveMembership(chat,project,files){
 function sdProjectRoute(){
   if(!sdsIsArena())return null;const path=String(location.pathname||"").replace(/\/$/,"");
   if(!sdsArenaDirect())return {path:"",chat:null,home:false};
-  const m=/^\/c\/([a-zA-Z0-9_-]{1,128})$/.exec(path);return {path,chat:m?m[1]:null,home:/^\/(text|code|search|image)\/direct$/.test(path)||path===""};
+  const m=/^\/c\/([a-zA-Z0-9_-]{1,128})$/.exec(path);return {path,chat:m?m[1]:null,home:/^\/(text|code|search|image|video)\/direct$/.test(path)||path===""};
 }
 function sdRestoreProject(){
   const r=sdProjectRoute();if(!r)return;

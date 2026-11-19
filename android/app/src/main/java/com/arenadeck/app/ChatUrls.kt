@@ -30,9 +30,9 @@ internal object ChatUrls {
     }
 
     /**
-     * arena.ai's four Direct Chat home pages (Text, Code, Search, Image). A
+     * arena.ai's five Direct Chat home pages (Text, Code, Search, Image, Video). A
      * relaunch lands on the one the user was in instead of always on Text.
      * Battle / Side-by-side / Agent pages are deliberately not here.
      */
-    private val ARENA_DIRECT_HOME = Regex("^/(text|code|search|image)/direct/?$")
+    private val ARENA_DIRECT_HOME = Regex("^/(text|code|search|image|video)/direct/?$")
 }

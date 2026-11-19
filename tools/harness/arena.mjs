@@ -643,7 +643,7 @@ try {
     return !!(form && getComputedStyle(form).display !== 'none');
   });
   await page.evaluate(() => {
-    const form = document.querySelector('#bds-drawer .sd-create-form');
+    const form = document.querySelector('#bds-character-list').parentElement.querySelector('.sd-create-form');
     const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
     const contentIn = form.querySelector('textarea.bds-input');
     nameIn.value = 'Code Critic';
@@ -654,7 +654,7 @@ try {
     checks[0].click();
     checks[1].click();
   });
-  await page.click('#bds-drawer .sd-create-form .bds-btn');
+  await page.$eval('#bds-character-list', (list) => list.parentElement.querySelector('.sd-create-form .bds-editor-actions .bds-btn').click());
   await wait(() => {
     const chars = JSON.parse(window.AndroidBridge.getStorage('bds_characters') || '[]');
     return chars.length === 1 && chars[0].active === true && JSON.stringify(chars[0].modes) === '["webdev"]';
@@ -670,10 +670,20 @@ try {
   // Switch to Skills sub-tab and create a task-matched, mode-scoped skill inline
   await page.$eval('#bds-drawer .bds-sub-segment-bar', (bar) => bar.querySelectorAll('button')[2].click());
   await page.waitForSelector('#bds-skill-list', { visible: true });
-  await page.click('#bds-drawer .sd-create-toggle');
-  await page.waitForSelector('#bds-drawer .sd-create-form:not([hidden])', { visible: true });
+  // Every panel owns its own create bar; the first one in the drawer belongs to
+  // Personas (now hidden), so scope to the Skills list's sibling bar.
+  await page.$eval('#bds-skill-list', (list) => {
+    const toggle = list.parentElement.querySelector('.sd-create-toggle:not([hidden])');
+    if (!toggle) throw new Error('visible skill create toggle missing');
+    toggle.click();
+  });
+  await wait(() => {
+    const list = document.querySelector('#bds-skill-list');
+    const form = list && list.parentElement && list.parentElement.querySelector('.sd-create-form:not([hidden])');
+    return !!(form && getComputedStyle(form).display !== 'none');
+  });
   await page.evaluate(() => {
-    const form = document.querySelector('#bds-drawer .sd-create-form');
+    const form = document.querySelector('#bds-skill-list').parentElement.querySelector('.sd-create-form');
     const [nameIn, usageIn] = form.querySelectorAll('input.bds-input');
     const contentIn = form.querySelector('textarea.bds-input');
     nameIn.value = 'SQL Planner';
@@ -683,7 +693,7 @@ try {
     // Search off -> Text & Code only
     checks[1].click();
   });
-  await page.click('#bds-drawer .sd-create-form .bds-btn');
+  await page.$eval('#bds-skill-list', (list) => list.parentElement.querySelector('.sd-create-form .bds-editor-actions .bds-btn').click());
   await wait(() => {
     const skills = JSON.parse(window.AndroidBridge.getStorage('bds_skills') || '[]');
     const latest = window.__cfgs && window.__cfgs[window.__cfgs.length - 1];
