@@ -668,7 +668,9 @@ ${n.report.trim()}
    we have not seen is treated like Direct, so a rename cannot silently stop injection. */
 function sdsArenaPage(){try{return!!(window.__sdSite&&window.__sdSite.id==="arena")}catch{return!1}}
 function sdsArenaBody(e){return sdsArenaPage()&&!!e&&typeof e.userMessage=="object"&&e.userMessage!==null&&typeof e.userMessage.content=="string"&&(e.mode==="direct-battle"||e.mode==="direct")}
-function sdsArenaModality(e){var m=null;try{var b=e&&e.modality;if(typeof b=="string"&&b){window.__sdSite&&typeof window.__sdSite.noteModality=="function"&&window.__sdSite.noteModality(b);m=b}}catch{}if(!m){try{m=window.__sdSite.arenaModality()||"chat"}catch{m="chat"}}try{if(String(m).toLowerCase()==="auto"){var t=e&&e.userMessage&&e.userMessage.content;m=typeof window.__sdSite.classifyAuto=="function"?window.__sdSite.classifyAuto(typeof t=="string"?t:""):"chat"}}catch{m="chat"}return m}
+function sdsArenaModality(e){var m=null;try{var b=e&&e.modality;if(typeof b=="string"&&b){window.__sdSite&&typeof window.__sdSite.noteModality=="function"&&window.__sdSite.noteModality(b);m=b}}catch{}if(!m){try{m=window.__sdSite.arenaModality()||"chat"}catch{m="chat"}}try{if(String(m).toLowerCase()==="auto"){var um=e&&e.userMessage,t=um&&um.content,ak=sdsAutoKey(e);m=typeof window.__sdSite.classifyAuto=="function"?window.__sdSite.classifyAuto(typeof t=="string"?t:"",{attachments:um&&um.experimental_attachments,previous:ak?sdsAutoLast.get(ak):null}):"chat";if(ak){sdsAutoLast.delete(ak);sdsAutoLast.set(ak,m);while(sdsAutoLast.size>16)sdsAutoLast.delete(sdsAutoLast.keys().next().value)}}}catch{m="chat"}return m}
+var sdsAutoLast=new Map;
+function sdsAutoKey(e){try{if(e&&typeof e.id==="string"&&e.id)return"id:"+e.id;const p=typeof location!=="undefined"&&location.pathname;return/^\/c\/[^/]+\/?$/.test(p||"")?"path:"+p:""}catch{return""}}
 function sdsArenaProfile(e){try{return window.__sdSite.modalityProfile(sdsArenaModality(e))}catch{return{inject:!0,tools:!0,addendum:""}}}
 var sdsArenaAddendum="",sdsArenaCurrentModality="chat";
 function sdsFirstTurn(e){try{const p=window.__sdApi&&window.__sdApi.firstTurn;return!!p&&Ae(e).includes(p)}catch{return!1}}

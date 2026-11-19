@@ -424,3 +424,92 @@ test('Phase 4: the Search playbook demands citations, dated claims, untrusted we
   const image = (await send('/image/direct', 'image', 'a red fox in the snow')).userMessage.content;
   assert.equal(image, 'a red fox in the snow', 'Image prompt is untouched');
 });
+
+// ── Phase 5/6: reference media and Auto continuity ──────────────────────────
+// An Auto turn that edits an attached picture/clip, or briefly follows an Auto turn that
+// produced one, must reach Arena byte-for-byte. Questions, documents and explicit
+// code/search requests keep the normal engine. Only attachments' type and the user's own
+// words are read; nothing is added to or removed from the request.
+
+const PNG = [{ name: 'fox.png', contentType: 'image/png', url: 'https://example.invalid/fox.png' }];
+const MP4 = [{ name: 'wave.mp4', contentType: 'video/mp4', url: 'https://example.invalid/wave.mp4' }];
+const PDF = [{ name: 'spec.pdf', contentType: 'application/pdf', url: 'https://example.invalid/spec.pdf' }];
+
+async function autoTurn(p, content, { id = 'E1', attachments = [] } = {}) {
+  const body = turn('auto', content, id);
+  body.userMessage.experimental_attachments = attachments;
+  const before = p.sent.length;
+  await p.win.fetch(CREATE, { method: 'POST', headers: PLAIN, credentials: 'include', body: JSON.stringify(body) });
+  return { body, raw: p.sent[before].init.body, sent: JSON.parse(p.sent[before].init.body) };
+}
+const autoPage = () => boot({ pathname: '/chat', label: 'Chat', config: CFG });
+
+test('Phase 5: classifyAuto reads reference media only to refine a plain chat result', () => {
+  const { site } = boot();
+  assert.equal(site.classifyAuto('make it blue'), 'chat', 'no opts: unchanged behaviour');
+  assert.equal(site.classifyAuto('make it blue', { attachments: PNG }), 'image');
+  assert.equal(site.classifyAuto('restyle this as a watercolor', { attachments: PNG }), 'image');
+  assert.equal(site.classifyAuto('animate this', { attachments: PNG }), 'video');
+  assert.equal(site.classifyAuto('extend the ending', { attachments: MP4 }), 'video');
+  assert.equal(site.classifyAuto('make it shorter', { attachments: PDF }), 'chat', 'a document is not reference media');
+  assert.equal(site.classifyAuto('describe this picture', { attachments: PNG }), 'chat', 'analysis stays chat');
+  assert.equal(site.classifyAuto('what is in this photo?', { attachments: PNG }), 'chat');
+  assert.equal(site.classifyAuto('make it blue', { attachments: [] }), 'chat');
+  assert.equal(site.classifyAuto('fix the css of this page', { attachments: PNG }), 'webdev', 'explicit code wins');
+  assert.equal(site.classifyAuto('latest news today', { attachments: PNG }), 'search', 'explicit search wins');
+  assert.equal(site.classifyAuto('', { attachments: PNG, previous: 'image' }), 'chat', 'empty text never continues');
+  assert.equal(site.referenceMediaKind(undefined), '');
+  assert.equal(site.referenceMediaKind([null, {}]), '');
+});
+
+test('Phase 5: Auto edits of attached media reach Arena byte-for-byte; documents and questions keep the engine', async () => {
+  for (const [text, att] of [['make it look like a watercolor', PNG], ['animate this', PNG], ['extend the ending', MP4]]) {
+    const r = await autoTurn(autoPage(), text, { attachments: att });
+    assert.equal(r.raw, JSON.stringify(r.body), `${text}: untouched on the wire`);
+    assert.doesNotMatch(r.raw, /ArenaPilot/);
+  }
+  const doc = await autoTurn(autoPage(), 'make it shorter', { attachments: PDF });
+  assert.match(doc.sent.userMessage.content, /^<ArenaPilot>\nSYS\n<\/ArenaPilot>\n\nmake it shorter$/);
+  assert.deepEqual(doc.sent.userMessage.experimental_attachments, PDF);
+  const ask = await autoTurn(autoPage(), 'describe this picture', { attachments: PNG });
+  assert.match(ask.sent.userMessage.content, /^<ArenaPilot>\nSYS\n<\/ArenaPilot>/);
+  assert.deepEqual(ask.sent.userMessage.experimental_attachments, PNG, 'attachments always survive');
+});
+
+test('Phase 6: a short follow-up to an Auto image turn stays media in the same chat only', async () => {
+  const p = autoPage();
+  const first = await autoTurn(p, 'generate an image of a red fox in snow', { id: 'CHAT-A' });
+  assert.equal(first.raw, JSON.stringify(first.body));
+  const follow = await autoTurn(p, 'more dramatic lighting', { id: 'CHAT-A' });
+  assert.equal(follow.raw, JSON.stringify(follow.body), 'same chat: the edit prompt is untouched');
+  const again = await autoTurn(p, 'now at night', { id: 'CHAT-A' });
+  assert.equal(again.raw, JSON.stringify(again.body), 'continuity survives repeated edits');
+  const other = await autoTurn(p, 'more dramatic lighting', { id: 'CHAT-B' });
+  assert.match(other.sent.userMessage.content, /^<ArenaPilot>\nSYS/, 'another chat never inherits it');
+});
+
+test('Phase 6: a question, code or search request leaves media continuity and gets its own policy', async () => {
+  const p = autoPage();
+  await autoTurn(p, 'create a video of waves crashing on rocks', { id: 'CHAT-V' });
+  const q = await autoTurn(p, 'what is a good frame rate for this?', { id: 'CHAT-V' });
+  assert.match(q.sent.userMessage.content, /^<ArenaPilot>\nSYS/, 'a question is plain chat again');
+  const follow = await autoTurn(p, 'slower camera', { id: 'CHAT-V' });
+  assert.match(follow.sent.userMessage.content, /^<ArenaPilot>\nSYS/, 'continuity ended after the chat turn');
+  await autoTurn(p, 'draw a logo of a fox', { id: 'CHAT-W' });
+  const code = await autoTurn(p, 'now build the page in html and css', { id: 'CHAT-W' });
+  assert.match(code.sent.userMessage.content, /MODE: Arena Code/);
+  const long = await autoTurn(p, 'draw a logo of a fox', { id: 'CHAT-X' });
+  assert.equal(long.raw, JSON.stringify(long.body));
+  const wordy = await autoTurn(p, 'x'.repeat(300), { id: 'CHAT-X' });
+  assert.match(wordy.sent.userMessage.content, /^<ArenaPilot>\nSYS/, 'a long message is not a short edit follow-up');
+});
+
+test('Phase 5: Image and Video Direct requests keep reference attachments and every field untouched', async () => {
+  for (const [route, modality, att] of [['/image/direct', 'image', PNG], ['/video/direct', 'video', MP4], ['/image/direct', 'image', [...PNG, ...PNG]]]) {
+    const body = turn(modality, 'turn this into a pencil sketch');
+    body.userMessage.experimental_attachments = att;
+    const p = boot({ pathname: route, config: { ...P3, memories: [{ key: 'language', value: 'TypeScript', importance: 'always' }] } });
+    await p.win.fetch(CREATE, { method: 'POST', headers: PLAIN, credentials: 'include', body: JSON.stringify(body) });
+    assert.equal(p.sent[0].init.body, JSON.stringify(body), `${modality}: byte-for-byte`);
+  }
+});

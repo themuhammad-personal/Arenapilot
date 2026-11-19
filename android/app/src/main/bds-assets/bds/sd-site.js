@@ -533,7 +533,7 @@
    * media request that merely targets one ("draw an icon for my website") stays
    * Image; a weak word BEFORE the media noun ("a website with a hero image")
    * is the thing being built, so that stays code. */
-  function classifyAuto(text) {
+  function classifyAutoText(text) {
     var t = String(text == null ? '' : text).slice(0, 4000).toLowerCase();
     if (!t.trim()) return 'chat';
     var make = '(?:generate|create|make|produce|render|draw|paint|design|animate|edit)';
@@ -553,6 +553,44 @@
     if (/\b(?:latest|news|today|current(?:ly)?|right now|this week|weather|who won|score|stock price|price of|search the web|look up|find sources|cite sources|20(?:2[5-9]|3\d))\b/.test(t) ||
         /আজকের|সর্বশেষ|খবর|বর্তমান|দাম কত|ওয়েবে খুঁজ/.test(t)) return 'search';
     return 'chat';
+  }
+
+  // Phase 5/6: an Auto turn that EDITS or ANIMATES an attached picture/clip ("make it blue",
+  // "animate this") carries no media noun, so the text alone reads as plain chat and would
+  // receive the app's context block inside the image prompt. Reference media plus an edit
+  // verb keeps it Image/Video; so does a short follow-up in a chat whose previous Auto turn was
+  // Image/Video ("more dramatic lighting"). Questions and analysis words ("describe", "what",
+  // "?") never count, and an explicit code/search/media request always wins because this only
+  // ever refines a plain 'chat' result. The only failure mode is "no context added".
+  var MEDIA_EDIT = /\b(?:edit|remix|restyle|retouch|enhance|upscale|colori[sz]e|recolor|animate|extend|outpaint|inpaint|variations?|make|turn|change|add|remove|replace|blur|brighten|darken|crop|background|style|transform|convert)\b/;
+  var MEDIA_ASK = /\b(?:describe|explain|what|whats|why|how|who|where|summari[sz]e|summary|ocr|read|translate|transcribe|analy[sz]e|caption|identify|count|compare)\b|\?|ব্যাখ্যা|কেন|কী /;
+  var MEDIA_MOTION = /\b(?:animate|video|clip|motion|movie)\b/;
+
+  /** The media kind ('image' | 'video') of the first picture/clip in a message's attachments. */
+  function referenceMediaKind(attachments) {
+    if (!Array.isArray(attachments)) return '';
+    var kind = '';
+    for (var i = 0; i < attachments.length && i < 16; i++) {
+      var a = attachments[i];
+      var ct = String((a && (a.contentType || a.type || a.mimeType)) || '').toLowerCase();
+      if (ct.indexOf('video/') === 0) return 'video';
+      if (ct.indexOf('image/') === 0) kind = 'image';
+    }
+    return kind;
+  }
+
+  /** Auto classification. [opts] (optional): {attachments, previous} where previous is the
+   * kind this same chat's last Auto turn resolved to. classifyAuto(text) is unchanged. */
+  function classifyAuto(text, opts) {
+    var kind = classifyAutoText(text);
+    if (kind !== 'chat' || !opts || typeof opts !== 'object') return kind;
+    var t = String(text == null ? '' : text).slice(0, 4000).toLowerCase();
+    if (!t.trim() || MEDIA_ASK.test(t)) return kind;
+    var media = referenceMediaKind(opts.attachments);
+    if (media && MEDIA_EDIT.test(t)) return (media === 'video' || MEDIA_MOTION.test(t)) ? 'video' : 'image';
+    var prev = opts.previous;
+    if ((prev === 'image' || prev === 'video') && t.length <= 240) return prev;
+    return kind;
   }
 
   /** A /c/ URL is shared by chat modes; it is NOT proof of a supported surface.
@@ -622,6 +660,7 @@
     arenaMode: arenaMode,
     arenaModality: arenaModality,
     classifyAuto: classifyAuto,
+    referenceMediaKind: referenceMediaKind,
     uiModality: uiModality,
     arenaCapabilities: arenaCapabilities,
     modalityProfile: modalityProfile,
