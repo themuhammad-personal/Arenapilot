@@ -27,7 +27,7 @@ const CFG = {
   systemPrompt: 'SYS-TAG-PROTOCOL',
   disableSystemPrompt: false,
   disableMemory: false,
-  memories: [{ key: 'preferred language', value: 'Bangla', importance: 'called' }, { key: 'garden', value: 'roses', importance: 'always' }],
+  memories: [{ key: 'preferred_language', value: 'Bangla', importance: 'called' }, { key: 'garden', value: 'roses', importance: 'always' }],
   activeProject: { name: 'Ledger', instructions: 'Use double entry bookkeeping.' },
   activeCharacter: { id: 'c1', name: 'Coach', usage: '', modes: null, content: 'Speak plainly.' },
   skills: [
@@ -37,10 +37,10 @@ const CFG = {
   mcpToolSchemas: [{ serverName: 'files', serverUrl: 'https://mcp.example/x', toolName: 'read', description: 'd', inputSchema: {} }],
 };
 
-function boot({ pathname = '/agent', config = CFG, origin = 'https://arena.ai' } = {}) {
+function boot({ pathname = '/agent', config = CFG, origin = 'https://arena.ai', label = 'Agent' } = {}) {
   const sent = [];
   const events = new EventTarget();
-  const control = { textContent: 'Agent' };
+  const control = { textContent: label };
   const form = { querySelector: () => control, querySelectorAll: () => [] };
   const win = {
     addEventListener: (...a) => events.addEventListener(...a),
@@ -108,7 +108,8 @@ test('Agent gets a context-only capability set: no scanning, MCP, continuity or 
     assert.equal(caps.agentContext, undefined, route);
     for (const value of Object.values(caps)) assert.equal(value, false, route);
   }
-  assert.equal(boot({ pathname: '/text/direct' }).site.arenaCapabilities().agentContext, undefined);
+  assert.equal(boot({ pathname: '/text/direct', label: 'Direct' }).site.arenaCapabilities().agentContext, undefined);
+  assert.equal(boot({ pathname: '/text/direct', label: 'Agent' }).site.arenaCapabilities().agentContext, true, 'the composer Agent toggle decides, as for every other engine');
 });
 
 test('the verified user text gets project, persona, memory and matched skills — and no tag protocol or MCP', async () => {
