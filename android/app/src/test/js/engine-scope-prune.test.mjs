@@ -17,14 +17,18 @@ const overview = (() => {
   return content.slice(a, b);
 })();
 
-test('settings overview no longer lists the removed extras', () => {
-  for (const key of ['deep_research', 'commands', 'appearance', 'data', 'linux']) {
+// Slash commands, Custom CSS and Integrations & backup were pruned in v2.2.0 but
+// their pages and storage stayed, leaving working features with no way in. They
+// are listed again (see settings-reachability.test.mjs); only the DeepSeek-only
+// extras stay removed.
+test('settings overview no longer lists the DeepSeek-only extras', () => {
+  for (const key of ['deep_research', 'linux']) {
     assert.ok(!overview.includes(`key:"${key}"`), `row ${key} must be gone`);
   }
 });
 
 test('settings overview keeps the essentials', () => {
-  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor']) {
+  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor']) {
     assert.ok(overview.includes(`key:"${key}"`), `row ${key} must stay`);
   }
 });

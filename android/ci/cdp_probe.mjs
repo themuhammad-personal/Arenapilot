@@ -1295,11 +1295,13 @@ export function acceptanceFailures(result) {
   else {
     const pages = Array.isArray(inside.pages) ? inside.pages : [];
     // Every page this suite knows how to open must have its row.
-    for (const page of ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor']) {
+    for (const page of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor']) {
       if (!pages.includes(page)) errors.push('settings-row-missing-' + page);
     }
-    // v2.2.0 scope: these pages were removed on purpose and must not come back.
-    for (const page of ['deep_research', 'commands', 'appearance', 'data']) {
+    // Only the DeepSeek-specific page stays removed. Slash commands, Custom CSS
+    // and Integrations & backup were pruned in v2.2.0 but their pages work on
+    // arena.ai, so they are required rows again (see settings-reachability test).
+    for (const page of ['deep_research']) {
       if (pages.includes(page)) errors.push('settings-row-should-be-removed-' + page);
     }
     // The DeepSeek-API-only page has no API behind arena.ai: it must NOT be offered.

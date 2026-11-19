@@ -461,9 +461,10 @@ function emulatorJob() {
 test("the emulator matrix is ArenaPilot on API 34 — one app, one job", () => {
   const job = emulatorJob();
   assert.ok(
-    job.includes("api-level: 34, flavor: ArenaDeck"),
-    "the single matrix entry",
+    job.includes("- { api-level: 34 }"),
+    "the single matrix entry (no flavor key)",
   );
+  assert.ok(!/flavor:/.test(job), "no flavor key is left in the workflow");
   assert.ok(!job.includes("flavor: Deepseek"), "no ArenaPilot jobs remain");
   assert.ok(job.includes("fail-fast: false"));
   assert.ok(
@@ -476,6 +477,10 @@ test("the job builds the single debug APK and hands no flavor to the script", ()
   const job = emulatorJob();
   assert.ok(job.includes("./gradlew --no-daemon assembleDebug"));
   assert.ok(job.includes("bash android/ci/emulator-smoke.sh"));
+  assert.ok(
+    job.includes("bash android/ci/run-connected-tests.sh"),
+    "instrumented tests go through the retry wrapper",
+  );
   assert.ok(
     !job.includes("FLAVOR="),
     "the flavor variable is gone from the wiring",

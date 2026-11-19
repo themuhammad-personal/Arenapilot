@@ -30,3 +30,7 @@ android/local.properties
 
 # Local audit scratch / generated formatting
 .cache/
+
+# Signing keys live in GitHub Secrets only
+*.jks
+*.keystore

@@ -322,7 +322,7 @@ async function startFakeCdp(opts = {}) {
           // absent by rule; the doctor row is present and its page prints at
           // least one passing line and one admitted limitation.
           const open = state.drawerOpen && !opts.drawerNeverOpens;
-          const pages = ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor'];
+          const pages = ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor'];
           if (opts.apiRowBack) pages.push('api');
           if (opts.noDoctorRow) pages.splice(pages.indexOf('doctor'), 1);
           const onDoctor = state.onDoctorPage === true && !opts.doctorNeverOpens;

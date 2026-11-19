@@ -64,21 +64,27 @@ android {
         }
         signingConfigs {
             create("release") {
-                val permanentKeystore = file("superdeepseek-release.jks").takeIf { it.exists() }
-                    ?: rootProject.file("ci-release.jks").takeIf { it.exists() }
-                    ?: rootProject.file("android/app/superdeepseek-release.jks").takeIf { it.exists() }
+                // The release key is never stored in the repository: CI decodes it from the
+                // BDS_KEYSTORE secret to android/ci-release.jks and passes the credentials
+                // through BDS_KEYSTORE_PASSWORD / BDS_KEY_ALIAS / BDS_KEY_PASSWORD. The key
+                // (and its alias) is the one the app has always been signed with — changing
+                // it would stop Android from installing updates over existing installs.
+                val releaseKeystore = rootProject.file("ci-release.jks").takeIf { it.exists() }
+                val envStorePass = System.getenv("BDS_KEYSTORE_PASSWORD")
+                val envAlias = System.getenv("BDS_KEY_ALIAS")
+                val envKeyPass = System.getenv("BDS_KEY_PASSWORD")
 
-                if (permanentKeystore != null && permanentKeystore.exists()) {
-                    storeFile = permanentKeystore
-                    val envStorePass = System.getenv("BDS_KEYSTORE_PASSWORD")
-                    val envAlias = System.getenv("BDS_KEY_ALIAS")
-                    val envKeyPass = System.getenv("BDS_KEY_PASSWORD")
-
-                    storePassword = if (!envStorePass.isNullOrEmpty()) envStorePass else "superdeepseek"
-                    keyAlias = if (!envAlias.isNullOrEmpty()) envAlias else "superdeepseek"
-                    keyPassword = if (!envKeyPass.isNullOrEmpty()) envKeyPass else "superdeepseek"
+                if (releaseKeystore != null && !envStorePass.isNullOrEmpty() &&
+                    !envAlias.isNullOrEmpty() && !envKeyPass.isNullOrEmpty()
+                ) {
+                    storeFile = releaseKeystore
+                    storePassword = envStorePass
+                    keyAlias = envAlias
+                    keyPassword = envKeyPass
                 } else {
-                    // Fallback to debug keystore when release keystore is not supplied
+                    // Local builds only: sign with the debug key. CI refuses to run without the
+                    // secrets and pins the published certificate fingerprint, so a debug-signed
+                    // APK can never be released.
                     val debugConfig = getByName("debug")
                     storeFile = debugConfig.storeFile
                     storePassword = debugConfig.storePassword

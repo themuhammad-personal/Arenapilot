@@ -6,15 +6,6 @@ on:
       - main
       - v3-real-exact-ui
       - qa/real-world-testing
-      - arena/01a0cebd-deepseek
-      - arena/01a0dc4d-deepseek
-      # arena.ai port (docs/PLAN.md): build + unit tests only — the
-      # release job below is gated on tags/main, so nothing is published.
-      - arena/43c0caca-super-deepseek
-      - arena/7401e440-super-deepseek
-      # Roadmap 3 (docs/PLAN.md): privacy defaults flip + inline
-      # file delivery — same build + unit tests only policy as above.
-      - arena/0e0268d7-super-deepseek
       # Reliability rebuild (v2.0): this is the working branch the owner's
       # install is built from, so it must build, test and publish like main.
       - arena/e90647be-arenapilot
@@ -140,20 +131,22 @@ jobs:
         working-directory: android
         env:
           BDS_KEYSTORE: ${{ secrets.BDS_KEYSTORE }}
+          BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD }}
+          BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS }}
+          BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD }}
         run: |
-          # The key ALIAS below is part of the existing keystore and cannot be
-          # renamed without generating a new key — which would make Android
-          # refuse to install the update over the app people already have.
-          if [ -n "$BDS_KEYSTORE" ]; then
-            echo "Decoding release keystore from secrets..."
-            echo "$BDS_KEYSTORE" | base64 --decode > ci-release.jks
-          elif [ -f "app/superdeepseek-release.jks" ]; then
-            echo "Using the permanent release keystore (same key every build, so updates install over the old app)..."
-            cp app/superdeepseek-release.jks ci-release.jks
-          else
-            echo "::error::Release signing key missing. Refusing to change the app's signing identity."
-            exit 1
-          fi
+          # The release key lives ONLY in GitHub Secrets (never in the repository, no
+          # default password). The key alias is part of the existing keystore and cannot
+          # be renamed without a new key — Android would refuse the update over the app
+          # people already have. The "Verify APK Signature" step below pins the v2.4.0
+          # certificate, so a wrong or missing key can never ship.
+          for v in BDS_KEYSTORE BDS_KEYSTORE_PASSWORD BDS_KEY_ALIAS BDS_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Release signing secret $v is missing. Refusing to change the app's signing identity."
+              exit 1
+            fi
+          done
+          echo "$BDS_KEYSTORE" | base64 --decode > ci-release.jks
           ls -la ci-release.jks
       - name: Build Android Release APK
         working-directory: android
@@ -171,9 +164,9 @@ jobs:
             exit 1
           fi
         env:
-          BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD || 'superdeepseek' }}
-          BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS || 'superdeepseek' }}
-          BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD || 'superdeepseek' }}
+          BDS_KEYSTORE_PASSWORD: ${{ secrets.BDS_KEYSTORE_PASSWORD }}
+          BDS_KEY_ALIAS: ${{ secrets.BDS_KEY_ALIAS }}
+          BDS_KEY_PASSWORD: ${{ secrets.BDS_KEY_PASSWORD }}
       - name: Verify packaged runtime boundaries and startup metadata
         run: |
           set -euo pipefail
@@ -367,7 +360,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { api-level: 34, flavor: ArenaDeck }
+          - { api-level: 34 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -425,7 +418,7 @@ jobs:
           # send auditable in git history: one push, one message, never a loop.
           script: |
             ARENA_LIVE_MESSAGE=${{ (github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')) }} SMOKE_STRICT=1 bash android/ci/emulator-smoke.sh
-            cd android && ./gradlew --no-daemon connectedDebugAndroidTest
+            bash android/ci/run-connected-tests.sh
       - name: Report anonymous live message evidence
         if: always() && ((github.event_name == 'workflow_dispatch' && inputs.arena_live_message) || (github.event_name == 'push' && contains(github.event.head_commit.message || '', '[arena-live-probe]')))
         run: node android/ci/arena-live-smoke.mjs --report

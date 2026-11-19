@@ -63,3 +63,23 @@ li[data-sd-bidi="rtl"] {
 .bds-arena-rail[data-dock="composer"] {
   display: none !important;
 }
+
+/* ── Settings that cannot act on arena.ai ──
+   Token price estimation prices DeepSeek API usage. On arena.ai the engine
+   ignores it (sd-site.js sets tokenPriceDisplay.enabled=false and the price
+   code returns early), so the toggle and its hint stay hidden instead of
+   offering a switch that does nothing. Scoped to the engine's own drawer. */
+#bds-drawer .bds-toggle-row:has(#bds-token-price),
+#bds-drawer .bds-toggle-row:has(#bds-token-price) + .bds-hint,
+#bds-drawer .bds-toggle-row:has(#bds-token-price) + p {
+  display: none !important;
+}
+
+/* Row titles wrap instead of being cut with an ellipsis: longer translations
+   (Bengali, Russian, Turkish) and larger system font scales stay readable. */
+#bds-drawer .bds-set-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+}

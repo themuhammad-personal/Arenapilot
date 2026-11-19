@@ -24,7 +24,7 @@ Constraints that shaped the geometry:
     clipped to a rounded rect inset 5.8% with a 21.2% radius, so the bitmap is a
     full-bleed opaque square whose rim sits exactly on that rounded rect.
 
-Run:  python3 tools/icon/arena_deck_icon.py [--preview DIR]
+Run:  python3 tools/icon/arenapilot_icon.py [--preview DIR]
 """
 from __future__ import annotations
 

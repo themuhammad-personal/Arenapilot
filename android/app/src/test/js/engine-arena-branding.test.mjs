@@ -77,12 +77,12 @@ test('the adaptive icon points at the foreground and backdrop the art overrides'
 });
 
 test('the generator and the committed backdrop colour agree', () => {
-  const script = read(path.resolve(here, '../../../../../tools/icon/arena_deck_icon.py'));
+  const script = read(path.resolve(here, '../../../../../tools/icon/arenapilot_icon.py'));
   const fromScript = /LAUNCHER_BACKGROUND\s*=\s*"(#[0-9A-Fa-f]{6})"/.exec(script);
-  assert.ok(fromScript, 'tools/icon/arena_deck_icon.py must define LAUNCHER_BACKGROUND');
+  assert.ok(fromScript, 'tools/icon/arenapilot_icon.py must define LAUNCHER_BACKGROUND');
   const fromXml = /<color name="launcher_background">(#[0-9A-Fa-f]{6})<\/color>/.exec(read(ARENA_RES, 'values', 'colors.xml'));
   assert.equal(fromXml[1].toUpperCase(), fromScript[1].toUpperCase(),
-    'regenerate with: python3 tools/icon/arena_deck_icon.py');
+    'regenerate with: python3 tools/icon/arenapilot_icon.py');
 });
 
 // ── 3. strings ──────────────────────────────────────────────────────────────

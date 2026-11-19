@@ -18,3 +18,7 @@ app/src/main/assets/models/
 
 *.apk
 *.aab
+# Signing keys live in GitHub Secrets only
+*.jks
+*.keystore
+ci-release.jks

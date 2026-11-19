@@ -174,7 +174,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     // inside the drawer: every page row, no DeepSeek-API row, a real check-up
     drawerPagesBefore: {
       present: true, headerTitle: 'Advanced settings',
-      pages: ['prompts', 'memory', 'language', 'mcp', 'projects', 'chat', 'doctor'],
+      pages: ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor'],
       apiRowCount: 0, apiRowVisible: false, doctorRowCount: 1, doctorRowVisible: true,
     },
     doctorPage: {
