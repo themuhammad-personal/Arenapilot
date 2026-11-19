@@ -35,9 +35,10 @@
 
   function directTools() {
     if (!onArena()) return true;
-    var site = window.__sdSite;
-    return typeof site.arenaMode === 'function' && site.arenaMode() === 'direct' &&
-      typeof site.arenaModality === 'function' && ['chat', 'search', 'webdev'].indexOf(site.arenaModality()) !== -1;
+    try {
+      var site = window.__sdSite;
+      return !!(site && typeof site.arenaCapabilities === 'function' && site.arenaCapabilities().mcp === true);
+    } catch (_) { return false; }
   }
 
   function parseAttrs(raw) {

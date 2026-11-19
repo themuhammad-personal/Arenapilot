@@ -84,11 +84,24 @@ test('all four Direct home routes are Direct Mode, each with its own modality', 
 });
 
 test('the content-script gate opens on every Direct route (it used to open on /text/direct only)', () => {
-  const gate = BUNDLE.slice(BUNDLE.indexOf('function sdsArenaDirect(){'), BUNDLE.indexOf('\nfunction sdsArenaMessages()'));
+  const gate = BUNDLE.slice(BUNDLE.indexOf('function sdsArenaCapability(name){'), BUNDLE.indexOf('\nfunction sdsArenaMessages()'));
   for (const route of ['/text/direct', '/code/direct', '/search/direct', '/image/direct']) {
     const p = boot({ pathname: route });
     vm.runInContext(gate, p.ctx);
     assert.equal(vm.runInContext('sdsArenaDirect()', p.ctx), true, route);
+  }
+});
+
+test('capability matrix preserves prompt isolation and limits tool automation', () => {
+  const expected = {
+    '/text/direct': { promptContext: true, mcp: true, continuity: true, memories: true },
+    '/code/direct': { promptContext: true, mcp: true, continuity: true, memories: false },
+    '/search/direct': { promptContext: true, mcp: true, continuity: true, memories: false },
+    '/image/direct': { promptContext: false, mcp: false, continuity: false, memories: false },
+  };
+  for (const [route, flags] of Object.entries(expected)) {
+    const caps = boot({ pathname: route }).site.arenaCapabilities();
+    for (const [key, value] of Object.entries(flags)) assert.equal(caps[key], value, `${route} ${key}`);
   }
 });
 

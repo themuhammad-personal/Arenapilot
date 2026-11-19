@@ -498,6 +498,31 @@
     return directPath ? 'direct' : 'unknown';
   }
 
+  /* Shared-engine capabilities are granted only to a positively identified
+   * Arena Direct surface. Agent, Battle, Side-by-side and unfamiliar modes
+   * remain official, untouched pages: their private transports/tools are not
+   * an app integration contract. Keep each capability narrow so Image/Video
+   * prompts and Arena-native tooling cannot acquire Text/Code behavior. */
+  function arenaCapabilities() {
+    var off = { sharedUi: false, promptContext: false, assistantScanning: false,
+      mcp: false, continuity: false, memories: false, projects: false, personasSkills: false };
+    if (site.id !== 'arena') return { sharedUi: true, promptContext: true,
+      assistantScanning: true, mcp: true, continuity: true, memories: true,
+      projects: true, personasSkills: true };
+    var mode, modality, profile;
+    try {
+      mode = arenaMode();
+      if (mode !== 'direct') return off;
+      modality = arenaModality();
+      profile = modalityProfile(modality);
+    } catch (_) { return off; }
+    var tools = modality === 'chat' || modality === 'search' || modality === 'webdev';
+    return { sharedUi: true, promptContext: profile.inject === true,
+      assistantScanning: profile.tools === true, mcp: tools, continuity: tools,
+      memories: modality === 'chat', projects: profile.inject === true,
+      personasSkills: profile.inject === true };
+  }
+
   window.__sdUrl = urls;
   window.__sdApi = apiOf(site);
 
@@ -505,6 +530,7 @@
     arenaPrompt: ARENA_PROMPT,
     arenaMode: arenaMode,
     arenaModality: arenaModality,
+    arenaCapabilities: arenaCapabilities,
     modalityProfile: modalityProfile,
     noteModality: noteModality,
     version: VERSION,

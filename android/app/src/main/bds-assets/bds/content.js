@@ -694,7 +694,7 @@ function sdMemScope(){const p=Ny();return p?p.id:null}
 function sdMemBag(scope){return scope==null?B.memories:(B.projects.find(p=>p.id===scope)||{}).memories||{}}
 function sdMemChanged(){window.dispatchEvent(new CustomEvent("bds:memory-review"))}
 function sdMemHere(){return location.pathname+"|"+(sdMemScope()||"")}
-function sdMemMode(){if(!sdsIsArena())return true;return sdsArenaDirect()&&window.__sdSite&&window.__sdSite.arenaModality()==="chat"}
+function sdMemMode(){if(!sdsIsArena())return true;return sdsArenaCapability("memories")}
 function nxe(items,turn){
   if(!turn||B.settings.disableMemory||!sdMemMode())return;
   const scope=sdMemScope(),here=sdMemHere();let count=0;
@@ -1319,7 +1319,7 @@ ${s}
 function sdMcpScope(){
   if(!sdsIsArena())return location.href;
   var site=window.__sdSite,m=site&&typeof site.arenaModality==="function"?site.arenaModality():null;
-  return sdsArenaDirect()&&["chat","search","webdev"].includes(m)?location.pathname+"|"+m:null;
+  return sdsArenaCapability("mcp")?location.pathname+"|"+m:null;
 }
 // A Stop invalidates work already in flight, even if the user types again before
 // the server responds. Do not confuse that cancellation with a remote rollback.
@@ -2993,9 +2993,14 @@ ${fvt}`;(async()=>{if(n!=="default"){dt("Handoff","checkPendingHandoff - need to
    below returns null/false and the shipped path runs untouched. The sheet
    itself (the Lut component, the .bds-attach-* markup and CSS) is not touched
    at all — its cards, order, labels and gestures stay exactly as they are. */
-function sdsArenaDirect(){
-  try{return !!window.__sdSite&&typeof window.__sdSite.arenaMode==="function"&&window.__sdSite.arenaMode()==="direct"}catch(_){return false}
+function sdsArenaCapability(name){
+  try{
+    var site=window.__sdSite;
+    if(!site||site.id!=="arena"||typeof site.arenaCapabilities!=="function")return false;
+    return site.arenaCapabilities()[name]===true;
+  }catch(_){return false}
 }
+function sdsArenaDirect(){return sdsArenaCapability("sharedUi")}
 /* Arena message scanning mirrors the contract of dexforint/arena-utils (a
    Chrome extension verified working on arena.ai today) — not a guess:
    - the thread list is the FIRST match of four selectors (arena serves both

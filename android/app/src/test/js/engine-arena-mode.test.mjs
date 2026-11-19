@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const dir = new URL('../../main/bds-assets/bds/', import.meta.url);
 const site = fs.readFileSync(new URL('sd-site.js', dir), 'utf8');
 const bundle = fs.readFileSync(new URL('content.js', dir), 'utf8');
-const gate = bundle.slice(bundle.indexOf('function sdsArenaDirect(){'), bundle.indexOf('\nfunction sdsArenaMessages()'));
+const gate = bundle.slice(bundle.indexOf('function sdsArenaCapability(name){'), bundle.indexOf('\nfunction sdsArenaMessages()'));
 
 function load(pathname = '/c/conversation', label = 'Direct', host = 'arena.ai') {
   const control = { textContent: label };
@@ -13,7 +13,7 @@ function load(pathname = '/c/conversation', label = 'Direct', host = 'arena.ai')
   const ctx = vm.createContext({ window: {}, location: { host, pathname }, document: { querySelector: () => ({ closest: () => form }) } });
   vm.runInContext(site, ctx);
   vm.runInContext(gate, ctx);
-  return { ctx, control, mode: () => ctx.window.__sdSite.arenaMode(), gate: () => vm.runInContext('sdsArenaDirect()', ctx) };
+  return { ctx, control, mode: () => ctx.window.__sdSite.arenaMode(), gate: () => vm.runInContext('sdsArenaDirect()', ctx), capability: (name) => ctx.window.__sdSite.arenaCapabilities()[name] };
 }
 
 test('a shared conversation URL is not enough to permit Arena tool scanning', () => {
@@ -37,6 +37,20 @@ test('unsupported route overrides a stale Direct control; non-chat routes fail c
   }
   assert.equal(load('/text/direct', '').gate(), true, 'explicit Direct home route is authoritative before hydration');
   assert.equal(load('/text/direct', 'Battle').gate(), false, 'a mode transition cannot temporarily permit Battle tags');
+});
+
+test('Agent, unknown routes and unsupported modes receive no Arena shared-engine capabilities', () => {
+  const keys = ['sharedUi','promptContext','assistantScanning','mcp','continuity','memories','projects','personasSkills'];
+  for (const route of ['/agent','/text/agent','/code/agent','/text/battle','/text/side-by-side','/c/conversation']) {
+    const p = load(route, route === '/c/conversation' ? '' : 'Direct');
+    assert.deepEqual(JSON.parse(JSON.stringify(p.ctx.window.__sdSite.arenaCapabilities())),
+      Object.fromEntries(keys.map((key) => [key, false])), route);
+  }
+  const direct = load('/text/direct');
+  assert.equal(direct.capability('sharedUi'), true);
+  assert.equal(direct.capability('memories'), true);
+  direct.ctx.window.__sdSite.arenaMode = () => { throw new Error('mode unavailable'); };
+  assert.equal(direct.capability('mcp'), false, 'resolver exceptions fail closed');
 });
 
 test('missing profile or failing mode detector never falls back to accepting all /c/ chats', () => {
