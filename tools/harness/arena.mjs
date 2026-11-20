@@ -545,7 +545,7 @@ try {
   console.log('PASS user tags ignored; unsupported mode scanner closed');
   stage = 'mode-safety';
   assert.equal(await page.evaluate(() => window.__sdHealth.checkMode()), 'unsupported');
-  assert.equal(await page.evaluate(() => document.querySelector('#sd-arena-mode-notice')?.parentElement === document.querySelector('form')), true, 'mode notice is inline, not floating');
+  assert.equal(await page.evaluate(() => !document.querySelector('#sd-arena-mode-notice')), true, 'no mode notice is ever drawn: the engine just stays quiet');
   for (const [label, expected] of [['Side-by-side', 'unsupported'], ['', 'unknown'], ['Direct', 'direct']]) {
     const facts = await page.evaluate((label) => {
       history.replaceState({}, '', '/c/mode-scope');
@@ -554,10 +554,10 @@ try {
       return { mode, rows: window.__sdEngine.messageNodes().length, notice: !!document.querySelector('#sd-arena-mode-notice') };
     }, label);
     assert.equal(facts.mode, expected);
-    assert.equal(facts.notice, expected !== 'direct');
+    assert.equal(facts.notice, false, 'the engine never shows a mode pop-up');
     assert.equal(facts.rows > 0, expected === 'direct', 'a /c/ URL alone must not permit tool parsing');
   }
-  console.log('PASS Direct-only gate and inline mode notice on a shared conversation URL');
+  console.log('PASS Chat-only tool gate with no mode pop-up on a shared conversation URL');
 
   // Real arena also serves PLAIN (non-reversed) thread lists — `ol.mt-8` — and
   // keeps zero-height spacer rows in the thread (dexforint/arena-utils ground

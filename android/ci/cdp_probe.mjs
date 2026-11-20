@@ -132,7 +132,19 @@ export const FACTS = `/*sdp:facts*/(function () {
   var root = q('#bds-root');
   /* every control around the message box: which one is arena's own attach / plus button? */
   var ta = q('textarea[name="message"]');
+  /* Arena's current composer is a TipTap/ProseMirror editor, not a textarea. */
+  var pm = ta ? null : q('.ProseMirror[contenteditable="true"]');
+  var field = ta || pm;
   var box = ta ? (ta.closest('form') || ta.parentElement) : null;
+  if (pm) {
+    box = pm.closest('form');
+    if (!box) {
+      var sendForBox = q('button[aria-label="Send message"]');
+      var up = pm.parentElement;
+      while (up && up !== document.body && !(sendForBox && up.contains(sendForBox))) up = up.parentElement;
+      box = up && up !== document.body ? up : pm.parentElement;
+    }
+  }
   var sendButton = q('button[aria-label="Send message"]');
   var composerTarget = 'none';
   try {
@@ -142,6 +154,7 @@ export const FACTS = `/*sdp:facts*/(function () {
       String(box.tagName).toLowerCase() === 'form' && box.contains && box.contains(ta)) {
     composerTarget = 'native';
   }
+  if (composerTarget === 'none' && box && pm && box.contains && box.contains(pm)) composerTarget = 'native';
   var composerRect = rect(box);
   var sendRect = rect(sendButton);
   var sendInsideComposer = !!(composerRect && sendRect &&
@@ -224,7 +237,7 @@ export const FACTS = `/*sdp:facts*/(function () {
     engine: { css: !!q('#bds-css'), root: !!root, rootChildren: root ? root.children.length : 0, handleBack: typeof window.__sdHandleBack, engineApi: typeof window.__sdEngine, agent: typeof window.__sdAgent },
     rail: rail ? { label: rail.getAttribute('aria-label'), rect: rect(rail), visible: vis(rail) } : null,
     attach: { toggle: count('.bds-plus-btn'), mount: count('.bds-attach-menu-mount'), wrapper: count('.bds-attach-wrapper'), controls: count('.bds-composer-controls'), dropdown: count('.bds-attach-dropdown'), siteButton: nativeAddRect, overlayAligned: plusOverlay.aligned, nativePlusVisible: plusOverlay.nativeVisible, nativePlusPointerIntact: plusOverlay.nativePointerIntact, enginePlusOverlayReady: plusOverlay.engineTargetReady, fileInput: fi ? { multiple: fi.hasAttribute('multiple'), accept: String(fi.getAttribute('accept') || '').slice(0, 120) || null, disabled: fi.disabled === true } : null },
-    composer: { named: count('textarea[name="message"]'), textareas: count('textarea'), rect: rect(q('textarea[name="message"]') || q('textarea')) },
+    composer: { named: ta ? count('textarea[name="message"]') : (pm ? 1 : 0), kind: ta ? 'textarea' : (pm ? 'prosemirror' : 'none'), textareas: count('textarea'), rect: rect(field || q('textarea')) },
     /* N0 evidence from the actual WebView: the real page is skinned in place,
        and we measure the existing Send control rather than trusting CSS source. */
     skin: {
@@ -318,8 +331,9 @@ export const FILL_SET = `/*sdp:fillset*/(function () {
   if (!e || typeof e.setComposer !== 'function') { return JSON.stringify({ engine: false, set: false, valueMatches: false }); }
   var probe = 'arenapilot composer probe';
   var ta = document.querySelector('textarea[name="message"]');
+  var pm = ta ? null : document.querySelector('.ProseMirror[contenteditable="true"]');
   var set = e.setComposer(probe);
-  var value = ta ? String(ta.value || '') : null;
+  var value = ta ? String(ta.value || '') : (pm ? String(pm.textContent || '').replace(/\\u200B/g, '').trim() : null);
   return JSON.stringify({ engine: true, set: set === true, valueMatches: value === probe });
 })()`;
 export const FILL_BUTTON = `/*sdp:fillbtn*/(function () {
@@ -329,8 +343,9 @@ export const FILL_BUTTON = `/*sdp:fillbtn*/(function () {
 export const FILL_CLEAR = `/*sdp:fillclr*/(function () {
   var e = window.__sdEngine;
   var ta = document.querySelector('textarea[name="message"]');
+  var pm = ta ? null : document.querySelector('.ProseMirror[contenteditable="true"]');
   var cleared = e && typeof e.setComposer === 'function' ? e.setComposer('') : false;
-  var after = ta ? String(ta.value || '') : null;
+  var after = ta ? String(ta.value || '') : (pm ? String(pm.textContent || '').replace(/\\u200B/g, '').trim() : null);
   return JSON.stringify({ cleared: cleared === true && after === '' });
 })()`;
 
@@ -827,59 +842,8 @@ export async function probe(cdp, { kitSource, pageHost, wait = 12000, pause = sl
     if (kitOk) await evalJson(cdp, snapExpr('settings-drawer'));
 
     // What is INSIDE the drawer: the page rows it actually rendered, the
-    // DeepSeek-only row that must be absent here, and the check-up page.
+    // rows that must be absent here (no API playground, no check-up page).
     result.drawerPagesBefore = await step('drawer-pages', () => evalJson(cdp, DRAWER_PAGES_FACTS));
-    result.doctorPage = await step('doctor-page', async () => {
-      const facts = result.drawerPagesBefore;
-      const rows = facts && Array.isArray(facts.pages) ? facts.pages : [];
-      const doctorIndex = rows.indexOf('doctor');
-      if (doctorIndex < 0) throw new Error('no check-up row in the drawer');
-      // The drawer slides up. On a loaded CI emulator it can still be on its way
-      // (top edge at the bottom of the viewport) when the card click's pause ends,
-      // and a row measured then reads as "outside the viewport" - a timing flake
-      // (run 43688788677), not an app fault. Measure only once it has settled.
-      for (let i = 0; i < 20; i += 1) {
-        let notRisen = null;
-        try {
-          notRisen = await evalValue(cdp, '/*sdp:drawerrise*/(function () { var d = document.querySelector("#bds-drawer"); if (!d) return null; return d.getBoundingClientRect().top < innerHeight - 120 ? 0 : 1; })()');
-        } catch { break; }
-        if (notRisen !== 1) break;
-        await pause(300);
-      }
-      const box = await evalValue(cdp, `(function () {
-        var rows = Array.prototype.slice.call(document.querySelectorAll('#bds-drawer .bds-set-row'));
-        var row = rows.filter(function (x) { return x.getAttribute('data-bds-page') === 'doctor'; })[0];
-        if (!row) return null;
-        if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'instant' });
-        var b = row.getBoundingClientRect();
-        return JSON.stringify({ x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2), w: Math.round(b.width), h: Math.round(b.height) });
-      })()`);
-      const at = box ? JSON.parse(box) : null;
-      if (!at || !(at.w >= 44 && at.h >= 40)) throw new Error('check-up row not tappable');
-      // Same trap as the Settings card: a row whose centre is outside the
-      // viewport is clipped, so the click never reaches it.
-      const rowHit = await evalValue(cdp, '/*sdp:rowhit*/(function () {' +
-        'var hit = document.elementFromPoint(' + Math.round(at.x) + ', ' + Math.round(at.y) + ');' +
-        'var row = document.querySelector(\'#bds-drawer .bds-set-row[data-bds-page="doctor"]\');' +
-        'return JSON.stringify({ hitInsideRow: !!(hit && row && (hit === row || row.contains(hit))),' +
-        ' vh: innerHeight, y: ' + Math.round(at.y) + ' });' +
-        '})()');
-      if (!rowHit || JSON.parse(rowHit).hitInsideRow !== true) {
-        throw new Error('check-up row is outside the viewport: ' + rowHit);
-      }
-      await realClick(cdp, at.x, at.y);
-      await pause(700);
-      const after = await evalJson(cdp, DRAWER_PAGES_FACTS);
-      if (kitOk) await evalJson(cdp, snapExpr('doctor-page'));
-      // Back to the overview, so the drawer's back path is exercised too.
-      await evalValue(cdp, `(function () {
-        var back = document.querySelector('#bds-drawer .bds-back-btn');
-        if (back) back.click();
-        return !!back;
-      })()`);
-      await pause(500);
-      return after;
-    });
     result.drawerPagesAfter = await step('drawer-pages-after', () => evalJson(cdp, DRAWER_PAGES_FACTS));
 
     // One more tap on "+" — the overview is back, so this lands on the sheet the
@@ -1175,8 +1139,7 @@ export function factsLine(result) {
     sheetTiles: (result.engineSheetRows?.tiles || []).map((t) => ({
       label: (t.label || '').slice(0, 24), rect: t.rect, inViewport: t.inViewport, reachable: t.reachable,
     })),
-    pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount', 'doctorRowCount']) : null,
-    doctor: pick(result.doctorPage, ['present', 'doctorLines', 'doctorOkLines', 'doctorOffLines', 'pageTitle']),
+    pages: result.drawerPagesBefore ? pick(result.drawerPagesBefore, ['present', 'rowCount', 'pages', 'apiRowCount']) : null,
     launch: pick(result.launch || {}, ['noticeShown', 'secondBootAlive']),
   });
 }
@@ -1295,20 +1258,17 @@ export function acceptanceFailures(result) {
   else {
     const pages = Array.isArray(inside.pages) ? inside.pages : [];
     // Every page this suite knows how to open must have its row.
-    for (const page of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor']) {
+    for (const page of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data']) {
       if (!pages.includes(page)) errors.push('settings-row-missing-' + page);
     }
     // Only the DeepSeek-specific page stays removed. Slash commands, Custom CSS
     // and Integrations & backup were pruned in v2.2.0 but their pages work on
     // arena.ai, so they are required rows again (see settings-reachability test).
-    for (const page of ['deep_research']) {
+    for (const page of ['deep_research', 'deep_code', 'doctor']) {
       if (pages.includes(page)) errors.push('settings-row-should-be-removed-' + page);
     }
     // The DeepSeek-API-only page has no API behind arena.ai: it must NOT be offered.
     if (inside.apiRowCount !== 0) errors.push('api-playground-offered-on-arena');
-    if (inside.doctorRowCount !== 1 || inside.doctorRowVisible !== true) {
-      errors.push('check-up-row-not-tappable');
-    }
   }
   // The Add to chat sheet's rows: present, labelled, finger-sized, and actually
   // the element a tap would land on (a row behind the backdrop looks the same in
@@ -1384,23 +1344,11 @@ export function acceptanceFailures(result) {
     errors.push('drawer-still-open-before-sheet');
   }
 
-  const doc = result.doctorPage;
-  if (!doc) errors.push('check-up-page-did-not-open');
-  else {
-    if (doc.doctorLines < 6) errors.push('check-up-page-too-thin');
-    if (!(doc.doctorOkLines > 0)) errors.push('check-up-pages-no-passing-line');
-    // Some line must admit a limitation — a page that only ever says "fine" is
-    // not a check-up. On arena the API playground row is off.
-    if (!(doc.doctorOffLines > 0)) errors.push('check-up-page-hides-limitations');
-    if (!doc.pageTitle) errors.push('check-up-page-has-no-header');
-  }
-  // Back must land on the overview: the drawer is still open and the check-up's
-  // own lines are gone. The header text is not asserted — the drawer sets the
-  // page title in more than one place, and a header assertion is about cosmetics,
-  // not about whether Back worked.
+  // The drawer is still alive on its overview after the pages were read, and
+  // the removed check-up page stays gone.
   const afterDoc = result.drawerPagesAfter;
   if (!afterDoc || afterDoc.present !== true || afterDoc.doctorLines !== 0) {
-    errors.push('check-up-page-back-failed');
+    errors.push('settings-overview-not-restored');
   }
   for (const step of result.steps || []) {
     if (!step.ok && ['enable', 'reload', 'facts', 'facts-after'].includes(step.name)) errors.push(step.name + '-failed');
@@ -1422,7 +1370,7 @@ export const MODALITY_ROUTES = [
 const MODALITY_FACTS = `/*sdp:modality*/JSON.stringify((function () {
   var s = window.__sdSite;
   var ta = document.querySelector('textarea[name="message"]');
-  var out = { path: location.pathname, composer: !!ta, engine: !!s, mode: null, modality: null, profile: null };
+  var out = { path: location.pathname, composer: !!(ta || document.querySelector('.ProseMirror[contenteditable="true"]')), engine: !!s, mode: null, modality: null, profile: null };
   try { out.mode = s && s.arenaMode(); } catch (e) { out.mode = 'error:' + e.message; }
   try { out.modality = s && s.arenaModality(); } catch (e) { out.modality = 'error:' + e.message; }
   try { out.profile = s && s.modalityProfile(out.modality).id; } catch (e) {}
@@ -1498,7 +1446,7 @@ export async function main() {
     }
     if (result.drawerPagesBefore) {
       fs.writeFileSync(path.join(outDir, 'cdp-drawer-pages.json'), JSON.stringify({
-        before: result.drawerPagesBefore, doctor: result.doctorPage, after: result.drawerPagesAfter,
+        before: result.drawerPagesBefore, after: result.drawerPagesAfter,
       }, null, 1));
     }
     for (const line of annotations(result)) console.log(line);

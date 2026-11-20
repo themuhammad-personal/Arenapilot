@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { PROMPT, MARKER, PREFLIGHT, REPLY_FACTS, GATE_FACTS, requestFacts, streamFacts, liveProbe, outcome } from '../../../../ci/arena-live-smoke.mjs';
-import { acceptanceFailures } from '../../../../ci/cdp_probe.mjs';
+import { acceptanceFailures, FILL_SET, FILL_CLEAR } from '../../../../ci/cdp_probe.mjs';
 
 const goodStream = `a0:${JSON.stringify(MARKER.slice(0, 10))}\na0:${JSON.stringify(MARKER.slice(10))}\nad:{"finishReason":"stop"}\n`;
 const request = (extra = {}) => ({ method: 'POST', url: 'https://arena.ai/nextjs-api/stream/create-evaluation', postData: JSON.stringify({ mode: 'direct-battle', userMessage: { content: PROMPT }, recaptchaV3Token: 'PRIVATE-TOKEN', ...extra }) });
@@ -171,15 +171,11 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
       rows: ['Upload Folder', 'Attach Project', 'Settings']
         .map((label, i) => ({ label, rect: [16, 240 + i * 56, 288, 48], inViewport: true, toggle: false, onTop: true, reachable: true, disabled: false })),
     },
-    // inside the drawer: every page row, no DeepSeek-API row, a real check-up
+    // inside the drawer: every page row, no API-playground row, no check-up row
     drawerPagesBefore: {
       present: true, headerTitle: 'Advanced settings',
-      pages: ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor'],
-      apiRowCount: 0, apiRowVisible: false, doctorRowCount: 1, doctorRowVisible: true,
-    },
-    doctorPage: {
-      present: true, doctorLines: 9, doctorOkLines: 4, doctorOffLines: 3,
-      doctorWarnLines: 1, pageTitle: 'Check-up',
+      pages: ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data'],
+      apiRowCount: 0, apiRowVisible: false, doctorRowCount: 0, doctorRowVisible: false,
     },
     drawerPagesAfter: { present: true, doctorLines: 0, pageTitle: 'Advanced settings' },
   };
@@ -216,8 +212,7 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   }).includes('settings-drawer-opened-by-wrong-entry'));
   assert.ok(acceptanceFailures({}).length);
   // the drawer's insides are gated too — a panel that opens onto dead rows is not
-  // a working Settings screen, and a check-up that only ever says "fine" is not
-  // a check-up.
+  // a working Settings screen, and the removed check-up page must stay gone.
   // The Add to chat sheet: rows that exist but cannot receive the tap (a backdrop
   // over them) look perfect in a screenshot and swallow every touch.
   assert.ok(acceptanceFailures({
@@ -285,17 +280,11 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
     ...good, drawerPagesBefore: { ...good.drawerPagesBefore, pages: ['prompts', 'doctor'] },
   }).includes('settings-row-missing-memory'), 'a missing page row must fail the gate');
   assert.ok(acceptanceFailures({
-    ...good, doctorPage: { ...good.doctorPage, doctorOffLines: 0 },
-  }).includes('check-up-page-hides-limitations'), 'a check-up must admit at least one limitation');
-  assert.ok(acceptanceFailures({
-    ...good, doctorPage: { ...good.doctorPage, doctorLines: 2 },
-  }).includes('check-up-page-too-thin'));
-  assert.ok(acceptanceFailures({
-    ...good, doctorPage: undefined,
-  }).includes('check-up-page-did-not-open'));
+    ...good, drawerPagesBefore: { ...good.drawerPagesBefore, pages: [...good.drawerPagesBefore.pages, 'doctor'] },
+  }).includes('settings-row-should-be-removed-doctor'), 'the removed check-up row must not come back');
   assert.ok(acceptanceFailures({
     ...good, drawerPagesAfter: { ...good.drawerPagesAfter, doctorLines: 4 },
-  }).includes('check-up-page-back-failed'), 'Back must leave the check-up page');
+  }).includes('settings-overview-not-restored'), 'the overview must be back and the check-up page gone');
   assert.ok(acceptanceFailures({ ...good, sheetOpenedBy: 'js-click' }).includes('plus-not-touch-actionable'));
   assert.ok(acceptanceFailures({ ...good, engine: { ...good.engine, attach: { ...good.engine.attach, toggle: 2 } } }).includes('plus-count-not-one'));
   assert.deepEqual(acceptanceFailures({
@@ -315,4 +304,24 @@ test('runtime gate cannot pass missing CDP facts, duplicate plus, hidden compose
   }
   assert.ok(acceptanceFailures({ ...good, composerFill: { ...good.composerFill, sendButton: false } }).includes('send-button-missing'));
   assert.ok(acceptanceFailures({ ...good, drawer: { present: true, visible: false } }).includes('settings-drawer-not-openable-from-sheet-card'));
+});
+
+// ── Arena's current composer is a TipTap/ProseMirror editor, not a textarea ──
+// The CI emulator captured a live arena.ai page whose message box is
+// div.tiptap.ProseMirror[contenteditable] with no textarea[name="message"].
+// The runtime gate must understand that composer instead of failing the build.
+test('the composer fill and gate understand the ProseMirror composer', async () => {
+  const pm = { textContent: '' };
+  const engine = {
+    setComposer(text) { pm.textContent = text === '' ? '\u200B' : text; return true; },
+  };
+  const page = vm.createContext({
+    window: { __sdEngine: engine },
+    document: { querySelector: (sel) => (sel === '.ProseMirror[contenteditable="true"]' ? pm : null) },
+    JSON, String,
+  });
+  const set = JSON.parse(vm.runInContext(FILL_SET, page));
+  assert.deepEqual(set, { engine: true, set: true, valueMatches: true });
+  const cleared = JSON.parse(vm.runInContext(FILL_CLEAR, page));
+  assert.deepEqual(cleared, { cleared: true }, 'a zero-width placeholder counts as empty');
 });

@@ -979,7 +979,7 @@ test('the smoke gate checks the drawers rows, not just that it opened', async ()
   const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
   assert.match(src, /DRAWER_PAGES_FACTS/, 'the probe no longer reads the drawer rows');
   assert.match(src, /data-bds-page/, 'the probe no longer identifies rows by page');
-  for (const page of ['doctor', 'memory', 'mcp', 'projects']) {
+  for (const page of ['memory', 'mcp', 'projects']) {
     assert.ok(src.includes(`'${page}'`), `the gate does not require the ${page} row`);
   }
   assert.match(
@@ -987,16 +987,15 @@ test('the smoke gate checks the drawers rows, not just that it opened', async ()
     /api-playground-offered-on-arena/,
     'the gate would let the DeepSeek-only API page come back on arena',
   );
-  assert.match(src, /check-up-page-hides-limitations/, 'the gate accepts a check-up that only says "fine"');
-  assert.match(src, /check-up-page-back-failed/, 'the gate never leaves the page again');
+  assert.match(src, /settings-row-should-be-removed-/, 'the gate lets removed rows come back');
+  assert.match(src, /settings-overview-not-restored/, 'the gate never checks the overview is back');
   // The header may be the overview title or a sub-page's Back label; pinning one
   // node failed a build while the page was correct.
   assert.match(src, /bds-back-label/, 'the gate only accepts one header node');
 });
 
-test('the check-up probe reads live markers, not the page copy', async () => {
+test('the probe does not drive the removed check-up page', async () => {
   const src = fs.readFileSync(path.join(REPO, 'android/ci/cdp_probe.mjs'), 'utf8');
-  for (const marker of ['.bds-doc-ok', '.bds-doc-off', '.bds-doc-warn', 'doctorLines']) {
-    assert.ok(src.includes(marker), `the probe no longer reads ${marker}`);
-  }
+  assert.ok(!src.includes("step('doctor-page'"), 'the probe still opens a check-up page');
+  assert.ok(src.includes("'doctor'"), 'the probe must keep the check-up row on its must-be-absent list');
 });
