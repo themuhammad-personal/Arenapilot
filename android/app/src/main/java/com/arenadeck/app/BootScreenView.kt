@@ -429,12 +429,12 @@ internal class BootScreenView(
         const val FILL_START_S = 1.6f
         const val FILL_TAU_S = 5.5f
 
-        /** ArenaPilot brand blue, used only as a faint glow. */
-        const val ACCENT = 0xFF1E8CFF.toInt()
+        /** Arena brand-blue-6, used only as a faint glow. */
+        const val ACCENT = 0xFF299BFF.toInt()
         /** Soft blue at the leading edge of the fill. */
-        const val EDGE = 0xFF6FE6FF.toInt()
-        /** Loaded letters: the chat's own near-white text. */
-        const val TEXT = 0xFFF1F2F4.toInt()
+        const val EDGE = 0xFF99CFFF.toInt()
+        /** Loaded letters: Arena's own dark-theme text-primary. */
+        const val TEXT = 0xFFF4F0EB.toInt()
 
         fun withAlpha(color: Int, a: Float): Int =
             (color and 0x00FFFFFF) or ((255 * a.coerceIn(0f, 1f)).toInt() shl 24)

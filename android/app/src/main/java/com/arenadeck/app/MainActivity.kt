@@ -888,7 +888,6 @@ class MainActivity : ComponentActivity() {
             runCatching { bridge.removeLegacyToken() }
             cleanupOldCaptures(cacheDir)
         }.start()
-        maybeCheckForUpdate()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -1083,7 +1082,7 @@ class MainActivity : ComponentActivity() {
          * (then [storedDarkPageColor] remembers the real value). Matches
          * @color/bds_splash_bg so the splash hand-off is seamless.
          */
-        const val PAGE_DARK_DEFAULT = 0xFF1E1F23.toInt()
+        const val PAGE_DARK_DEFAULT = 0xFF252523.toInt()
         const val UI_PREFS = "sd_ui"
         const val PREF_DARK_PAGE_COLOR = "dark_page_color"
         /** Only clearly dark colours are remembered as the chat's dark background. */
@@ -1685,77 +1684,5 @@ class MainActivity : ComponentActivity() {
         pendingPageActions.clear()
         if (!::officialWebView.isInitialized || isDestroyed) return
         queued.forEach { officialWebView.evaluateJavascript(buildPageActionScript(it), null) }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // In-app updates (UpdateChecker was written but never called)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private val updateChecker by lazy { UpdateChecker(applicationContext) }
-
-    private fun maybeCheckForUpdate() {
-        // Only when this site's profile enables self-updates (see SiteProfile).
-        if (!site.selfUpdateEnabled) return
-        val checker = updateChecker
-        if (!checker.isAutoCheckDue()) return
-        Thread {
-            val installed = try {
-                @Suppress("DEPRECATION")
-                val info = packageManager.getPackageInfo(packageName, 0)
-                InstalledApp(info.versionName, info.lastUpdateTime, BuildConfig.BUILD_ID)
-            } catch (_: Exception) { return@Thread }
-            val result = checker.check(installed)
-            checker.markChecked()
-            if (result is UpdateCheckResult.Available) {
-                runOnUiThread { if (!isFinishing && !isDestroyed) showUpdateDialog(result.info, installed) }
-            }
-        }.start()
-    }
-
-    private fun showUpdateDialog(info: UpdateInfo, installed: InstalledApp) {
-        val message = if (info.versionName == installed.versionName) {
-            // Same version, newer CI build (either channel).
-            getString(R.string.bds_update_message_beta, info.versionName)
-        } else {
-            getString(R.string.bds_update_message, info.versionName, installed.versionName ?: "?")
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.bds_update_title)
-            .setMessage(message)
-            .setPositiveButton(R.string.bds_update_download) { _, _ -> downloadAndInstallUpdate(info) }
-            .setNegativeButton(R.string.bds_update_later) { _, _ -> updateChecker.rememberDeclined(info.digest) }
-            .show()
-    }
-
-    private fun downloadAndInstallUpdate(info: UpdateInfo) {
-        if (!packageManager.canRequestPackageInstalls()) {
-            android.widget.Toast.makeText(this, R.string.bds_update_need_permission, android.widget.Toast.LENGTH_LONG).show()
-            try {
-                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:$packageName")))
-            } catch (_: Exception) {}
-            return
-        }
-        android.widget.Toast.makeText(this, R.string.bds_update_downloading, android.widget.Toast.LENGTH_SHORT).show()
-        val target = File(File(cacheDir, "updates").apply { mkdirs() }, "update.apk")
-        Thread {
-            val failure = updateChecker.downloadApk(info, target)
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                if (failure != null) {
-                    android.widget.Toast.makeText(this, getString(R.string.bds_update_download_failed, failure), android.widget.Toast.LENGTH_LONG).show()
-                    return@runOnUiThread
-                }
-                try {
-                    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", target)
-                    startActivity(Intent(Intent.ACTION_VIEW)
-                        .setDataAndType(uri, "application/vnd.android.package-archive")
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
-                } catch (e: Exception) {
-                    Log.w("ArenaPilot", "Installer launch failed", e)
-                    android.widget.Toast.makeText(this, R.string.bds_update_install_failed, android.widget.Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
     }
 }

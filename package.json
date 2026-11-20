@@ -2,8 +2,8 @@
   "name": "arenapilot",
   "private": true,
   "type": "module",
-  "version": "3.0.0",
-  "description": "ArenaPilot — an independent Android client for arena.ai Direct Chat with a built-in agent engine.",
+  "version": "3.1.0",
+  "description": "ArenaPilot — an independent Android client for arena.ai with a built-in agent engine.",
   "scripts": {
     "test": "npm run test:template && npm run test:engine && npm run test:models",
     "test:template": "node --test scripts/*.test.mjs",

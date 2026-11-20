@@ -18,7 +18,7 @@ assert.ok(start > 0 && end > start, 'sdBuildOverview is present');
 const overview = content.slice(start, end);
 
 test('Advanced settings overview has a row for every page that works on arena.ai', () => {
-  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor']) {
+  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data']) {
     assert.match(overview, new RegExp(`key:\\\\?"${key}\\\\?"`), `overview row "${key}"`);
   }
 });

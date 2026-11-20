@@ -113,8 +113,7 @@
              startup: Android kills dependent clients when that provider dies
              (observed in run 38510532054). Keep other AndroidX Startup
              initializers intact; native emoji fall back to the OS font and
-             WebView emoji are unaffected. (This used to live in the arenaDeck
-             flavor manifest; merged into main when the flavors were removed.) -->
+             WebView emoji are unaffected. (Part of the single ArenaPilot manifest.) -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

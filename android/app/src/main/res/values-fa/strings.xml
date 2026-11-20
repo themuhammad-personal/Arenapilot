@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="bds_update_title">به‌روزرسانی موجود است</string>
-    <string name="bds_update_message">نسخه %1$s از ArenaPilot موجود است. نسخه شما %2$s است.</string>
-    <string name="bds_update_message_beta">نسخهٔ جدیدتری از ArenaPilot %1$s موجود است.</string>
-    <string name="bds_update_download">دانلود</string>
-    <string name="bds_update_later">بعداً</string>
-    <string name="bds_update_downloading">در حال دانلود به‌روزرسانی…</string>
-    <string name="bds_update_download_failed">دانلود ناموفق بود (%1$s).</string>
-    <string name="bds_update_need_permission">برای ArenaPilot اجازه نصب برنامه‌های ناشناس را بدهید و دوباره تلاش کنید.</string>
-    <string name="bds_update_install_failed">باز کردن نصب‌کننده ممکن نشد.</string>
     <string name="bds_download_started">در حال دانلود %1$s…</string>
 
     <!-- App Shortcuts -->

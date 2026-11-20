@@ -1,5 +1,5 @@
 /**
- * ArenaPilot — DeepSeek DOM health check.
+ * ArenaPilot — page health check (silent: reports state, never draws a warning).
  *
  * The engine leans on DeepSeek's DOM, including hashed class names that can
  * change with any site update. When one of them drifts, features must NOT
@@ -322,60 +322,18 @@
     return SITE.notice(namesFor(report.failed));
   }
 
+  /*
+   * Page-drift reports are kept for the engine's own bookkeeping (status(),
+   * lastNotice()) but are never drawn: no toast, no banner. A warning that pops over
+   * the chat helps nobody, and the engine already pauses the features it cannot
+   * verify. Any notice an older build left in the page is removed.
+   */
   function showNotice(report) {
     var text = noticeText(report);
     lastNotice = isBn() ? text.bn : text.en;
-    // A notice nothing rendered is not a notice. Recording "shown" before this
-    // point made a broken page look like a delivered warning: the toast may not
-    // exist and the banner needs document.body. Only the last success records it.
-    var rendered = false;
     try {
-      if (window.__sdEngine && typeof window.__sdEngine.toast === 'function') {
-        window.__sdEngine.toast(lastNotice);
-      }
-    } catch (_) {}
-    try {
-      if (!document.body) return;
-      var key = report.failed.slice().sort().join(',');
-      if (dismissedFor === key) return; // this exact drift was dismissed by the user
-      var old = document.getElementById('sd-health-notice');
-      // One notice at a time — but a DIFFERENT drift replaces the visible one
-      // instead of being swallowed by it. The old `if (old) return;` meant the
-      // first (often transient, right after a route change) failure hid every
-      // later, real one for the rest of the session.
-      if (old && noticeFor === key) return;
-      if (old) { try { old.remove(); } catch (_) {} }
-      noticeFor = key;
-      var el = document.createElement('div');
-      el.id = 'sd-health-notice';
-      el.setAttribute('role', 'status');
-      el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);' +
-        'bottom:calc(env(safe-area-inset-bottom,0px) + 84px);z-index:999980;' +
-        'max-width:min(92vw,520px);box-sizing:border-box;padding:12px 14px;border-radius:14px;' +
-        'background:rgba(28,28,32,.95);color:#f1f1f3;border:1px solid rgba(255,255,255,.1);' +
-        'font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
-        'box-shadow:0 8px 28px rgba(0,0,0,.32);display:flex;gap:10px;align-items:flex-start';
-      var msg = document.createElement('div');
-      msg.textContent = lastNotice;
-      var x = document.createElement('button');
-      x.type = 'button';
-      x.setAttribute('aria-label', t('Dismiss', 'বাতিল'));
-      x.textContent = '✕';
-      x.style.cssText = 'flex:none;border:0;background:transparent;color:#f1f1f3;opacity:.7;' +
-        'font:600 14px/1 system-ui;padding:4px 6px';
-      x.addEventListener('click', function () {
-        dismissedFor = noticeFor;
-        el.remove();
-      });
-      el.appendChild(msg);
-      el.appendChild(x);
-      document.body.appendChild(el);
-      rendered = true;
-    } catch (_) {}
-    if (!rendered) return;
-    try {
-      var b = window.AndroidBridge;
-      if (b && typeof b.setStorage === 'function') b.setStorage(NOTICE_SHOWN_KEY, String(Date.now()));
+      var stale = document.getElementById('sd-health-notice');
+      if (stale) stale.remove();
     } catch (_) {}
   }
 
@@ -404,21 +362,7 @@
     try { mode = window.__sdSite.arenaMode(); } catch (_) {}
     try {
       var old = document.getElementById('sd-arena-mode-notice');
-      var input = document.querySelector('textarea[name="message"]');
-      var form = input && input.closest('form');
-      if (mode === 'direct' || !form) { if (old) old.remove(); return mode; }
-      var text = mode === 'unsupported'
-        ? t('ArenaPilot tools work in single-model Chat (Auto, Text, Code, Web Search, Image, Video). Battle and Side-by-side stay on the official page.', 'ArenaPilot-এর টুল একক-মডেল Chat-এ (Auto, Text, Code, Web Search, Image, Video) কাজ করে। Battle ও Side-by-side অফিসিয়াল পেজেই থাকে।')
-        : mode === 'agent'
-        ? t('Agent mode runs on Arena\u2019s own tools and sandbox. ArenaPilot adds only read-only context here (project, persona, relevant memory, matching skills) when the request can be verified; MCP and tag tools stay off so nothing runs twice.', 'Agent মোড Arena-র নিজস্ব টুল ও স্যান্ডবক্সে চলে। অনুরোধ যাচাই করা গেলে ArenaPilot এখানে শুধু পড়ার-মতো প্রসঙ্গ (প্রজেক্ট, পারসোনা, প্রাসঙ্গিক মেমরি, মিলে যাওয়া স্কিল) যোগ করে; কোনো কাজ দুবার চলতে না দিতে MCP ও ট্যাগ-টুল বন্ধ থাকে।')
-        : t('ArenaPilot tools are paused: the Chat mode could not be verified. Select Chat and a model to continue.', 'Chat মোড নিশ্চিত করা যায়নি, তাই ArenaPilot-এর টুল থামানো আছে। চালাতে Chat ও একটি মডেল বেছে নিন।');
-      if (!old) {
-        old = document.createElement('div'); old.id = 'sd-arena-mode-notice';
-        old.className = 'bds-mode-notice'; old.setAttribute('role', 'status');
-        old.style.cssText = 'width:100%;box-sizing:border-box;font:12px/1.5 system-ui;padding:8px 10px;border-radius:8px;background:rgba(128,128,128,.12);color:inherit';
-      }
-      if (old.textContent !== text) old.textContent = text;
-      if (old.parentElement !== form) form.appendChild(old);
+      if (old) old.remove();
     } catch (_) {}
     return mode;
   }

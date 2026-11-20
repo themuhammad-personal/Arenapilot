@@ -26,7 +26,7 @@ ACTIVITY=com.arenadeck.app.MainActivity
 BOOT_WAIT="${SMOKE_BOOT_WAIT:-25}"
 NOTICE_WAIT="${SMOKE_NOTICE_WAIT:-40}"
 RETRY_SLEEP="${SMOKE_UI_RETRY_SLEEP:-2}"
-NOTICE_TEXT="An independent app"   # the arena_notice_title in src/arenaDeck/res/values/strings.xml
+NOTICE_TEXT="An independent app"   # the arena_notice_title in src/main/res/values/strings.xml
 
 APK=$(ls android/app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
 if [ -z "$APK" ]; then

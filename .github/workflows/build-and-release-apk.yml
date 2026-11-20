@@ -529,7 +529,7 @@ jobs:
             **Commit:** `${{ github.sha }}`
 
             ArenaPilot is an **independent, unofficial** Android client for
-            [arena.ai](https://arena.ai) Direct Chat. It is NOT affiliated with,
+            [arena.ai](https://arena.ai). It is NOT affiliated with,
             endorsed by or sponsored by arena.ai. You use arena.ai through its own
             website, under its own terms and privacy policy.
 
@@ -537,7 +537,7 @@ jobs:
             সম্পর্ক নেই। আপনি arena.ai-এর নিজস্ব ওয়েবসাইট ও শর্তাবলির অধীনেই এটি ব্যবহার করছেন।
 
             #### What is inside
-            - Project context, opt-in memory and configured MCP tools in supported Direct chats.
+            - Project context, opt-in memory and configured MCP tools in Chat mode (Auto, Text, Code, Web Search, Image, Video).
               Code execution belongs to Arena; the APK contains no Linux runtime.
             - **+ menu file cards**: text-like files are delivered through the chat
               itself (every model receives them); images go through arena's own picker
@@ -545,8 +545,8 @@ jobs:
               Deep Research need the model to know the protocol), **stored memory is
               OFF** — a separate opt-in. Both are switchable in Advanced settings →
               Chat & messages, and the first-launch notice explains exactly what is sent
-            - Works on Direct Chat only; Battle / Side-by-side / Agent modes show a
-              notice and stay untouched
+            - Chat mode (every sub-mode) gets the full engine; Agent mode receives
+              read-only context and keeps Arena's own tools untouched
 
             #### Honest status
             - Verified on the real site by CI on every push: engine UI mounts, the

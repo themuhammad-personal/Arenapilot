@@ -182,7 +182,7 @@ test('real drift on a conversation IS reported, and the notice is branded for Ar
   const r = health.check();
   assert.equal(r.ok, false);
   assert.deepEqual(plain(r.failed), ['messages']);
-  assert.equal(shown.length, 1, 'one notice');
+  assert.equal(shown.length, 0, 'recorded in the report, never shown as a toast');
   const text = health.lastNotice();
   assert.match(text, /arena\.ai may have changed its page/);
   assert.match(text, /chat messages may be paused in ArenaPilot until the next update/);
@@ -197,7 +197,7 @@ test('the message box drifting on a visible conversation is reported too', () =>
   const r = health.check();
   assert.deepEqual(plain(r.failed), ['composer']);
   assert.equal(statesOf(r).composer, 'degraded');
-  assert.equal(shown.length, 1);
+  assert.equal(shown.length, 0);
   assert.match(health.lastNotice(), /the message box may be paused in ArenaPilot/);
 });
 

@@ -28,9 +28,10 @@ test('settings overview no longer lists the DeepSeek-only extras', () => {
 });
 
 test('settings overview keeps the essentials', () => {
-  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data', 'doctor']) {
+  for (const key of ['prompts', 'memory', 'language', 'mcp', 'projects', 'commands', 'chat', 'appearance', 'data']) {
     assert.ok(overview.includes(`key:"${key}"`), `row ${key} must stay`);
   }
+  assert.ok(!overview.includes('key:"doctor"'), 'the check-up card is removed');
 });
 
 test('+ sheet never shows GitHub repo or web-page import cards', () => {

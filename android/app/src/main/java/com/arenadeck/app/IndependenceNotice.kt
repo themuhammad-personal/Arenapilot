@@ -9,10 +9,8 @@ import android.content.Context
  * not affiliated with, endorsed by or sponsored by arena.ai.
  *
  * It is shown once, right after the launch screen has played, so it never
- * competes with the launch animation or covers a half-loaded page. (It used to
- * live in the `arenaDeck` flavor source set; since the 2026-10-15 flavor
- * cleanup it is part of the single `main` source set, and its strings are
- * `translatable="false"` in `main/res/values/strings.xml`.)
+ * competes with the launch animation or covers a half-loaded page. Its strings are
+ * `translatable="false"` in `main/res/values/strings.xml`.
  */
 internal object IndependenceNotice {
     private const val PREFS = "sd_notices"

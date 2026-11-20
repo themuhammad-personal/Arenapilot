@@ -107,46 +107,30 @@ function loadDom(map = {}) {
   return { ctx, document, body };
 }
 
-test('a later, different drift replaces the visible notice instead of being swallowed', () => {
+test('drift is recorded in the report and never drawn as a notice', () => {
   const dead = {
     'textarea#chat-input': [{}],
     '.ds-icon-send': [{}],
     'div.ds-message': [{ textContent: 'a reply' }, { textContent: 'another' }],
   };
   const { ctx, body } = loadDom(dead);
-  // First: messages drift.
   const first = ctx.__sdHealth.evaluate(null);
   assert.equal(first.ok, false);
   ctx.__sdHealth.check();
-  const notices1 = body.children.filter((n) => n.id === 'sd-health-notice');
-  assert.equal(notices1.length, 1, 'the first failure shows a notice');
-
-  // Now a DIFFERENT failure: the composer itself disappears.
-  const already = () => body.children.filter((n) => n.id === 'sd-health-notice');
-  assert.equal(already().length, 1);
-  // Same report again is not duplicated.
   ctx.__sdHealth.check();
-  assert.equal(already().length, 1, 'the same failure is not shown twice');
+  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0, 'no banner is ever drawn');
+  assert.ok(ctx.__sdHealth.lastNotice().length > 0, 'the report text is still recorded');
 });
 
-test('dismissing a notice does not silence a different failure later', () => {
-  const dead = { 'div.ds-message': [{ textContent: 'a reply' }] };
+test('a notice left in the page by an older build is removed', () => {
   const { ctx, body } = loadDom({
     'textarea#chat-input': [{}], '.ds-icon-send': [{}], 'div.ds-message': [{ textContent: 'r' }],
   });
+  const stale = { id: 'sd-health-notice', children: [], removed: false, remove() { this.removed = true; body.children = body.children.filter((c) => c !== this); } };
+  body.children.push(stale);
+  ctx.document.getElementById = (id) => body.children.find((n) => n.id === id) || null;
   ctx.__sdHealth.check();
-  const notice = body.children.find((n) => n.id === 'sd-health-notice');
-  assert.ok(notice, 'notice shown');
-  // The user dismisses it.
-  const close = notice.children.find((c) => c.listeners && c.listeners.click);
-  assert.ok(close, 'the notice carries a dismiss button');
-  close.listeners.click.forEach((fn) => fn());
-  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0, 'dismissed');
-
-  // The SAME failure stays quiet (the user already answered it)…
-  ctx.__sdHealth.check();
-  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0);
-  assert.ok(dead); // (fixture kept for readability)
+  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0, 'the stale banner is gone');
 });
 
 test('a healthy chat page reports ok and raises no notice', () => {
@@ -259,16 +243,11 @@ test('the bundle parses as a whole and installs a versioned API', () => {
 // change) failure suppressed every later, real warning for the whole session —
 // and the user was told nothing when a feature actually broke.
 
-test('a recovered page retracts a stale warning', () => {
-  // End to end on purpose: check() always runs the real probe, so the DOM itself
-  // is broken and then restored — exactly what a route change does.
+test('a drifting and then recovered page never shows a warning', () => {
   const sendButton = { querySelector: (sel) => (sel === '.ds-icon-send' ? {} : null),
     getAttribute: () => null, closest: () => null };
   const map = {
     'textarea#chat-input': [{}],
-    // Conversation content on screen is what allows an arena/DeepSeek notice at
-    // all (the sign-in page matches nothing and must stay silent), so the
-    // fixture has to show a reply row for a drift to be reportable.
     'div.ds-message': [{ textContent: 'a reply' }],
     'div.ds-message._63c77b1': [{ textContent: 'a reply' }],
     '._4f9bf79._43c05b5': [{ textContent: 'a reply' }],
@@ -276,18 +255,14 @@ test('a recovered page retracts a stale warning', () => {
   };
   const { ctx, body } = loadDom(map);
   const noticeCount = () => body.children.filter((n) => n.id === 'sd-health-notice').length;
-
-  // The page is mid-route: the composer and every send button are gone.
   delete map['textarea#chat-input'];
   delete map['div[role="button"], button'];
   ctx.__sdHealth.check();
-  assert.equal(noticeCount(), 1, 'a real drift shows the notice');
-
-  // The route finishes rendering: the composer and Send are back.
+  assert.equal(noticeCount(), 0, 'a drift is not drawn');
   map['textarea#chat-input'] = [{}];
   map['div[role="button"], button'] = [sendButton];
   ctx.__sdHealth.check();
-  assert.equal(noticeCount(), 0, 'a recovered page retracts the stale warning');
+  assert.equal(noticeCount(), 0, 'and nothing is left behind after recovery');
 });
 
 // The fixture the existing tests use: a page whose every strict contract holds.
@@ -303,15 +278,13 @@ function healthyMap() {
   };
 }
 
-test('a warning tells the user what to do, not just what broke', () => {
+test('the recorded report still tells the user what to do, not just what broke', () => {
   const map = healthyMap();
   const { ctx, body } = loadDom(map);
-  // A route change: the composer is gone, the conversation rows are still there.
   delete map['textarea#chat-input'];
   ctx.__sdHealth.check();
-  const notice = body.children.find((n) => n.id === 'sd-health-notice');
-  assert.ok(notice, 'a notice is shown');
-  const text = (notice.children || []).map((c) => c.textContent || '').join(' ');
+  assert.equal(body.children.filter((n) => n.id === 'sd-health-notice').length, 0, 'nothing is drawn');
+  const text = ctx.__sdHealth.lastNotice();
   assert.match(text, /reload/i, 'the reload step is spelled out');
   assert.match(text, /About/, 'and where the update lives');
 });

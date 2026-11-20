@@ -466,22 +466,10 @@ test('the DeepSeek-only API playground is not offered on arena', () => {
 // come from something that is actually read at runtime on this page, and the
 // page has to be reachable from the drawer.
 
-test('the check-up reads the live engine and is reachable from the drawer', () => {
-  const doctor = fnSource('sdBuildDoctor');
-  // Live signals, not stored copy:
-  for (const signal of ['__sdAgent', 'diagnose()', '__sdHealth', 'sdsIsArena()']) {
-    assert.ok(doctor.includes(signal), `the check-up never reads ${signal}`);
-  }
-  // It must be able to say "not on this site" — silence is the failure mode.
-  assert.match(doctor, /state:"off"/, 'the check-up cannot report an unusable feature');
-  assert.match(doctor, /state:"warn"/, 'the check-up cannot report a problem');
-
-  // Reachable: a drawer row and a page route.
+test('the check-up card is gone from the drawer (no dead or diagnostic cards)', () => {
   assert.ok(
-    CONTENT.includes('onClick:function(){h.go("doctor")}'),
-    'no drawer row opens the check-up',
+    !CONTENT.includes('onClick:function(){h.go("doctor")}'),
+    'no drawer row opens the check-up any more',
   );
-  assert.ok(CONTENT.includes('case"doctor":'), 'the check-up page has no title');
-  const route = CONTENT.slice(CONTENT.indexOf('sdDocPg'));
-  assert.ok(route.includes('sdBuildDoctor'), 'the doctor page is not wired to the builder');
+  assert.ok(!/key:\\?"doctor\\?"/.test(fnSource('sdBuildOverview')), 'the overview lists no doctor row');
 });

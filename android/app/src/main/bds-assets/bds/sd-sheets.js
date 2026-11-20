@@ -479,6 +479,29 @@
     else document.addEventListener('DOMContentLoaded', watchDrawer);
   }
 
+  // ── Haptics ────────────────────────────────────────────────────────────
+  // A light native tick when an engine-owned control is pressed (drawer rows,
+  // switches, buttons, sheet cards). Uses the existing AndroidBridge.performHaptic;
+  // silent without the bridge, and off when the system asks for reduced motion.
+  function installHaptics() {
+    if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+    var SEL = '#bds-drawer button, #bds-drawer .bds-switch, #bds-drawer .bds-set-row, ' +
+      '.bds-attach-dropdown button, .bds-attach-item, .bds-project-panel button, .bds-cmd-dropdown button';
+    var last = 0;
+    document.addEventListener('pointerdown', function (e) {
+      try {
+        var el = e.target && e.target.closest && e.target.closest(SEL);
+        if (!el || el.disabled) return;
+        var now = Date.now();
+        if (now - last < 60 || reducedMotion()) return;
+        last = now;
+        var b = window.AndroidBridge;
+        if (b && typeof b.performHaptic === 'function') b.performHaptic('tick');
+      } catch (_) {}
+    }, true);
+  }
+
+  installHaptics();
   install();
 
   window.__sdSheets = {

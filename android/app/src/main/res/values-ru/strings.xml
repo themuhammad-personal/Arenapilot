@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="bds_update_title">Доступно обновление</string>
-    <string name="bds_update_message">Доступна версия ArenaPilot %1$s. У вас установлена %2$s.</string>
-    <string name="bds_update_message_beta">Доступна новая сборка ArenaPilot %1$s.</string>
-    <string name="bds_update_download">Скачать</string>
-    <string name="bds_update_later">Позже</string>
-    <string name="bds_update_downloading">Загрузка обновления…</string>
-    <string name="bds_update_download_failed">Не удалось скачать (%1$s).</string>
-    <string name="bds_update_need_permission">Разрешите установку из неизвестных источников для ArenaPilot и повторите попытку.</string>
-    <string name="bds_update_install_failed">Не удалось открыть установщик пакетов.</string>
     <string name="bds_download_started">Загрузка %1$s…</string>
 
     <!-- App Shortcuts -->
